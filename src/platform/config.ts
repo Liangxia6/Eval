@@ -114,7 +114,7 @@ function defaults(cwd: string): Omit<MvpConfigValues, "targetRoot"> {
     contentMode: "DIGEST",
     allowedModelEndpoints: [],
     minimumIsolationLevel: "AGENT_SEPARATED",
-    rendererVersion: "dsheval-static/v1",
+    rendererVersion: "dsheval-static/v2",
     secretRefNames: [],
   };
 }

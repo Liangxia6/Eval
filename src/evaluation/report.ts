@@ -534,18 +534,42 @@ function renderHtml(
   rendererVersion: string,
 ): string {
   const e = escapeHtml;
+  const enhanced = rendererVersion === "dsheval-static/v2";
+  const settledSteps = view.timeline.filter((step) =>
+    step.status === "SUCCEEDED" || step.status === "FAILED" || step.status === "BLOCKED"
+  ).length;
+  const sectionId = (id: string): string => enhanced ? ` id="${id}"` : "";
+  const semanticPill = (value: string): string => enhanced
+    ? `<span class="status-pill ${statusTone(value)}">${e(value)}</span>`
+    : e(value);
   const gate = view.gate ?? "尚未产生";
   const gateReason = view.gate === undefined && view.gateAbsenceReason !== undefined
     ? `<br><small>Reason: ${e(view.gateAbsenceReason)}</small>`
     : "";
+  const compactStepLabels = [
+    "Target 冻结",
+    "DSH 检查",
+    "生成计划",
+    "环境预检",
+    "Before / Probe",
+    "Agent 执行",
+    "Evidence 闭合",
+    "三项判定",
+    "Reset 验证",
+    "Gate / 报告",
+  ] as const;
   const timeline = view.timeline
-    .map(
-      (step) => `<li class="step ${statusClass(step.status)}"><div><strong>${step.number}. ${e(step.label)}</strong> <span>${e(step.status)}</span></div><small>${e(step.startedAt ?? "尚未产生")} → ${e(step.endedAt ?? "尚未产生")}</small>${step.objectRefs.length === 0 ? "" : `<div>Refs: ${step.objectRefs.map(e).join(", ")}</div>`}${step.failureGroups.length === 0 ? "" : `<div>Failure: ${step.failureGroups.map(e).join(", ")}</div>`}${step.hintCode === undefined ? "" : `<div>Hint: ${e(troubleshootingHint(step.hintCode))}</div>`}</li>`,
-    )
+    .map((step) => {
+      if (!enhanced) {
+        return `<li class="step ${statusClass(step.status)}"><div><strong>${step.number}. ${e(step.label)}</strong> <span>${e(step.status)}</span></div><small>${e(step.startedAt ?? "尚未产生")} → ${e(step.endedAt ?? "尚未产生")}</small>${step.objectRefs.length === 0 ? "" : `<div>Refs: ${step.objectRefs.map(e).join(", ")}</div>`}${step.failureGroups.length === 0 ? "" : `<div>Failure: ${step.failureGroups.map(e).join(", ")}</div>`}${step.hintCode === undefined ? "" : `<div>Hint: ${e(troubleshootingHint(step.hintCode))}</div>`}</li>`;
+      }
+      const expanded = step.status === "RUNNING" || step.status === "FAILED" || step.status === "BLOCKED";
+      return `<li class="step ${statusClass(step.status)}" aria-label="${e(`${step.number}. ${step.label}: ${step.status}`)}"><div class="step-head"><span class="step-number">${String(step.number).padStart(2, "0")}</span><span>${e(step.status)}</span></div><strong class="step-label">${e(compactStepLabels[step.number - 1] ?? step.label)}</strong><details${expanded ? " open" : ""}><summary>详情</summary><div class="step-full-label">${e(step.label)}</div><small>${e(step.startedAt ?? "尚未产生")} → ${e(step.endedAt ?? "尚未产生")}</small>${step.objectRefs.length === 0 ? "" : `<div>Refs: ${step.objectRefs.map(e).join(", ")}</div>`}${step.failureGroups.length === 0 ? "" : `<div>Failure: ${step.failureGroups.map(e).join(", ")}</div>`}${step.hintCode === undefined ? "" : `<div>Hint: ${e(troubleshootingHint(step.hintCode))}</div>`}</details></li>`;
+    })
     .join("");
   const sources = view.sources
     .map(
-      (source) => `<tr><td>${e(source.sourceId)}</td><td>${e(source.sourceType)}</td><td>${e(source.trust)}</td><td>${e(source.completeness)}</td><td>${e(source.health)}</td><td>${source.gaps.map(e).join(", ") || "—"}</td></tr>`,
+      (source) => `<tr><td>${e(source.sourceId)}</td><td>${e(source.sourceType)}</td><td>${semanticPill(source.trust)}</td><td>${semanticPill(source.completeness)}</td><td>${semanticPill(source.health)}</td><td>${source.gaps.map(e).join(", ") || "—"}</td></tr>`,
     )
     .join("");
   const checks = view.checks
@@ -560,7 +584,8 @@ function renderHtml(
           (id) => `<li><a href="#evidence-${safeAnchor(id)}"><code>${e(id)}</code></a></li>`,
         )
         .join("");
-      return `<section class="check" id="check-${safeAnchor(check.checkResultId)}"><h3>${e(check.checkId)}: <span class="${outcomeClass(check.outcome)}">${e(check.outcome)}</span></h3><dl><dt>CheckResult</dt><dd><code>${e(check.checkResultId)}</code></dd><dt>Closure</dt><dd id="closure-${safeAnchor(check.closureId)}"><code>${e(check.closureId)}</code> · ${e(check.closureState)}</dd><dt>Judgement</dt><dd id="judgement-${safeAnchor(check.judgementId)}"><code>${e(check.judgementId)}</code> · ${e(check.judgementStatus)}</dd><dt>Reasons</dt><dd>${check.reasonCodes.map(e).join(", ") || "—"}</dd></dl><h4>Findings</h4><ul>${findings || "<li>None</li>"}</ul><h4>Authorized evidence</h4><ul>${evidence || "<li>None</li>"}</ul></section>`;
+      const checkClass = enhanced ? ` check-${outcomeClass(check.outcome) || "pending"}` : "";
+      return `<section class="check${checkClass}" id="check-${safeAnchor(check.checkResultId)}"><h3>${e(check.checkId)}: <span class="${outcomeClass(check.outcome)}">${e(check.outcome)}</span></h3><dl><dt>CheckResult</dt><dd><code>${e(check.checkResultId)}</code></dd><dt>Closure</dt><dd id="closure-${safeAnchor(check.closureId)}"><code>${e(check.closureId)}</code> · ${e(check.closureState)}</dd><dt>Judgement</dt><dd id="judgement-${safeAnchor(check.judgementId)}"><code>${e(check.judgementId)}</code> · ${e(check.judgementStatus)}</dd><dt>Reasons</dt><dd>${check.reasonCodes.map(e).join(", ") || "—"}</dd></dl><h4>Findings</h4><ul>${findings || "<li>None</li>"}</ul><h4>Authorized evidence</h4><ul>${evidence || "<li>None</li>"}</ul></section>`;
     })
     .join("");
   const evidenceDetails = view.evidence
@@ -603,19 +628,218 @@ function renderHtml(
       ? ""
       : `<pre>${e(canonicalJson(view.reset.differenceSummary))}</pre>`;
 
+  const enhancedChrome = enhanced
+    ? `<div class="topbar"><div class="brand"><span class="brand-mark">D</span><span>DSHEval <small>Observatory</small></span></div><nav aria-label="页面导航"><a href="#workflow">流程</a><a href="#execution">观测</a><a href="#judging">判定</a><a href="#evidence">证据</a><a href="#failures">故障</a></nav><span class="view-kind">${finalReport ? "SEALED REPORT" : "STATUS SNAPSHOT"}</span></div>`
+    : "";
+  const progress = enhanced
+    ? `<div class="progress-block"><div><span>已结算流程步骤</span><strong>${settledSteps} / 10</strong></div><div class="progress-track" role="progressbar" aria-label="Workflow progress" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${settledSteps}"><span style="width:${settledSteps * 10}%"></span></div></div>`
+    : "";
+  const operationalStrip = enhanced
+    ? `<section class="operational-strip" aria-label="Operational summary"><div><small>Reset verification</small>${semanticPill(view.reset.result)}</div><div><small>Environment</small>${semanticPill(view.reset.environmentState)}</div><div><small>Sources observed</small><strong>${view.sources.length}</strong></div><div><small>Recorded failures</small><strong class="${view.failures.length === 0 ? "pass" : "fail"}">${view.failures.length}</strong></div></section>`
+    : "";
+  const failureAlert = enhanced && view.failures.length > 0
+    ? `<aside class="failure-alert"><div><strong>${view.failures.length} recorded failure${view.failures.length === 1 ? "" : "s"}</strong><span>Agent、Collector、Judge 与 Infrastructure 归因保持独立。</span></div><a href="#failures">查看故障事实 ↓</a></aside>`
+    : "";
+  const summary = enhanced
+    ? `<div>Phase<br><strong>${e(view.currentPhase)}</strong></div><div>Run state<br><strong>${e(view.runState)}</strong></div><div>Gate<br><strong class="${outcomeClass(gate)}">${e(gate)}</strong>${gateReason}</div><div>Health<br><strong>${e(view.operationalHealth)}</strong></div><div>Run<br><strong>${e(view.runId)}</strong></div><div>Target<br><strong>${e(view.targetSummary)}</strong></div><div>Execution class<br><strong>${view.fixture ? "FIXTURE" : "FORMAL"}</strong></div><div>Security isolation<br><strong>${e(view.securityIsolation)}</strong></div>`
+    : `<div>Run<br><strong>${e(view.runId)}</strong></div><div>Target<br><strong>${e(view.targetSummary)}</strong></div><div>Execution class<br><strong>${view.fixture ? "FIXTURE" : "FORMAL"}</strong></div><div>Security isolation<br><strong>${e(view.securityIsolation)}</strong></div><div>Phase<br><strong>${e(view.currentPhase)}</strong></div><div>Run state<br><strong>${e(view.runState)}</strong></div><div>Gate<br><strong class="${outcomeClass(gate)}">${e(gate)}</strong>${gateReason}</div><div>Health<br><strong>${e(view.operationalHealth)}</strong></div>`;
+
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(title)}</title><style>
-:root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,sans-serif}body{max-width:1100px;margin:auto;padding:24px;line-height:1.5}header,.panel,.check{border:1px solid #8886;border-radius:10px;padding:16px;margin:12px 0}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.summary div{background:#8881;padding:8px;border-radius:6px}.timeline{padding-left:24px}.step{margin:8px 0;padding:8px;border-left:5px solid #888}.step.ok{border-color:#16803c}.step.bad{border-color:#b42318}.step.busy{border-color:#1769aa}.pass{color:#16803c}.fail{color:#b42318}.unevaluable{color:#a15c00}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #8885;padding:7px}code,pre{overflow-wrap:anywhere}small{opacity:.75}a{color:inherit}dt{font-weight:700}dd{margin-bottom:5px}</style></head><body>
-<header><h1>${e(title)}</h1><div class="summary"><div>Run<br><strong>${e(view.runId)}</strong></div><div>Target<br><strong>${e(view.targetSummary)}</strong></div><div>Execution class<br><strong>${view.fixture ? "FIXTURE" : "FORMAL"}</strong></div><div>Security isolation<br><strong>${e(view.securityIsolation)}</strong></div><div>Phase<br><strong>${e(view.currentPhase)}</strong></div><div>Run state<br><strong>${e(view.runState)}</strong></div><div>Gate<br><strong class="${outcomeClass(gate)}">${e(gate)}</strong>${gateReason}</div><div>Health<br><strong>${e(view.operationalHealth)}</strong></div></div>${view.fixture ? '<p class="unevaluable"><strong>Fixture result:</strong> this Gate does not establish formal VM identity or network isolation.</p>' : ""}<p>${e(view.startedAt)} → ${e(view.updatedAt)}</p></header>
-<section class="panel"><h2>十步流程</h2><ol class="timeline">${timeline}</ol></section>
-<section class="panel"><h2>规划</h2><p>Cases: 1 · Attempts: 1 · Checks: ${view.planSummary.checkIds.map(e).join(", ")}</p></section>
-<section class="panel"><h2>执行与环境</h2><table><thead><tr><th>Source</th><th>Type</th><th>Trust</th><th>Completeness</th><th>Health</th><th>Gaps</th></tr></thead><tbody>${sources}</tbody></table><h3>Reset</h3><p>${e(view.reset.result)} / ${e(view.reset.environmentState)}</p>${resetDetails}</section>
-<section class="panel"><h2>判定</h2>${checks || "<p>尚未产生 CheckResult</p>"}</section>
-<section class="panel"><h2>证据下钻</h2><h3>EvidenceRecord</h3>${evidenceDetails || "<p>尚未产生 Evidence</p>"}<h3>RawObservation 定位</h3><ul>${rawDetails || "<li>尚未产生 RawObservation</li>"}</ul><h3>File Snapshot Entries</h3>${snapshotDetails || "<p>尚未产生 File Snapshot</p>"}<h3>File Diff</h3>${diffDetails || "<p>尚未产生 File Diff</p>"}</section>
-<section class="panel"><h2>Failures</h2><table><thead><tr><th>Group</th><th>Category</th><th>Actor</th><th>Reason</th><th>Message</th></tr></thead><tbody>${failures || '<tr><td colspan="5">None</td></tr>'}</tbody></table></section>
+${rendererStyles(rendererVersion)}</style></head><body${enhanced ? ' class="dsheval-v2"' : ""}>${enhancedChrome === "" ? "" : `\n${enhancedChrome}`}
+<header><h1>${e(title)}</h1><div class="summary">${summary}</div>${view.fixture ? `<p class="${enhanced ? "fixture-notice" : "unevaluable"}"><strong>Fixture result:</strong> this Gate does not establish formal VM identity or network isolation.</p>` : ""}<p>${e(view.startedAt)} → ${e(view.updatedAt)}</p></header>
+${progress}${operationalStrip}${failureAlert}<section${sectionId("workflow")} class="panel"><h2>十步流程</h2><ol class="timeline">${timeline}</ol></section>
+<section${sectionId("planning")} class="panel"><h2>规划</h2><p>Cases: 1 · Attempts: 1 · Checks: ${view.planSummary.checkIds.map(e).join(", ")}</p></section>
+<section${sectionId("execution")} class="panel"><h2>执行与环境</h2><table><thead><tr><th>Source</th><th>Type</th><th>Trust</th><th>Completeness</th><th>Health</th><th>Gaps</th></tr></thead><tbody>${sources}</tbody></table><h3>Reset</h3><p>${semanticPill(view.reset.result)} / ${semanticPill(view.reset.environmentState)}</p>${resetDetails}</section>
+<section${sectionId("judging")} class="panel"><h2>判定</h2>${checks || "<p>尚未产生 CheckResult</p>"}</section>
+<section${sectionId("evidence")} class="panel"><h2>证据下钻</h2><h3>EvidenceRecord</h3>${evidenceDetails || "<p>尚未产生 Evidence</p>"}<h3>RawObservation 定位</h3><ul>${rawDetails || "<li>尚未产生 RawObservation</li>"}</ul><h3>File Snapshot Entries</h3>${snapshotDetails || "<p>尚未产生 File Snapshot</p>"}<h3>File Diff</h3>${diffDetails || "<p>尚未产生 File Diff</p>"}</section>
+<section${sectionId("failures")} class="panel"><h2>Failures</h2><table><thead><tr><th>Group</th><th>Category</th><th>Actor</th><th>Reason</th><th>Message</th></tr></thead><tbody>${failures || '<tr><td colspan="5">None</td></tr>'}</tbody></table></section>
 <section class="panel"><h2>Artifacts</h2><ul>${artifacts || "<li>None</li>"}</ul></section>
 <footer><small>${finalReport ? "Authoritative report view" : "Non-authoritative status view"} · Renderer ${e(rendererVersion)} · No scripts or network dependencies</small></footer>
 </body></html>\n`;
+}
+
+const LEGACY_RENDERER_CSS = ":root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,sans-serif}body{max-width:1100px;margin:auto;padding:24px;line-height:1.5}header,.panel,.check{border:1px solid #8886;border-radius:10px;padding:16px;margin:12px 0}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.summary div{background:#8881;padding:8px;border-radius:6px}.timeline{padding-left:24px}.step{margin:8px 0;padding:8px;border-left:5px solid #888}.step.ok{border-color:#16803c}.step.bad{border-color:#b42318}.step.busy{border-color:#1769aa}.pass{color:#16803c}.fail{color:#b42318}.unevaluable{color:#a15c00}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #8885;padding:7px}code,pre{overflow-wrap:anywhere}small{opacity:.75}a{color:inherit}dt{font-weight:700}dd{margin-bottom:5px}";
+
+const ENHANCED_RENDERER_CSS = `
+:root {
+  color-scheme: light dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  --bg: #f2f5fb;
+  --surface: #fff;
+  --surface-2: #f7f9fd;
+  --ink: #111827;
+  --muted: #64748b;
+  --line: #dce3ee;
+  --accent: #5b5ce2;
+  --accent-2: #7c3aed;
+  --good: #087343;
+  --good-bg: #e9f9f0;
+  --good-chip: #c9f0da;
+  --bad: #b4233b;
+  --bad-bg: #fff0f2;
+  --bad-chip: #ffd7dc;
+  --warn: #9a5700;
+  --warn-bg: #fff7df;
+  --busy: #1d4ed8;
+  --busy-bg: #eef4ff;
+  --busy-chip: #dbeafe;
+  --neutral-chip: #e2e8f0;
+  --shadow: 0 18px 45px rgba(30, 41, 59, .08);
+  --glow-a: #c7d2fe;
+  --glow-b: #ddd6fe;
+  --target: #eef2ff;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body.dsheval-v2 {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 32px 56px;
+  background: radial-gradient(circle at 9% -8%, var(--glow-a) 0, transparent 27rem), radial-gradient(circle at 92% 4%, var(--glow-b) 0, transparent 23rem), var(--bg);
+  color: var(--ink);
+  line-height: 1.55;
+}
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 56px;
+  margin: 0 -32px 22px;
+  padding: 8px 32px;
+  background: rgba(15, 23, 42, .92);
+  color: #fff;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, .18);
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.02em; white-space: nowrap; }
+.brand small { font-weight: 500; opacity: .65; }
+.brand-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: linear-gradient(135deg, #818cf8, #a78bfa); font-size: 14px; }
+.topbar nav { display: flex; gap: 4px; flex: 1; }
+.topbar a { display: inline-flex; align-items: center; min-height: 40px; padding: 6px 11px; border-radius: 8px; color: #dbeafe; text-decoration: none; font-size: 13px; white-space: nowrap; }
+.topbar a:hover { background: #ffffff18; color: #fff; }
+.view-kind { padding: 5px 9px; border: 1px solid #ffffff2c; border-radius: 999px; color: #c4b5fd; font: 700 11px/1.2 ui-monospace, SFMono-Regular, monospace; letter-spacing: .08em; white-space: nowrap; }
+header, .panel, .check, .progress-block { border: 1px solid var(--line); border-radius: 18px; background: var(--surface); background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: var(--shadow); }
+header { position: relative; overflow: hidden; padding: 28px; margin: 0 0 18px; background: linear-gradient(125deg, #111827 0%, #24234f 52%, #3730a3 100%); border: 0; color: #fff; }
+header:after { content: ""; position: absolute; right: -70px; top: -100px; width: 280px; height: 280px; border: 55px solid #ffffff0b; border-radius: 50%; }
+h1 { position: relative; z-index: 1; margin: 0 0 22px; font-size: clamp(26px, 4vw, 43px); letter-spacing: -.045em; line-height: 1.08; }
+.summary { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.summary > div { min-width: 0; padding: 12px 13px; border: 1px solid #ffffff18; border-radius: 12px; background: #ffffff0d; color: #cbd5e1; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; }
+.summary strong { display: inline-block; max-width: 100%; margin-top: 4px; color: #fff; font-size: 14px; text-transform: none; letter-spacing: 0; overflow-wrap: anywhere; }
+.summary strong.pass { color: #a7f3d0; background: #064e3b; }
+.summary strong.fail { color: #fecdd3; background: #881337; }
+.summary strong.unevaluable { color: #fde68a; background: #78350f; }
+header > p { position: relative; z-index: 1; margin: 14px 0 0; color: #cbd5e1; }
+.fixture-notice { padding: 9px 12px; border-left: 4px solid #fbbf24; border-radius: 7px; background: #fbbf2418; }
+.progress-block { display: grid; grid-template-columns: minmax(180px, 260px) 1fr; align-items: center; gap: 22px; padding: 16px 20px; margin: 0 0 12px; }
+.progress-block > div:first-child { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
+.progress-block strong { color: var(--ink); }
+.progress-track { height: 9px; overflow: hidden; border-radius: 999px; background: var(--neutral-chip); }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+.operational-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 12px; }
+.operational-strip > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.operational-strip small { color: var(--muted); }
+.failure-alert { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 13px 16px; margin: 0 0 12px; border: 1px solid #fb718566; border-left: 5px solid var(--bad); border-radius: 12px; background: var(--bad-bg); }
+.failure-alert div { display: flex; flex-direction: column; }
+.failure-alert span { color: var(--muted); font-size: 12px; }
+.failure-alert a { white-space: nowrap; }
+.panel { padding: 22px; margin: 16px 0; scroll-margin-top: 74px; }
+.panel > h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; font-size: 20px; letter-spacing: -.025em; }
+.panel > h2:before { content: ""; width: 4px; height: 20px; border-radius: 9px; background: linear-gradient(var(--accent), var(--accent-2)); }
+.timeline { display: grid; grid-template-columns: repeat(10, minmax(98px, 1fr)); gap: 8px; padding: 0 0 6px; margin: 0; overflow-x: auto; list-style: none; }
+.step { position: relative; min-width: 0; min-height: 126px; margin: 0; padding: 11px; border: 1px solid var(--line); border-top: 4px solid #94a3b8; border-radius: 12px; background: var(--surface-2); font-size: 12px; }
+.step-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-bottom: 11px; }
+.step-head > span:last-child { flex: none; padding: 3px 5px; border-radius: 999px; background: var(--neutral-chip); color: #475569; font: 700 10px/1.2 ui-monospace, SFMono-Regular, monospace; letter-spacing: .02em; }
+.step-number { color: var(--muted); font: 800 13px/1 ui-monospace, SFMono-Regular, monospace; }
+.step-label { display: block; min-height: 40px; font-size: 13px; line-height: 1.28; overflow-wrap: anywhere; }
+.step details { margin-top: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.step details[open] { max-height: 220px; overflow: auto; }
+.step summary { cursor: pointer; color: var(--muted); font-size: 11px; }
+.step-full-label { margin: 8px 0 5px; color: var(--ink); font-weight: 700; }
+.step small { display: block; color: var(--muted); font-size: 11px; }
+.step details > div:not(.step-full-label) { margin-top: 7px; }
+.step.ok { border-top-color: var(--good); background: var(--good-bg); }
+.step.ok .step-head > span:last-child { background: var(--good-chip); color: var(--good); }
+.step.bad { border-top-color: var(--bad); background: var(--bad-bg); }
+.step.bad .step-head > span:last-child { background: var(--bad-chip); color: var(--bad); }
+.step.busy { border-top-color: var(--busy); background: var(--busy-bg); box-shadow: 0 0 0 2px #2563eb18; }
+.step.busy .step-head > span:last-child { background: var(--busy-chip); color: var(--busy); }
+#judging { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+#judging > h2, #judging > p { grid-column: 1 / -1; }
+.check { min-width: 0; padding: 18px; margin: 0; box-shadow: none; }
+.check.check-pass { border-left: 5px solid var(--good); }
+.check.check-fail { border-left: 5px solid var(--bad); }
+.check.check-unevaluable { border-left: 5px solid var(--warn); }
+.check h3 { margin-top: 0; overflow-wrap: anywhere; }
+.pass, .fail, .unevaluable, .status-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 800; }
+.pass, .tone-good { color: var(--good); background: var(--good-bg); }
+.fail, .tone-bad { color: var(--bad); background: var(--bad-bg); }
+.unevaluable, .tone-warn { color: var(--warn); background: var(--warn-bg); }
+.tone-neutral { color: var(--muted); background: var(--surface-2); }
+.status-pill { font-size: 11px; white-space: nowrap; }
+table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+thead { background: var(--surface-2); }
+th, td { min-width: 110px; padding: 10px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); font-size: 12px; }
+th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+tr:last-child td { border-bottom: 0; }
+.drill { padding: 14px 16px; margin: 10px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); scroll-margin-top: 74px; }
+.drill:target, [id^="raw-"]:target, [id^="snapshot-"]:target { outline: 3px solid #818cf866; background: var(--target); }
+.drill h3 { margin-top: 0; font-size: 14px; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }
+code { font-size: .9em; color: #4338ca; }
+pre { padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); white-space: pre-wrap; }
+a { color: #4f46e5; text-underline-offset: 3px; }
+dt { font-weight: 750; }
+dd { margin: 0 0 6px; color: var(--muted); }
+small { opacity: .82; }
+footer { padding: 18px 4px; color: var(--muted); }
+@media (max-width: 1050px) {
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .timeline { grid-template-columns: repeat(10, minmax(112px, 1fr)); }
+  #judging { grid-template-columns: 1fr; }
+  .operational-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 680px) {
+  body.dsheval-v2 { padding: 0 14px 36px; }
+  .topbar { position: relative; align-items: flex-start; flex-wrap: wrap; margin: 0 -14px 16px; padding: 8px 14px; }
+  .topbar nav { order: 3; width: 100%; overflow-x: auto; }
+  .view-kind { margin-left: auto; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .summary > div:first-child { grid-column: 1 / -1; }
+  .timeline { grid-template-columns: repeat(10, minmax(132px, 1fr)); }
+  .progress-block { grid-template-columns: 1fr; gap: 10px; }
+  .failure-alert { align-items: flex-start; flex-direction: column; }
+  header, .panel { padding: 17px; border-radius: 14px; }
+}
+@media (max-width: 440px) {
+  .operational-strip { grid-template-columns: 1fr; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #090d18; --surface: #111827; --surface-2: #172033; --ink: #e5e7eb; --muted: #94a3b8; --line: #293548; --good: #4ade80; --good-bg: #102b21; --good-chip: #17472f; --bad: #fb7185; --bad-bg: #33151b; --bad-chip: #52202a; --warn: #fbbf24; --warn-bg: #33260d; --busy: #60a5fa; --busy-bg: #13243f; --busy-chip: #18365f; --neutral-chip: #263246; --shadow: 0 18px 45px rgba(0, 0, 0, .22); --glow-a: #111934; --glow-b: #1b1437; --target: #1e2450; }
+  code { color: #a5b4fc; }
+  thead { background: #172033; }
+  .topbar { background: rgba(5, 9, 18, .94); }
+  .step-head > span:last-child { color: #cbd5e1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+@media print {
+  :root { --bg: #fff; --surface: #fff; --surface-2: #f8fafc; --ink: #111; --muted: #475569; --line: #cbd5e1; --good: #087343; --good-bg: #e9f9f0; --good-chip: #c9f0da; --bad: #b4233b; --bad-bg: #fff0f2; --bad-chip: #ffd7dc; --warn: #9a5700; --warn-bg: #fff7df; --busy: #1d4ed8; --busy-bg: #eef4ff; --busy-chip: #dbeafe; --neutral-chip: #e2e8f0; --target: #eef2ff; }
+  body.dsheval-v2 { padding: 0; background: #fff; color: #111; }
+  .topbar { position: relative; background: #111; }
+  .panel, header, .check, .progress-block { box-shadow: none; break-inside: avoid; }
+  .timeline { grid-template-columns: repeat(5, 1fr); }
+}`;
+
+function rendererStyles(rendererVersion: string): string {
+  return rendererVersion === "dsheval-static/v2"
+    ? ENHANCED_RENDERER_CSS
+    : LEGACY_RENDERER_CSS;
 }
 
 function verifyReportDocument(document: EvaluationReportDocument): void {
@@ -865,6 +1089,47 @@ function statusClass(status: WorkflowStepStatus): string {
   if (status === "FAILED" || status === "BLOCKED") return "bad";
   if (status === "RUNNING") return "busy";
   return "";
+}
+
+function statusTone(value: string): "tone-good" | "tone-bad" | "tone-warn" | "tone-neutral" {
+  const normalized = value.toUpperCase();
+  if (
+    [
+      "INDEPENDENT",
+      "COMPLETE",
+      "HEALTHY",
+      "VALID",
+      "CLOSED",
+      "COMPLETED",
+      "MATCH",
+      "CLEANED",
+      "PASS",
+    ].includes(normalized)
+  ) {
+    return "tone-good";
+  }
+  if (
+    [
+      "FAILED",
+      "INVALID",
+      "UNAVAILABLE",
+      "ERROR",
+      "MISMATCH",
+      "QUARANTINED",
+      "NOT_VERIFIED",
+      "FAIL",
+    ].includes(normalized)
+  ) {
+    return "tone-bad";
+  }
+  if (
+    ["PARTIAL", "COOPERATIVE", "UNKNOWN", "UNEVALUABLE", "DEGRADED", "PENDING"].includes(
+      normalized,
+    )
+  ) {
+    return "tone-warn";
+  }
+  return "tone-neutral";
 }
 
 function outcomeClass(outcome: string): string {

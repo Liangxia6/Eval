@@ -983,6 +983,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
           ...(input.signal === undefined ? {} : { signal: input.signal }),
           onStarted: async () => {
             await save.control(graph.scope, "TARGET_START", "SUCCEEDED");
+            await updateStatus(services, facts, "TARGET_RUNNING", save.failure);
             await input.fixtureHooks?.onTargetStarted?.();
           },
         });

@@ -73,6 +73,16 @@ test("MVP-UT-REPORT-001 verified top-level JSON commits and renders byte-identic
   assert.match(first, /&lt;script&gt;alert\(&#39;x&#39;\)&lt;\/script&gt;/);
   assert.match(first, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.equal(renderStatusHtml(view, "renderer/1.0.0"), renderStatusHtml(view, "renderer/1.0.0"));
+  const enhanced = renderStatusHtml(view, "dsheval-static/v2");
+  assert.match(enhanced, /class="dsheval-v2"/u);
+  assert.match(enhanced, /DSHEval <small>Observatory<\/small>/u);
+  assert.match(enhanced, /已结算流程步骤/u);
+  assert.match(enhanced, /aria-valuenow="10"/u);
+  assert.match(enhanced, /Target 冻结/u);
+  assert.match(enhanced, /<summary>详情<\/summary>/u);
+  assert.match(enhanced, /class="check check-fail"/u);
+  assert.doesNotMatch(enhanced, /<script/iu);
+  assert.doesNotMatch(first, /class="topbar"/u);
 
   const temporary = await mkdtemp(path.join(os.tmpdir(), "dsheval-report-document-"));
   try {

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "bin": {
-    "dsheval": "./dist/src/app/cli.js"
+    "dsheval": "./dist/src/app/cli.js",
+    "dsheval-viewer": "./dist/src/app/viewer-cli.js"
   },
   "engines": {
     "node": ">=22"
@@ -14,6 +15,7 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "cli": "node dist/src/app/cli.js",
+    "viewer": "node dist/src/app/viewer-cli.js",
     "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'"
   },
   "devDependencies": {

@@ -2,7 +2,7 @@
 
 DSHEval MVP 是一个面向完整 DSH Agent 的本地、单进程评测纵向切片。它固定执行一个 filesystem Case 和一次 Attempt，以 DSH Runtime Probe 解释执行过程，以独立文件 Before/After 验证真实结果，保存证据与三项确定性 CheckResult，独立验证 Reset 后只计算一次 Gate，并交付 JSON、JSONL、Artifact、`status.html` 和 `report.html`。
 
-实现范围严格以 [`docs-simple`](./docs-simple/README.md) 为准。MVP 不包含并发 Run、重试、多 Case、插件 Target、远程调度、在线报告或未来兼容层。
+实现范围严格以 [`docs-simple`](./docs-simple/README.md) 为准。MVP 不包含并发 Run、重试、多 Case、插件 Target、远程调度、面向公网的在线报告或未来兼容层。仓库额外提供一个只读回环 Viewer，方便经 SSH 隧道查看同一 VM 上已经落盘的静态状态与报告；它不是新的评测事实源。
 
 ## 环境
 
@@ -52,6 +52,40 @@ pnpm --silent cli -- report --run <run-id>
 `run` 和 `plan` 可通过 `--pack <directory>` 指定唯一 filesystem pack；未指定时使用仓库的 `packs/`。可用 `--run-id <stable-id>` 预分配 ID。若报告根不是默认的 `var/reports`，向 `report` 传 `--report-root <directory>`；`--max-bytes` 必须与生成报告时的上限相容。
 
 退出码遵循冻结契约：`0=PASS/成功`、`1=FAIL`、`2=PLAN_UNSATISFIABLE`、`3=UNEVALUABLE`、`4=DSHEval 或交付失败`、`130=用户取消`。操作性失败优先，但只要 Gate 已存在，stdout JSON 仍保留 Gate。
+
+## VM 实时查看
+
+Viewer 只读取指定 Run 的 `status.html` 和 `report.html`：Run 尚未创建时显示等待页，运行中每 2 秒刷新，最终报告生成后自动切换并停止刷新。它不公开 JSON、JSONL、Artifact 或目录列表，也只允许监听 `127.0.0.1`/`::1`。
+
+先在 VM 的一个终端启动 Viewer；`--run` 必须和随后评测命令的 `--run-id` 完全一致：
+
+```bash
+pnpm build
+pnpm --silent viewer -- \
+  --run vm-run-001 \
+  --run-root /absolute/path/to/Eval-simple/var/records \
+  --report-root /absolute/path/to/Eval-simple/var/reports \
+  --host 127.0.0.1 \
+  --port 4173
+```
+
+在本机建立 SSH 隧道并打开浏览器：
+
+```bash
+ssh -N -L 4173:127.0.0.1:4173 <vm-user>@<vm-host>
+open http://127.0.0.1:4173/
+```
+
+最后在 VM 的另一个终端启动真实评测：
+
+```bash
+pnpm --silent cli -- run \
+  --run-id vm-run-001 \
+  --target /absolute/path/to/real-target.json \
+  --config /absolute/path/to/vm.config.json
+```
+
+不要把 Viewer 绑定到 `0.0.0.0` 或暴露到公网。浏览器中的实时页是非权威的运维视图，只展示最后一次已提交的状态；`report.json`、密封摘要和最终 Gate 仍是权威结果。
 
 ## Fixture 与正式评测
 

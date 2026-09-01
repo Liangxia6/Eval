@@ -63,6 +63,7 @@ async function executeFixture(input: {
   readonly configOverrides?: Partial<MvpConfigValues>;
   readonly signal?: AbortSignal;
   readonly formalPreflight?: boolean;
+  readonly onTargetStartedStatus?: (html: string) => void | Promise<void>;
 }): Promise<FixtureRun> {
   const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "dsheval-workflow-"));
   const runRoot = path.join(temporaryRoot, "records");
@@ -78,7 +79,22 @@ async function executeFixture(input: {
       fixtureMode: input.formalPreflight !== true,
       ...(input.formalPreflight === true
         ? {}
-        : { fixtureHooks: { behavior: input.behavior, ...input.hooks } }),
+        : {
+            fixtureHooks: {
+              behavior: input.behavior,
+              ...input.hooks,
+              ...(input.onTargetStartedStatus === undefined
+                ? {}
+                : {
+                    onTargetStarted: async () => {
+                      await input.hooks?.onTargetStarted?.();
+                      await input.onTargetStartedStatus?.(
+                        await readFile(path.join(runRoot, input.runId, "status.html"), "utf8"),
+                      );
+                    },
+                  }),
+            },
+          }),
       packRoot: input.packRoot ?? DEFAULT_PACK_ROOT,
       configOverrides: {
         ...(input.configOverrides ?? {}),
@@ -607,7 +623,10 @@ test("MVP-E2E-011: HTML failure preserves committed Gate/Run and report JSON can
     assert.equal(rebuilt.htmlStatus, "CREATED");
     assert.equal((await readFile(rebuilt.reportHtml, "utf8")).startsWith("<!doctype html>"), true);
     const status = await readFile(path.join(run.runRoot, run.summary.runId, "status.html"), "utf8");
-    assert.match(status, /10\. Single Gate \/ terminal Run \/ Report \/ Export<\/strong> <span>FAILED<\/span>/u);
+    assert.match(
+      status,
+      /aria-label="10\. Single Gate \/ terminal Run \/ Report \/ Export: FAILED"/u,
+    );
   } finally {
     await removeFixture(run);
   }
@@ -822,16 +841,39 @@ test("MVP-FI-STATUS-001 a status replacement failure preserves the prior page an
     );
     assert.match(
       retainedStatus,
-      /8\. Persist three deterministic CheckResults<\/strong> <span>SUCCEEDED<\/span>/u,
+      /aria-label="8\. Persist three deterministic CheckResults: SUCCEEDED"/u,
     );
     assert.match(
       retainedStatus,
-      /9\. Reset \/ independent verification \/ Cleanup<\/strong> <span>PENDING<\/span>/u,
+      /aria-label="9\. Reset \/ independent verification \/ Cleanup: PENDING"/u,
     );
   } finally {
     if (protectedRunPartition !== undefined) {
       await chmod(protectedRunPartition, 0o700).catch(() => undefined);
     }
+    await removeFixture(run);
+  }
+});
+
+test("live status commits TARGET_RUNNING immediately after the child start receipt", { timeout: 20_000 }, async () => {
+  let runningStatus = "";
+  const run = await executeFixture({
+    runId: "fixture-live-target-status",
+    behavior: "copy",
+    onTargetStartedStatus: (html) => {
+      runningStatus = html;
+    },
+  });
+  try {
+    assert.match(runningStatus, /Phase<br><strong>TARGET_RUNNING<\/strong>/u);
+    assert.match(runningStatus, /Run state<br><strong>RUNNING<\/strong>/u);
+    assert.match(
+      runningStatus,
+      /aria-label="6\. Execute one DSH Headless Attempt: RUNNING"/u,
+    );
+    assert.doesNotMatch(runningStatus, /Gate<br><strong class="pass">PASS<\/strong>/u);
+    assert.equal(run.summary.gate, "PASS");
+  } finally {
     await removeFixture(run);
   }
 });
