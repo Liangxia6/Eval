@@ -1,0 +1,17 @@
+{
+  "runRoot": "var/records",
+  "artifactRoot": "var/artifacts",
+  "reportRoot": "var/reports",
+  "workspaceRoot": "var/workspaces",
+  "runtimeDshHomeRoot": "var/runtime-homes",
+  "runDeadlineMs": 60000,
+  "caseDeadlineMs": 30000,
+  "stableWindowMs": 250,
+  "stableMaxWaitMs": 5000,
+  "maxArtifactBytes": 1048576,
+  "contentMode": "DIGEST",
+  "allowedModelEndpoints": [],
+  "minimumIsolationLevel": "AGENT_SEPARATED",
+  "rendererVersion": "dsheval-static/v1",
+  "secretRefNames": []
+}

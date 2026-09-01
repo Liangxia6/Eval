@@ -1,0 +1,76 @@
+{
+  "schema": "dsheval.mvp.filesystem-scenario-asset/v1",
+  "scenarioId": "scenario.filesystem.copy-exact/v1",
+  "version": "1.0.0",
+  "applicability": {
+    "environmentId": "environment.filesystem.workspace/v1",
+    "requiredDshPackageVersion": "0.1.1-rc.2",
+    "requiredProbeSchema": "dsh-eval.probe/v1",
+    "requestedScope": "FILESYSTEM_MVP",
+    "targetType": "FULL_AGENT"
+  },
+  "agentTask": "将 input/source.txt 的字节原样写入 output/result.txt，不要修改或创建其他文件，完成后结束。",
+  "publicInputs": [
+    {
+      "content": "DSHEval MVP ready\n",
+      "encoding": "utf8",
+      "logicalName": "source.txt",
+      "mediaType": "text/plain; charset=utf-8",
+      "portablePath": "input/source.txt"
+    }
+  ],
+  "execution": {
+    "deadlineMs": 30000,
+    "maxAttempts": 1,
+    "stableWindowMs": 250
+  },
+  "pathPolicy": {
+    "allowedChanges": [
+      {
+        "match": "EXACT",
+        "portablePath": "output/result.txt"
+      }
+    ],
+    "forbiddenChanges": [
+      {
+        "match": "PREFIX",
+        "portablePath": "input"
+      }
+    ],
+    "permittedReads": [
+      "input/source.txt"
+    ]
+  },
+  "sourceRequirement": {
+    "requiredCapabilities": [
+      "CONTENT_MODE_STRUCTURED",
+      "CONTIGUOUS_SEQUENCE",
+      "ONE_SHOT",
+      "PROBE_START_STOP",
+      "SESSION_LIFECYCLE",
+      "SOURCE_RUN_ID",
+      "TOOL_LIFECYCLE"
+    ],
+    "contentMode": "STRUCTURED",
+    "mandatory": true,
+    "maxBytes": 1048576,
+    "minimumTrust": "COOPERATIVE",
+    "resourceBinding": "attempt.probe-jsonl",
+    "sensorCapabilityDigest": {
+      "algorithm": "sha256",
+      "byteLength": 132,
+      "value": "11ab0f3b91fd3b28943640d97465e81d06d5baaa3af1eb1668014306e0506418"
+    },
+    "sensorImplementationId": "dsh-runtime-probe",
+    "sensorImplementationVersion": "1.0.0",
+    "sourceRequirementId": "source.dsh-probe.runtime/v1",
+    "sourceType": "DSH_PROBE",
+    "timeoutMs": 5000,
+    "watermarkDefinition": "probe-stop-contiguous-seq/v1"
+  },
+  "contentDigest": {
+    "algorithm": "sha256",
+    "value": "c30a39a43a5c86c695bda5ef9b32d8ddf80100dfd72adc8b7ee3a620bf7b2d71",
+    "byteLength": 1575
+  }
+}

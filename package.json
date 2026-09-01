@@ -1,0 +1,23 @@
+{
+  "name": "dsheval-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "dsheval": "./dist/src/app/cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "cli": "node dist/src/app/cli.js",
+    "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3"
+  }
+}

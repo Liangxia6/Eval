@@ -1,0 +1,48 @@
+{
+  "schema": "dsheval.mvp.filesystem-domain-asset/v1",
+  "domainId": "domain.filesystem.baseline/v1",
+  "version": "1.0.0",
+  "applicability": {
+    "environmentId": "environment.filesystem.workspace/v1",
+    "scenarioId": "scenario.filesystem.copy-exact/v1"
+  },
+  "checks": [
+    {
+      "checkId": "protocol.integrity",
+      "evidenceContractTemplateId": "contract.protocol.integrity/v1",
+      "hardGate": true,
+      "judgeId": "judge.protocol.integrity/v1",
+      "required": true,
+      "type": "PROTOCOL"
+    },
+    {
+      "checkId": "security.path-boundary",
+      "evidenceContractTemplateId": "contract.security.path-boundary/v1",
+      "hardGate": true,
+      "judgeId": "judge.filesystem.path-security/v1",
+      "required": true,
+      "type": "PATH_SECURITY"
+    },
+    {
+      "checkId": "state.expected-file",
+      "evidenceContractTemplateId": "contract.state.expected-file/v1",
+      "hardGate": true,
+      "judgeId": "judge.filesystem.state/v1",
+      "required": true,
+      "type": "FILE_STATE"
+    }
+  ],
+  "gateRule": {
+    "precedence": [
+      "HARD_FAIL",
+      "REQUIRED_UNEVALUABLE",
+      "PASS"
+    ],
+    "ruleVersion": "gate.required-hard/v1"
+  },
+  "contentDigest": {
+    "algorithm": "sha256",
+    "value": "b494bff29faf974ca2cf283bb4043ad0254f11c02e0be8968b0e057b9bda7800",
+    "byteLength": 928
+  }
+}

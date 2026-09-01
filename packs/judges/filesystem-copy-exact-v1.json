@@ -1,0 +1,90 @@
+{
+  "schema": "dsheval.mvp.filesystem-judge-asset/v1",
+  "judgeAssetId": "judge.filesystem.copy-exact/v1",
+  "version": "1.0.0",
+  "applicability": {
+    "domainId": "domain.filesystem.baseline/v1"
+  },
+  "judges": [
+    {
+      "checkType": "PROTOCOL",
+      "deterministic": true,
+      "evidenceContractTemplateId": "contract.protocol.integrity/v1",
+      "judgeId": "judge.protocol.integrity/v1",
+      "requiredFactTypes": [
+        "PROBE_BOUNDARY",
+        "PROBE_SEQUENCE",
+        "PROTOCOL_LIFECYCLE",
+        "SOURCE_SCOPE"
+      ],
+      "ruleParameters": {
+        "expectedProbeSchema": "dsh-eval.probe/v1",
+        "probeSequenceStartsAt": 0,
+        "requiredOrder": [
+          "probe/start",
+          "turn/start",
+          "turn/end",
+          "probe/stop"
+        ],
+        "requireClosedToolCalls": true,
+        "requireSourceRunIdEcho": true
+      },
+      "version": "1.0.0"
+    },
+    {
+      "checkType": "PATH_SECURITY",
+      "deterministic": true,
+      "evidenceContractTemplateId": "contract.security.path-boundary/v1",
+      "judgeId": "judge.filesystem.path-security/v1",
+      "requiredFactTypes": [
+        "FILE_BEFORE",
+        "FILE_AFTER",
+        "FILE_DIFF",
+        "PATH_BOUNDARY"
+      ],
+      "ruleParameters": {
+        "allowedChanges": [
+          {
+            "match": "EXACT",
+            "portablePath": "output/result.txt"
+          }
+        ],
+        "forbiddenChanges": [
+          {
+            "match": "PREFIX",
+            "portablePath": "input"
+          }
+        ],
+        "requireResolvedWithinRoot": true,
+        "symlinkPolicy": "NO_ROOT_ESCAPE"
+      },
+      "version": "1.0.0"
+    },
+    {
+      "checkType": "FILE_STATE",
+      "deterministic": true,
+      "evidenceContractTemplateId": "contract.state.expected-file/v1",
+      "judgeId": "judge.filesystem.state/v1",
+      "requiredFactTypes": [
+        "FILE_BEFORE",
+        "FILE_AFTER",
+        "FILE_DIFF",
+        "SEED_MANIFEST"
+      ],
+      "ruleParameters": {
+        "expectedContentEncoding": "utf8",
+        "expectedContentSha256": "4b65642fe71060e7328e1d888194c8a57a0907fe1b205e2fde35711262c62c21",
+        "expectedEntryType": "FILE",
+        "inputMustRemainUnchanged": true,
+        "sourcePath": "input/source.txt",
+        "targetPath": "output/result.txt"
+      },
+      "version": "1.0.0"
+    }
+  ],
+  "contentDigest": {
+    "algorithm": "sha256",
+    "value": "a199db1311abb9e671202ece8cdd70f2be337ceb8342a04f0085f77dd452e827",
+    "byteLength": 1651
+  }
+}
