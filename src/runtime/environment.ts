@@ -155,6 +155,10 @@ async function ensureAttemptDirectory(
     throw new Error("attempt directory already exists");
   }
   await mkdir(expected, { recursive: false, mode: 0o770 });
+  // mkdir honors the service umask. Formal runs require the frozen target
+  // group to have write access to the exact Attempt directory, so seal the
+  // intended mode explicitly instead of depending on the launcher umask.
+  await chmod(expected, 0o770);
   const metadata = await lstat(expected);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     throw new Error("attempt directory is not a real directory");

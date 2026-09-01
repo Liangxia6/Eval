@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -115,6 +115,8 @@ test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", 
       caseId: "case-runtime-pass",
       attemptId: "attempt-runtime-pass",
     });
+    assert.equal((await stat(prepared.workspacePath)).mode & 0o777, 0o770);
+    assert.equal((await stat(prepared.runtimeDshHomePath)).mode & 0o777, 0o770);
     const resources = await seedEnvironment(prepared.workspacePath, [
       {
         portablePath: "input",
