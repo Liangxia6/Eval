@@ -89,6 +89,15 @@ pnpm --silent cli -- run \
 
 ## Fixture 与正式评测
 
+当前仓库只带一套纵向切片资产，用于证明评测闭环而不是覆盖 DSH 的全部能力：
+
+- 1 个评测域：文件系统；
+- 1 个场景：把 `input/source.txt` 原样复制到 `output/result.txt`；
+- 1 条固定公开输入样本；
+- 3 项确定性硬标准：执行协议完整、路径边界合规、目标文件内容完全一致。
+
+因此当前结果只能说明这一个文件 Case 是否通过，不能解释为 DSH 的综合能力分数。新增测试集时应继续以 `Environment + Scenario + Domain + Judge` 四类冻结资产为一个可审计单元。
+
 [`fixture-target.json`](./examples/fixture-target.json) 调用真实子进程和真实文件系统，不生成 Mock 成功结果；它仅用于自动化验收。`inspect`/`plan` 必须显式传 `--fixture`，完整 `run` 还必须给出具体的 `--fixture-behavior`，不能隐式假定成功行为。输出会标记 `fixture: true` 与 `securityIsolation: PROCESS_FIXTURE`。Fixture 不能证明 VM 的 OS 身份隔离，也不能作为正式发布的安全 PASS。
 
 正式评测时使用实际 TargetDescriptor，移除 `--fixture`，并确保：

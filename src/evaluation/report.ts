@@ -13,6 +13,7 @@ import {
   type CollectionStatus,
   type ContentDigest,
   type EvaluationCase,
+  type EvaluationPlan,
   type EvaluationReport,
   type EvaluationRun,
   type ExecutionAttempt,
@@ -202,6 +203,12 @@ export interface ReportViewModel {
     readonly caseCount: 1;
     readonly attemptCount: 1;
     readonly checkIds: readonly string[];
+    readonly scenarioId?: string;
+    readonly environmentId?: string;
+    readonly inputPaths?: readonly string[];
+    readonly allowedPaths?: readonly string[];
+    readonly forbiddenPaths?: readonly string[];
+    readonly deadlineMs?: number;
   };
   readonly sources: readonly SourceView[];
   readonly checks: readonly CheckView[];
@@ -232,6 +239,7 @@ export interface ReportViewInput {
   readonly run: EvaluationRun;
   readonly target: TargetSnapshot;
   readonly attempt: ExecutionAttempt;
+  readonly evaluationPlan?: EvaluationPlan;
   readonly fixture: boolean;
   readonly securityIsolation: "AGENT_SEPARATED" | "PROCESS_FIXTURE" | "NOT_VERIFIED";
   readonly sources: readonly SourceDescriptor[];
@@ -315,7 +323,19 @@ export function buildReportViewModel(input: ReportViewInput): ReportViewModel {
     planSummary: {
       caseCount: 1,
       attemptCount: 1,
-      checkIds: checks.map((check) => check.checkId),
+      checkIds: input.evaluationPlan === undefined
+        ? checks.map((check) => check.checkId)
+        : input.evaluationPlan.casePlan.checkIds.map(String),
+      ...(input.evaluationPlan === undefined
+        ? {}
+        : {
+            scenarioId: String(input.evaluationPlan.casePlan.scenarioId),
+            environmentId: String(input.evaluationPlan.casePlan.environmentId),
+            inputPaths: planInputPaths(input.evaluationPlan),
+            allowedPaths: input.evaluationPlan.casePlan.allowedPaths.map(String).sort(),
+            forbiddenPaths: input.evaluationPlan.casePlan.forbiddenPaths.map(String).sort(),
+            deadlineMs: input.evaluationPlan.casePlan.deadlineMs,
+          }),
     },
     sources: [...input.sources]
       .sort((left, right) => String(left.sourceId).localeCompare(String(right.sourceId), "en"))
@@ -407,6 +427,18 @@ export function buildReportViewModel(input: ReportViewInput): ReportViewModel {
         digest: artifact.artifactContentDigest.value,
       })),
   };
+}
+
+function planInputPaths(plan: EvaluationPlan): readonly string[] {
+  const entries = plan.casePlan.seedSpec.entries;
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .filter((entry): entry is Record<string, JsonValue> =>
+      entry !== null && typeof entry === "object" && !Array.isArray(entry)
+    )
+    .filter((entry) => entry.entryType === "FILE" && typeof entry.portablePath === "string")
+    .map((entry) => String(entry.portablePath))
+    .sort();
 }
 
 function rawObservationView(
@@ -533,6 +565,9 @@ function renderHtml(
   finalReport: boolean,
   rendererVersion: string,
 ): string {
+  if (rendererVersion === "dsheval-static/v3") {
+    return renderIntuitiveHtml(title, view, finalReport, rendererVersion);
+  }
   const e = escapeHtml;
   const enhanced = rendererVersion === "dsheval-static/v2";
   const settledSteps = view.timeline.filter((step) =>
@@ -658,6 +693,421 @@ ${progress}${operationalStrip}${failureAlert}<section${sectionId("workflow")} cl
 <footer><small>${finalReport ? "Authoritative report view" : "Non-authoritative status view"} · Renderer ${e(rendererVersion)} · No scripts or network dependencies</small></footer>
 </body></html>\n`;
 }
+
+interface FriendlyCheckCopy {
+  readonly title: string;
+  readonly question: string;
+  readonly success: string;
+  readonly pending: string;
+}
+
+function friendlyCheckCopy(checkId: string): FriendlyCheckCopy {
+  if (checkId === "protocol.integrity") {
+    return {
+      title: "过程可信",
+      question: "执行轨迹完整吗？",
+      success: "Probe 起止、事件顺序和工具调用都完整。",
+      pending: "正在等待完整的 DSH 执行轨迹。",
+    };
+  }
+  if (checkId === "security.path-boundary") {
+    return {
+      title: "没有乱动文件",
+      question: "修改范围合规吗？",
+      success: "只修改了允许的输出路径，输入文件保持不变。",
+      pending: "正在比较执行前后的文件变化。",
+    };
+  }
+  if (checkId === "state.expected-file") {
+    return {
+      title: "结果正确",
+      question: "目标文件符合要求吗？",
+      success: "目标文件存在，类型和内容摘要均与预期一致。",
+      pending: "正在核对目标文件的类型和内容。",
+    };
+  }
+  return {
+    title: checkId,
+    question: "该评分项满足要求吗？",
+    success: "评分标准已满足。",
+    pending: "尚未产生判定结果。",
+  };
+}
+
+function friendlyOutcome(outcome: CheckOutcome | undefined): string {
+  if (outcome === "PASS") return "通过";
+  if (outcome === "FAIL") return "不通过";
+  if (outcome === "UNEVALUABLE") return "证据不足";
+  return "等待判定";
+}
+
+function friendlyGate(gate: CheckOutcome | undefined): string {
+  if (gate === "PASS") return "评测通过";
+  if (gate === "FAIL") return "评测未通过";
+  if (gate === "UNEVALUABLE") return "暂时无法判定";
+  return "评测进行中";
+}
+
+function friendlyStepStatus(status: WorkflowStepStatus): string {
+  if (status === "SUCCEEDED") return "完成";
+  if (status === "RUNNING") return "进行中";
+  if (status === "FAILED") return "失败";
+  if (status === "BLOCKED") return "已阻断";
+  return "等待";
+}
+
+function friendlyChange(kind: string): string {
+  if (kind === "ADDED") return "新增";
+  if (kind === "REMOVED") return "删除";
+  if (kind === "MODIFIED") return "修改";
+  if (kind === "TYPE_CHANGED") return "类型变化";
+  return kind;
+}
+
+function friendlySource(type: string): { title: string; detail: string } {
+  if (type === "FILESYSTEM") {
+    return { title: "文件结果", detail: "由 DSHEval 独立读取执行前后的真实文件状态。" };
+  }
+  if (type === "DSH_PROBE") {
+    return { title: "执行过程", detail: "由 DSH Runtime Probe 记录会话、工具调用和结束边界。" };
+  }
+  return { title: type, detail: "评测过程中采集的证据来源。" };
+}
+
+function friendlyEvidenceState(value: string): string {
+  if (value === "COMPLETE") return "完整";
+  if (value === "PARTIAL") return "部分";
+  if (value === "INVALID") return "无效";
+  if (value === "HEALTHY") return "正常";
+  if (value === "DEGRADED") return "降级";
+  if (value === "MATCH") return "与干净状态一致";
+  if (value === "CLEANED") return "环境已清理";
+  return value;
+}
+
+function renderIntuitiveHtml(
+  title: string,
+  view: ReportViewModel,
+  finalReport: boolean,
+  rendererVersion: string,
+): string {
+  const e = escapeHtml;
+  const gateTone = outcomeClass(view.gate ?? "") || "pending";
+  const settledSteps = view.timeline.filter((step) =>
+    step.status === "SUCCEEDED" || step.status === "FAILED" || step.status === "BLOCKED"
+  ).length;
+  const scenarioTitle = view.planSummary.scenarioId === "scenario.filesystem.copy-exact/v1"
+    ? "文件精确复制"
+    : view.planSummary.scenarioId ?? "尚未生成题目";
+  const departmentTitle = view.planSummary.environmentId === "environment.filesystem.workspace/v1"
+    ? "文件系统"
+    : view.planSummary.environmentId ?? "尚未匹配科室";
+  const inputPath = view.planSummary.inputPaths?.[0] ?? "input/source.txt";
+  const outputPath = view.planSummary.allowedPaths?.[0] ?? "output/result.txt";
+  const gateLead = view.gate === "PASS"
+    ? "任务结果、执行过程和文件边界均满足本次标准。"
+    : view.gate === "FAIL"
+      ? "至少一项硬性标准未满足，请查看下方红色评分项。"
+      : view.gate === "UNEVALUABLE"
+        ? "现有证据不足以形成可靠结论，没有用默认值判为通过。"
+        : `当前运行到「${view.currentPhase}」，页面展示最后一次已提交状态。`;
+  const gateAbsence = view.gate === undefined && view.gateAbsenceReason !== undefined
+    ? `<p class="gate-reason">Reason: ${e(view.gateAbsenceReason)}</p>`
+    : "";
+  const fixtureNotice = view.fixture
+    ? `<aside class="fixture-banner"><strong>这是 Fixture 演示结果</strong><span>它验证评测流水线，不代表真实 VM 身份隔离或真实 DSH 能力。</span><small>this Gate does not establish formal VM identity or network isolation</small></aside>`
+    : "";
+
+  const planChecks = view.planSummary.checkIds.length > 0
+    ? view.planSummary.checkIds
+    : view.checks.map((check) => check.checkId);
+  const checksById = new Map(view.checks.map((check) => [check.checkId, check] as const));
+  const scoreCards = planChecks.map((checkId) => {
+    const check = checksById.get(checkId);
+    const copy = friendlyCheckCopy(checkId);
+    const outcome = check?.outcome;
+    const tone = outcomeClass(outcome ?? "") || "pending";
+    const explanation = outcome === "PASS"
+      ? copy.success
+      : outcome === undefined
+        ? copy.pending
+        : check?.findings[0]?.message ?? check?.reasonCodes.join("、") ?? "没有足够信息说明原因。";
+    const findings = check?.findings.map((finding) =>
+      `<li><strong>${e(finding.code)}</strong>：${e(finding.message)}</li>`
+    ).join("") ?? "";
+    const evidence = check?.evidenceIds.map((id) =>
+      `<li><a href="#evidence-${safeAnchor(id)}"><code>${e(id)}</code></a></li>`
+    ).join("") ?? "";
+    return `<article class="score-card tone-${tone}" id="check-${safeAnchor(check?.checkResultId ?? checkId)}">
+      <div class="score-icon" aria-hidden="true">${outcome === "PASS" ? "✓" : outcome === "FAIL" ? "!" : outcome === "UNEVALUABLE" ? "?" : "·"}</div>
+      <div class="score-copy"><small>${e(copy.question)}</small><h3>${e(copy.title)}</h3><p>${e(explanation)}</p></div>
+      <span class="result-badge ${tone}">${e(friendlyOutcome(outcome))}</span>
+      <details class="technical-inline"><summary>技术依据</summary>
+        <dl><dt>CheckResult</dt><dd><code>${e(check?.checkResultId ?? "尚未产生")}</code></dd><dt>Closure</dt><dd><code>${e(check?.closureId ?? "尚未产生")}</code> · ${e(check?.closureState ?? "尚未产生")}</dd><dt>Judgement</dt><dd><code>${e(check?.judgementId ?? "尚未产生")}</code> · ${e(check?.judgementStatus ?? "尚未产生")}</dd><dt>Reasons</dt><dd>${e(check?.reasonCodes.join(", ") || "—")}</dd></dl>
+        <h4>Findings</h4><ul>${findings || "<li>None</li>"}</ul><h4>Authorized evidence</h4><ul>${evidence || "<li>None</li>"}</ul>
+      </details>
+    </article>`;
+  }).join("");
+
+  const timeline = view.timeline.map((step) => {
+    const status = statusClass(step.status);
+    const expanded = step.status === "RUNNING" || step.status === "FAILED" || step.status === "BLOCKED";
+    const labels = ["冻结评测目标", "检查 DSH 能力", "生成唯一计划", "安全预检", "准备测试环境", "执行 DSH Agent", "整理并闭合证据", "生成三项判定", "重置并独立验证", "形成最终结论"] as const;
+    return `<li class="journey-step ${status}" aria-label="${e(`${step.number}. ${step.label}: ${step.status}`)}"><span class="journey-number">${step.number}</span><div><strong>${e(labels[step.number - 1] ?? step.label)}</strong><small>${e(friendlyStepStatus(step.status))}</small></div><details${expanded ? " open" : ""}><summary>详情</summary><p>${e(step.label)}</p><p>${e(step.startedAt ?? "尚未开始")} → ${e(step.endedAt ?? "尚未结束")}</p>${step.failureGroups.length === 0 ? "" : `<p>Failure: ${step.failureGroups.map(e).join(", ")}</p>`}${step.hintCode === undefined ? "" : `<p>${e(troubleshootingHint(step.hintCode))}</p>`}</details></li>`;
+  }).join("");
+
+  const changes = view.fileDiffs.flatMap((diff) => diff.changes);
+  const changeRows = changes.map((change) =>
+    `<li><span class="change-kind">${e(friendlyChange(change.kind))}</span><code>${e(change.portablePath)}</code></li>`
+  ).join("");
+  const sourceCards = view.sources.map((source) => {
+    const copy = friendlySource(source.sourceType);
+    const healthy = source.completeness === "COMPLETE" && source.health === "HEALTHY";
+    return `<article class="source-card"><span class="source-mark ${healthy ? "good" : "warn"}" aria-hidden="true">${healthy ? "✓" : "!"}</span><div><h3>${e(copy.title)}</h3><p>${e(copy.detail)}</p><div class="chips"><span>${e(source.trust === "INDEPENDENT" ? "独立证据" : source.trust === "COOPERATIVE" ? "协作证据" : source.trust)}</span><span>${e(friendlyEvidenceState(source.completeness))}</span><span>${e(friendlyEvidenceState(source.health))}</span></div>${source.gaps.length === 0 ? "" : `<p class="warning-copy">缺口：${source.gaps.map(e).join("、")}</p>`}<details><summary>来源 ID</summary><code>${e(source.sourceId)}</code></details></div></article>`;
+  }).join("");
+
+  const failures = view.failures.map((failure) =>
+    `<li><strong>${e(failure.group)}</strong><span>${e(failure.message)}</span><code>${e(failure.reasonCode)}</code></li>`
+  ).join("");
+  const evidenceDetails = view.evidence.map((item) =>
+    `<article class="drill" id="evidence-${safeAnchor(item.evidenceId)}"><h3>${e(item.evidenceId)}</h3><p><strong>${e(item.layer)}</strong> · ${e(item.factType)} · relation=${e(item.relationship)} · authority=${e(item.authority)} · trust=${e(item.trust)} · ${e(item.completeness)}/${e(item.validity)}</p><p>Raw observations: ${item.observationIds.map((id) => `<a href="#raw-${safeAnchor(id)}">${e(id)}</a>`).join(", ") || "—"}</p><p>Artifacts: ${item.artifactIds.map((id) => `<code>${e(id)}</code>`).join(", ") || "—"}</p></article>`
+  ).join("");
+  const rawDetails = view.rawObservations.map((item) => {
+    const probeLocation = item.lineNumber === undefined ? "" : ` · JSONL line ${e(item.lineNumber)} bytes ${e(item.byteStart ?? "?")}..${e(item.byteEnd ?? "?")}`;
+    return `<li id="raw-${safeAnchor(item.observationId)}"><code>${e(item.observationId)}</code> · ${e(item.sourceType)}/${e(item.trust)} · ${e(item.externalEventType)}${probeLocation}<br><small>raw sha256 ${e(item.rawDigest)}</small></li>`;
+  }).join("");
+  const snapshots = view.fileSnapshots.map((snapshot) => {
+    const rows = snapshot.entries.map((entry) => `<tr><td>${e(entry.portablePath)}</td><td>${e(entry.entryType)}</td><td>${e(entry.contentDigest ?? "—")}</td><td>${e(entry.resolvedWithinRoot)}</td><td>${e(entry.readError ?? "—")}</td></tr>`).join("");
+    return `<article class="drill" id="snapshot-${safeAnchor(snapshot.snapshotId)}"><h3>${e(snapshot.snapshotId)} · ${e(snapshot.phase)} · ${e(snapshot.completeness)}</h3><p>snapshot sha256 <code>${e(snapshot.digest)}</code></p><table><thead><tr><th>Portable path</th><th>Type</th><th>Content digest</th><th>Within root</th><th>Read error</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Empty snapshot</td></tr>'}</tbody></table></article>`;
+  }).join("");
+  const diffDetails = view.fileDiffs.map((diff) => `<article class="drill"><h3>${e(diff.diffId)}</h3><p>diff sha256 <code>${e(diff.digest)}</code> · unchanged ${e(diff.unchangedCount)}</p><ul>${diff.changes.map((change) => `<li>${e(change.kind)} · ${e(change.portablePath)}</li>`).join("") || "<li>No changes</li>"}</ul></article>`).join("");
+  const artifacts = view.artifacts.map((artifact) => `<li><strong>${e(artifact.logicalName)}</strong> · ${e(artifact.portablePath)}<br><code>${e(artifact.digest)}</code></li>`).join("");
+  const resetTone = view.reset.result === "MATCH" && view.reset.environmentState === "CLEANED" ? "pass" : view.reset.result === "尚未产生" ? "pending" : "unevaluable";
+  const resetTitle = resetTone === "pass" ? "环境已恢复" : resetTone === "pending" ? "等待环境恢复" : "环境需要检查";
+  const resetDetails = view.reset.differenceSummary === undefined ? "" : `<pre>${e(canonicalJson(view.reset.differenceSummary))}</pre>`;
+
+  return `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(title)}</title><style>${INTUITIVE_RENDERER_CSS}</style></head><body class="dsheval-v3">
+<div class="topbar"><a class="brand" href="#top"><span>D</span><strong>DSHEval</strong></a><nav aria-label="页面导航"><a href="#coverage">测什么</a><a href="#journey">过程</a><a href="#results">结果</a><a href="#technical">技术证据</a></nav><span class="live-state">${finalReport ? "已密封报告" : "实时状态"}</span></div>
+<main id="top">
+  <header class="hero tone-${gateTone}"><div class="hero-main"><p class="eyebrow">${view.fixture ? "FIXTURE 流水线演示" : "正式 DSH 评测"}</p><h1>${e(friendlyGate(view.gate))}</h1><p class="hero-lead">${e(gateLead)}</p>${gateAbsence}<div class="hero-chips"><span>${e(view.operationalHealth === "HEALTHY" ? "系统正常" : `系统 ${view.operationalHealth}`)}</span><span>${e(view.reset.environmentState === "CLEANED" ? "环境已清理" : `环境 ${view.reset.environmentState}`)}</span><span>${e(view.securityIsolation === "AGENT_SEPARATED" ? "Agent 已隔离" : view.securityIsolation)}</span></div></div><div class="gate-orb"><small>最终结论</small><strong>${e(friendlyOutcome(view.gate))}</strong><span>${view.checks.filter((check) => check.outcome === "PASS").length} / ${planChecks.length} 项通过</span></div><details class="run-meta"><summary>运行信息</summary><div>Run<br><strong>${e(view.runId)}</strong></div><div>Target<br><strong>${e(view.targetSummary)}</strong></div><div>Execution class<br><strong>${view.fixture ? "FIXTURE" : "FORMAL"}</strong></div><div>Security isolation<br><strong>${e(view.securityIsolation)}</strong></div><div>Phase<br><strong>${e(view.currentPhase)}</strong></div><div>Run state<br><strong>${e(view.runState)}</strong></div><div>Gate<br><strong class="${gateTone}">${e(view.gate ?? "尚未产生")}</strong></div></details></header>
+  ${fixtureNotice}
+  <section class="section coverage" id="coverage"><div class="section-heading"><div><p class="eyebrow">当前资产覆盖</p><h2>这次到底测什么</h2></div><p>当前只是最小样板，不是完整能力排行榜。</p></div><div class="coverage-grid"><article><strong>1</strong><span>个科室</span><small>${e(departmentTitle)}</small></article><article><strong>1</strong><span>道测试题</span><small>${e(scenarioTitle)}</small></article><article><strong>1</strong><span>条输入样本</span><small>${e(inputPath)}</small></article><article><strong>${planChecks.length}</strong><span>项硬标准</span><small>任一失败都不能通过</small></article></div><div class="task-card"><div><p class="eyebrow">测试任务</p><h3>${e(scenarioTitle)}</h3><p>读取输入文件，把字节原样写到唯一允许的输出文件，不修改其他路径。</p>${view.planSummary.deadlineMs === undefined ? "" : `<small>最长执行时间 ${e(Math.round(view.planSummary.deadlineMs / 1000))} 秒 · 单次 Attempt</small>`}</div><div class="task-flow"><code>${e(inputPath)}</code><span>DSH Agent</span><code>${e(outputPath)}</code></div></div></section>
+  <section class="section journey" id="journey"><div class="section-heading"><div><p class="eyebrow">实时运行过程</p><h2>现在走到哪里</h2></div><div class="progress-copy"><strong>${settledSteps} / 10</strong><span>已结算流程步骤</span></div></div><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${settledSteps}"><span style="width:${settledSteps * 10}%"></span></div><ol class="journey-list">${timeline}</ol></section>
+  <section class="section results" id="results"><div class="section-heading"><div><p class="eyebrow">评分结果</p><h2>三件事，一眼看懂</h2></div><p>先看结论；内部对象和证据链放在“技术依据”里。</p></div><div class="score-grid">${scoreCards || "<p>尚未生成评分计划。</p>"}</div></section>
+  <section class="section reality"><div class="section-heading"><div><p class="eyebrow">真实环境结果</p><h2>文件发生了什么</h2></div></div><div class="reality-grid"><article class="change-card"><h3>执行前后变化</h3><ul>${changeRows || "<li><span class=\"change-kind\">无变化</span><span>尚未观察到文件变化</span></li>"}</ul></article><article class="reset-card tone-${resetTone}"><span class="reset-icon" aria-hidden="true">${resetTone === "pass" ? "✓" : resetTone === "pending" ? "·" : "!"}</span><div><h3>${resetTitle}</h3><p>${e(friendlyEvidenceState(view.reset.result))} · ${e(friendlyEvidenceState(view.reset.environmentState))}</p><details><summary>独立验证详情</summary><p>Reset：${e(view.reset.result)} · Environment：${e(view.reset.environmentState)}</p>${resetDetails || "<p>没有额外差异。</p>"}</details></div></article></div><div class="source-grid">${sourceCards || "<p>尚未建立观测来源。</p>"}</div></section>
+  <section class="section failures ${view.failures.length === 0 ? "all-clear" : "has-failures"}" id="failures"><div class="section-heading"><div><p class="eyebrow">故障归因</p><h2>${view.failures.length === 0 ? "没有记录到系统故障" : `发现 ${view.failures.length} 条故障`}</h2></div><p>${view.failures.length === 0 ? "Agent、采集器、Judge 和基础设施均没有故障记录。" : "故障归因不会被混成 Agent 失败。"}</p></div>${failures === "" ? "" : `<ul>${failures}</ul>`}</section>
+  <details class="section technical" id="technical"><summary><span><small>可审计详情</small><strong>技术证据与内部对象</strong></span><span>展开查看</span></summary><div class="technical-body"><h2>EvidenceRecord</h2>${evidenceDetails || "<p>尚未产生 Evidence</p>"}<h2>RawObservation 定位</h2><ul>${rawDetails || "<li>尚未产生 RawObservation</li>"}</ul><h2>File Snapshot Entries</h2>${snapshots || "<p>尚未产生 File Snapshot</p>"}<h2>File Diff</h2>${diffDetails || "<p>尚未产生 File Diff</p>"}<h2>Artifacts</h2><ul>${artifacts || "<li>None</li>"}</ul></div></details>
+</main><footer><span>${finalReport ? "权威终态报告" : "非权威实时状态"}</span><code>${e(view.runId)}</code><small>Renderer ${e(rendererVersion)} · No scripts or network dependencies</small></footer></body></html>\n`;
+}
+
+const INTUITIVE_RENDERER_CSS = `
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --ink: #172033;
+  --muted: #667085;
+  --line: #e5e9f0;
+  --brand: #5b55e7;
+  --brand-soft: #eeedff;
+  --good: #087443;
+  --good-soft: #eaf8f0;
+  --bad: #b4233b;
+  --bad-soft: #fff0f2;
+  --warn: #9a5700;
+  --warn-soft: #fff7df;
+  --blue: #2563eb;
+  --blue-soft: #edf4ff;
+  --shadow: 0 14px 42px rgba(28, 39, 60, .07);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body.dsheval-v3 { margin: 0; background: var(--bg); color: var(--ink); line-height: 1.55; }
+.topbar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 28px; min-height: 58px; padding: 8px max(24px, calc((100vw - 1240px) / 2)); background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(14px); }
+.brand { display: flex; align-items: center; gap: 9px; color: var(--ink); text-decoration: none; }
+.brand > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 900; }
+.brand strong { letter-spacing: -.03em; }
+.topbar nav { display: flex; align-items: center; gap: 4px; flex: 1; }
+.topbar nav a { padding: 8px 11px; border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 13px; }
+.topbar nav a:hover { background: var(--surface-soft); color: var(--ink); }
+.live-state { padding: 5px 9px; border-radius: 999px; background: var(--brand-soft); color: #4841c9; font-size: 11px; font-weight: 800; letter-spacing: .05em; }
+main { width: min(1240px, calc(100% - 40px)); margin: 24px auto 52px; }
+.hero, .section, .fixture-banner { border: 1px solid var(--line); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
+.hero { position: relative; display: grid; grid-template-columns: 1fr 220px; gap: 30px; overflow: hidden; min-height: 310px; padding: 42px; color: #fff; background: linear-gradient(125deg, #151b2b 0%, #252953 58%, #4f46b8 100%); border: 0; }
+.hero:after { content: ""; position: absolute; right: -100px; top: -170px; width: 430px; height: 430px; border: 75px solid #ffffff0a; border-radius: 50%; }
+.hero.tone-pass { background: linear-gradient(125deg, #10251d 0%, #143c2c 55%, #16734c 100%); }
+.hero.tone-fail { background: linear-gradient(125deg, #2b171c 0%, #5d1d2d 58%, #a82744 100%); }
+.hero.tone-unevaluable { background: linear-gradient(125deg, #2a2114 0%, #5b421b 58%, #986515 100%); }
+.hero-main, .gate-orb, .run-meta { position: relative; z-index: 1; }
+.eyebrow { margin: 0 0 8px; color: inherit; opacity: .7; font-size: 11px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.hero h1 { margin: 0; font-size: clamp(40px, 7vw, 72px); line-height: 1; letter-spacing: -.065em; }
+.hero-lead { max-width: 650px; margin: 18px 0 0; color: #e2e8f0; font-size: 17px; }
+.gate-reason { width: fit-content; margin: 12px 0 0; padding: 6px 9px; border-radius: 7px; background: #ffffff10; color: #fde68a; font: 700 11px/1.4 ui-monospace, SFMono-Regular, monospace; }
+.hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }
+.hero-chips span { padding: 6px 10px; border: 1px solid #ffffff25; border-radius: 999px; background: #ffffff0c; color: #e2e8f0; font-size: 12px; }
+.gate-orb { align-self: center; display: grid; place-items: center; width: 196px; height: 196px; padding: 25px; border: 1px solid #ffffff32; border-radius: 50%; background: #ffffff10; text-align: center; box-shadow: inset 0 0 0 12px #ffffff08; }
+.gate-orb small { color: #cbd5e1; }
+.gate-orb strong { font-size: 27px; letter-spacing: -.04em; }
+.gate-orb span { color: #cbd5e1; font-size: 12px; }
+.run-meta { grid-column: 1 / -1; align-self: end; color: #cbd5e1; font-size: 12px; }
+.run-meta summary { cursor: pointer; width: fit-content; }
+.run-meta[open] { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.run-meta[open] summary { grid-column: 1 / -1; }
+.run-meta > div { min-width: 0; padding: 10px; border-radius: 9px; background: #ffffff0c; overflow-wrap: anywhere; }
+.run-meta strong { color: #fff; }
+.fixture-banner { display: flex; align-items: center; gap: 15px; margin-top: 14px; padding: 14px 18px; border-color: #f1ce77; background: #fffae9; color: #714b08; box-shadow: none; }
+.fixture-banner span { flex: 1; color: #8b651c; font-size: 13px; }
+.fixture-banner small { color: #a87b22; font-family: ui-monospace, SFMono-Regular, monospace; }
+.section { margin-top: 18px; padding: 30px; scroll-margin-top: 76px; }
+.section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.section-heading h2 { margin: 0; font-size: 26px; line-height: 1.15; letter-spacing: -.04em; }
+.section-heading > p { max-width: 430px; margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+.section .eyebrow { color: var(--brand); opacity: 1; }
+.coverage-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.coverage-grid article { display: grid; grid-template-columns: auto 1fr; align-items: end; gap: 0 10px; min-width: 0; padding: 20px; border-radius: 16px; background: var(--surface-soft); border: 1px solid var(--line); }
+.coverage-grid strong { grid-row: 1 / 3; font-size: 44px; line-height: .9; letter-spacing: -.06em; }
+.coverage-grid span { color: var(--muted); font-size: 13px; }
+.coverage-grid small { overflow: hidden; color: var(--ink); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.task-card { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(380px, 1.25fr); align-items: center; gap: 28px; margin-top: 14px; padding: 26px; border-radius: 18px; background: linear-gradient(135deg, #f8f9ff, #f1f5ff); border: 1px solid #dde2ff; }
+.task-card h3 { margin: 0 0 7px; font-size: 24px; }
+.task-card p { margin: 0 0 8px; color: var(--muted); }
+.task-flow { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.task-flow code { min-width: 0; padding: 14px; border: 1px solid #d8dcf8; border-radius: 12px; background: #fff; color: #332f98; text-align: center; overflow-wrap: anywhere; }
+.task-flow span { position: relative; padding: 7px 11px; border-radius: 999px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.progress-copy { display: flex; align-items: baseline; gap: 8px; }
+.progress-copy strong { font-size: 23px; }
+.progress-copy span { color: var(--muted); font-size: 12px; }
+.progress-track { height: 8px; overflow: hidden; margin: -8px 0 24px; border-radius: 999px; background: #e8ebf1; }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--brand), #8b5cf6); }
+.journey-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 0; margin: 0; list-style: none; }
+.journey-step { display: grid; grid-template-columns: 30px 1fr; align-items: start; gap: 10px; min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.journey-number { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #e8ebf1; color: var(--muted); font-size: 12px; font-weight: 850; }
+.journey-step strong { display: block; min-height: 36px; font-size: 12px; line-height: 1.35; }
+.journey-step small { color: var(--muted); }
+.journey-step details { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
+.journey-step details p { margin: 6px 0 0; overflow-wrap: anywhere; }
+.journey-step.ok { border-color: #bde8cf; background: var(--good-soft); }
+.journey-step.ok .journey-number { background: var(--good); color: #fff; }
+.journey-step.busy { border-color: #bcd0ff; background: var(--blue-soft); box-shadow: 0 0 0 2px #2563eb10; }
+.journey-step.busy .journey-number { background: var(--blue); color: #fff; }
+.journey-step.bad { border-color: #f2bdc6; background: var(--bad-soft); }
+.journey-step.bad .journey-number { background: var(--bad); color: #fff; }
+.score-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.score-card { position: relative; display: grid; grid-template-columns: 42px 1fr auto; gap: 12px; min-width: 0; padding: 20px; border: 1px solid var(--line); border-top: 5px solid #a6afbd; border-radius: 17px; background: var(--surface-soft); }
+.score-card.tone-pass { border-top-color: var(--good); background: var(--good-soft); }
+.score-card.tone-fail { border-top-color: var(--bad); background: var(--bad-soft); }
+.score-card.tone-unevaluable { border-top-color: var(--warn); background: var(--warn-soft); }
+.score-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #e8ebf1; color: var(--muted); font-size: 22px; font-weight: 900; }
+.tone-pass .score-icon { background: var(--good); color: #fff; }
+.tone-fail .score-icon { background: var(--bad); color: #fff; }
+.tone-unevaluable .score-icon { background: var(--warn); color: #fff; }
+.score-copy { min-width: 0; }
+.score-copy small { color: var(--muted); }
+.score-copy h3 { margin: 2px 0 6px; font-size: 20px; letter-spacing: -.03em; }
+.score-copy p { margin: 0; color: var(--muted); font-size: 13px; }
+.result-badge { align-self: start; padding: 5px 8px; border-radius: 999px; background: #e8ebf1; color: var(--muted); font-size: 11px; font-weight: 850; white-space: nowrap; }
+.result-badge.pass { background: #caefd9; color: var(--good); }
+.result-badge.fail { background: #ffd7dd; color: var(--bad); }
+.result-badge.unevaluable { background: #f7e5af; color: var(--warn); }
+.technical-inline { grid-column: 1 / -1; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.technical-inline summary, .source-card summary, .reset-card summary { cursor: pointer; width: fit-content; color: var(--muted); }
+.technical-inline dl { display: grid; grid-template-columns: 100px 1fr; gap: 4px 8px; padding: 12px; border-radius: 10px; background: #ffffff99; }
+.technical-inline dt { font-weight: 750; }
+.technical-inline dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.reality-grid { display: grid; grid-template-columns: 1.2fr .8fr; gap: 12px; }
+.change-card, .reset-card, .source-card { border: 1px solid var(--line); border-radius: 16px; background: var(--surface-soft); }
+.change-card { padding: 21px; }
+.change-card h3, .reset-card h3, .source-card h3 { margin: 0 0 8px; }
+.change-card ul { display: grid; gap: 8px; padding: 0; margin: 14px 0 0; list-style: none; }
+.change-card li { display: flex; align-items: center; gap: 10px; padding: 9px; border-radius: 9px; background: #fff; }
+.change-kind { flex: none; min-width: 48px; padding: 3px 7px; border-radius: 6px; background: var(--blue-soft); color: var(--blue); font-size: 11px; font-weight: 800; text-align: center; }
+.reset-card { display: flex; align-items: flex-start; gap: 13px; padding: 21px; }
+.reset-card.tone-pass { background: var(--good-soft); border-color: #bde8cf; }
+.reset-card.tone-unevaluable { background: var(--warn-soft); border-color: #ead596; }
+.reset-icon, .source-mark { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: #e8ebf1; color: var(--muted); font-weight: 900; }
+.tone-pass .reset-icon, .source-mark.good { background: var(--good); color: #fff; }
+.source-mark.warn { background: var(--warn); color: #fff; }
+.reset-card p { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+.source-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.source-card { display: flex; align-items: flex-start; gap: 13px; padding: 20px; }
+.source-card > div { min-width: 0; }
+.source-card p { margin: 0 0 9px; color: var(--muted); font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chips span { padding: 3px 7px; border-radius: 6px; background: #e8ebf1; color: #475467; font-size: 10px; font-weight: 800; }
+.warning-copy { color: var(--warn) !important; }
+.failures.all-clear { border-color: #bde8cf; background: var(--good-soft); box-shadow: none; }
+.failures.has-failures { border-color: #f2bdc6; background: var(--bad-soft); }
+.failures ul { display: grid; gap: 8px; padding: 0; list-style: none; }
+.failures li { display: grid; grid-template-columns: 160px 1fr auto; gap: 10px; padding: 10px; border-radius: 10px; background: #fff; }
+.technical { padding: 0; overflow: hidden; }
+.technical > summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px 30px; cursor: pointer; list-style: none; }
+.technical > summary::-webkit-details-marker { display: none; }
+.technical > summary span:first-child { display: flex; flex-direction: column; }
+.technical > summary small { color: var(--brand); font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+.technical > summary strong { font-size: 20px; }
+.technical > summary span:last-child { color: var(--muted); font-size: 12px; }
+.technical-body { padding: 0 30px 30px; border-top: 1px solid var(--line); }
+.technical-body h2 { margin-top: 28px; font-size: 18px; }
+.drill { padding: 14px; margin: 9px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); scroll-margin-top: 74px; }
+.drill:target, [id^="raw-"]:target { outline: 3px solid #7c73ef55; background: var(--brand-soft); }
+.drill h3 { margin: 0 0 5px; font-size: 13px; overflow-wrap: anywhere; }
+.drill p { margin: 5px 0; color: var(--muted); font-size: 12px; }
+table { display: block; width: 100%; overflow-x: auto; border-collapse: collapse; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+th, td { min-width: 120px; padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 11px; }
+th { color: var(--muted); background: var(--surface-soft); text-transform: uppercase; letter-spacing: .05em; }
+tr:last-child td { border-bottom: 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; word-break: break-word; }
+code { color: #4841c9; font-size: .88em; }
+pre { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; white-space: pre-wrap; }
+a { color: #4f46d4; text-underline-offset: 3px; }
+footer { display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 24px; color: var(--muted); font-size: 11px; }
+footer code { max-width: 50vw; }
+.pass { color: var(--good); }
+.fail { color: var(--bad); }
+.unevaluable { color: var(--warn); }
+.pending { color: var(--muted); }
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr 170px; padding: 32px; }
+  .gate-orb { width: 160px; height: 160px; }
+  .coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .task-card { grid-template-columns: 1fr; }
+  .journey-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .score-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 680px) {
+  .topbar { padding: 8px 14px; }
+  .topbar nav { order: 3; width: 100%; overflow-x: auto; }
+  .live-state { margin-left: auto; }
+  main { width: min(100% - 24px, 1240px); margin-top: 12px; }
+  .hero { grid-template-columns: 1fr; min-height: 0; padding: 25px; }
+  .hero h1 { font-size: 45px; }
+  .gate-orb { width: 145px; height: 145px; }
+  .run-meta[open] { grid-template-columns: 1fr; }
+  .fixture-banner { align-items: flex-start; flex-direction: column; }
+  .section { padding: 20px; border-radius: 17px; }
+  .section-heading { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .section-heading > p { text-align: left; }
+  .coverage-grid { grid-template-columns: 1fr; }
+  .task-flow { grid-template-columns: 1fr; }
+  .journey-list, .reality-grid, .source-grid { grid-template-columns: 1fr; }
+  .score-card { grid-template-columns: 42px 1fr; }
+  .result-badge { grid-column: 2; width: fit-content; }
+  .failures li { grid-template-columns: 1fr; }
+  .technical > summary, .technical-body { padding-left: 20px; padding-right: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media print {
+  .topbar { position: relative; }
+  body.dsheval-v3 { background: #fff; }
+  main { width: 100%; margin: 0; }
+  .hero, .section { box-shadow: none; break-inside: avoid; }
+  .journey-list { grid-template-columns: repeat(5, 1fr); }
+}
+`;
 
 const LEGACY_RENDERER_CSS = ":root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,sans-serif}body{max-width:1100px;margin:auto;padding:24px;line-height:1.5}header,.panel,.check{border:1px solid #8886;border-radius:10px;padding:16px;margin:12px 0}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.summary div{background:#8881;padding:8px;border-radius:6px}.timeline{padding-left:24px}.step{margin:8px 0;padding:8px;border-left:5px solid #888}.step.ok{border-color:#16803c}.step.bad{border-color:#b42318}.step.busy{border-color:#1769aa}.pass{color:#16803c}.fail{color:#b42318}.unevaluable{color:#a15c00}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #8885;padding:7px}code,pre{overflow-wrap:anywhere}small{opacity:.75}a{color:inherit}dt{font-weight:700}dd{margin-bottom:5px}";
 
@@ -837,9 +1287,9 @@ footer { padding: 18px 4px; color: var(--muted); }
 }`;
 
 function rendererStyles(rendererVersion: string): string {
-  return rendererVersion === "dsheval-static/v2"
-    ? ENHANCED_RENDERER_CSS
-    : LEGACY_RENDERER_CSS;
+  if (rendererVersion === "dsheval-static/v3") return INTUITIVE_RENDERER_CSS;
+  if (rendererVersion === "dsheval-static/v2") return ENHANCED_RENDERER_CSS;
+  return LEGACY_RENDERER_CSS;
 }
 
 function verifyReportDocument(document: EvaluationReportDocument): void {
