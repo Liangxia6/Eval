@@ -90,11 +90,17 @@ function buildEnvironment(request: TargetExecutionRequest): NodeJS.ProcessEnv {
     LANG: process.env.LANG ?? "C.UTF-8",
     TMPDIR: path.join(request.runtimeDshHomePath, "tmp"),
     DSH_HOME: request.runtimeDshHomePath,
+    // dsh-eval-probe 0.1.0 (the Probe bundled with DSH 0.1.1-rc.2)
+    // consumes OUTPUT_DIR. Keep PROBE_OUTPUT as the framework-owned binding
+    // while making both names resolve to the exact same sealed path.
+    DSH_EVAL_OUTPUT_DIR: request.probeOutputPath,
     DSH_EVAL_PROBE_OUTPUT: request.probeOutputPath,
     DSH_EVAL_SOURCE_RUN_ID: request.sourceRunId,
     DSH_EVAL_WORKSPACE: request.cwd,
-    DSH_EVAL_CONTENT_MODE: "DIGEST",
+    // Probe 0.1.0 names its digest-preserving mode `hash`.
+    DSH_EVAL_CONTENT_MODE: "hash",
     DO_NOT_TRACK: "1",
+    DSH_TELEMETRY_MODE: "DISABLED",
     DSH_TELEMETRY_DISABLED: "1",
   };
   for (const [name, value] of Object.entries(request.modelEnvironment ?? {})) {
