@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DSHEval MVP 项目架构分析：模块边界、执行链、证据模型、安全机制、测试现状与演进建议。">
+  <title>DSHEval MVP 架构分析</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f8fa;
+      --surface: #ffffff;
+      --surface-alt: #f0f3f7;
+      --text: #172033;
+      --muted: #60708a;
+      --border: #d9e0e9;
+      --accent: #235fb6;
+      --accent-soft: #eaf2ff;
+      --good: #16734a;
+      --warn: #9a5a00;
+      --bad: #b42318;
+      --code: #e9edf3;
+      --max-width: 1180px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #11151c;
+        --surface: #181e28;
+        --surface-alt: #202834;
+        --text: #edf2f8;
+        --muted: #a4b0c1;
+        --border: #344052;
+        --accent: #7eb1ff;
+        --accent-soft: #1b3150;
+        --good: #63c89a;
+        --warn: #f4bd65;
+        --bad: #ff8b82;
+        --code: #242d3a;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.65;
+    }
+
+    a { color: var(--accent); }
+
+    code {
+      padding: 0.12rem 0.35rem;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    .page {
+      width: min(calc(100% - 32px), var(--max-width));
+      margin: 0 auto;
+      padding: 48px 0 64px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(260px, 0.6fr);
+      gap: 28px;
+      align-items: end;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1, h2, h3 { line-height: 1.25; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.35rem); letter-spacing: -0.04em; }
+    h2 { margin: 0 0 14px; font-size: 1.55rem; letter-spacing: -0.02em; }
+    h3 { margin: 0 0 8px; font-size: 1.05rem; }
+
+    .lede {
+      max-width: 760px;
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 1.08rem;
+    }
+
+    .snapshot {
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .snapshot p { margin: 0; }
+    .snapshot p + p { margin-top: 5px; }
+    .snapshot .commit { color: var(--accent); font-weight: 700; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .stat {
+      padding: 16px;
+      border-top: 3px solid var(--accent);
+      background: var(--surface);
+    }
+
+    .stat strong { display: block; font-size: 1.55rem; line-height: 1.2; }
+    .stat span { color: var(--muted); font-size: 0.82rem; }
+
+    .tabs {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      margin: 0 -8px 28px;
+      padding: 12px 8px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 94%, transparent);
+      backdrop-filter: blur(10px);
+    }
+
+    .tab-button {
+      flex: 0 0 auto;
+      padding: 8px 13px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 650;
+    }
+
+    .tab-button:hover { border-color: var(--border); color: var(--text); }
+    .tab-button[aria-selected="true"] { background: var(--accent); color: #fff; }
+
+    .panel[hidden] { display: none; }
+    .panel { min-height: 420px; }
+
+    .section-lead { max-width: 880px; margin: -5px 0 20px; color: var(--muted); }
+
+    .callout {
+      margin: 18px 0;
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .callout.warning { border-left-color: var(--warn); }
+    .callout.danger { border-left-color: var(--bad); }
+    .callout strong { display: block; margin-bottom: 3px; }
+
+    .architecture {
+      display: grid;
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .arch-box {
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .arch-box.primary { border-color: var(--accent); }
+    .arch-box.foundation { background: var(--surface-alt); }
+    .arch-box b { display: block; }
+    .arch-box small { color: var(--muted); }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .arrow { color: var(--muted); text-align: center; font-size: 1.3rem; line-height: 1; }
+
+    .two-column {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+      margin: 28px 0;
+    }
+
+    .clean-list { margin: 0; padding-left: 1.2rem; }
+    .clean-list li + li { margin-top: 7px; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0 24px;
+      counter-reset: flow;
+    }
+
+    .flow-step {
+      display: grid;
+      grid-template-columns: 38px 1fr;
+      gap: 10px;
+      padding: 16px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    .flow-number {
+      color: var(--accent);
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+
+    .flow-step p { margin: 3px 0 0; color: var(--muted); font-size: 0.9rem; }
+
+    .evidence-flow {
+      display: grid;
+      grid-template-columns: minmax(170px, 1fr) 34px minmax(190px, 1fr) 34px minmax(170px, 1fr);
+      align-items: center;
+      gap: 8px;
+      margin: 26px 0 14px;
+    }
+
+    .evidence-node {
+      min-height: 112px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    .evidence-node.emphasis { border-color: var(--accent); }
+    .evidence-node p { margin: 5px 0 0; color: var(--muted); font-size: 0.88rem; }
+    .evidence-arrow { color: var(--muted); text-align: center; font-size: 1.4rem; }
+    .independent { max-width: 520px; margin: 0 auto 24px; background: var(--surface-alt); }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); font-size: 0.9rem; }
+    th, td { padding: 11px 13px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: var(--surface-alt); color: var(--muted); font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-alt) 35%, var(--surface)); }
+    td.number { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .priority {
+      display: inline-block;
+      min-width: 2.4rem;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-weight: 800;
+    }
+
+    .priority.p0 { color: var(--bad); }
+    .priority.p1 { color: var(--warn); }
+    .priority.p2 { color: var(--accent); }
+
+    .source-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-top: 26px;
+      font-size: 0.88rem;
+    }
+
+    footer {
+      margin-top: 42px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    @media (max-width: 820px) {
+      .hero, .two-column { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .arch-grid, .flow { grid-template-columns: 1fr; }
+      .evidence-flow { grid-template-columns: 1fr; }
+      .evidence-arrow { transform: rotate(90deg); }
+    }
+
+    @media (max-width: 480px) {
+      .page { width: min(calc(100% - 20px), var(--max-width)); padding-top: 28px; }
+      .stats { grid-template-columns: 1fr; }
+    }
+
+    @media print {
+      :root { --bg: #fff; --surface: #fff; --surface-alt: #f4f4f4; --text: #111; --muted: #555; --border: #bbb; }
+      .page { width: 100%; padding: 0; }
+      .tabs { display: none; }
+      .panel[hidden] { display: block; }
+      .panel { min-height: 0; break-before: page; }
+      .panel:first-of-type { break-before: auto; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Architecture Review</p>
+        <h1>DSHEval MVP 架构分析</h1>
+        <p class="lede">一个以证据可信性、失败不失真和可离线复核为中心的 Agent 评测纵向切片。</p>
+      </div>
+      <aside class="snapshot" aria-label="审查快照">
+        <p class="commit">本地 main @ 1ebd936</p>
+        <p>仓库：Liangxia6/Eval</p>
+        <p>分析日期：2026-09-03</p>
+      </aside>
+    </header>
+
+    <section class="stats" aria-label="项目规模">
+      <div class="stat"><strong>20,345</strong><span>src TypeScript 行数</span></div>
+      <div class="stat"><strong>29</strong><span>源码文件</span></div>
+      <div class="stat"><strong>8</strong><span>顶层模块</span></div>
+      <div class="stat"><strong>85</strong><span>声明的自动化测试</span></div>
+    </section>
+
+    <nav class="tabs" role="tablist" aria-label="分析章节">
+      <button class="tab-button" role="tab" aria-selected="true" aria-controls="overview" id="tab-overview" data-tab="overview">系统总览</button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="flow" id="tab-flow" data-tab="flow">执行链</button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="modules" id="tab-modules" data-tab="modules">模块职责</button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="evidence" id="tab-evidence" data-tab="evidence">证据与安全</button>
+      <button class="tab-button" role="tab" aria-selected="false" aria-controls="roadmap" id="tab-roadmap" data-tab="roadmap">成熟度与建议</button>
+    </nav>
+
+    <section class="panel" role="tabpanel" id="overview" aria-labelledby="tab-overview">
+      <h2>一句话判断</h2>
+      <p class="section-lead">领域建模和安全边界明显强于普通 MVP，但能力覆盖、调度和真实 VM 验收仍处于单场景阶段。</p>
+      <div class="callout">
+        <strong>最核心的设计选择</strong>
+        评测不相信 Agent 的最终回答，而是把行为 Trace、独立环境变化和内容摘要汇合为密封证据，再由确定性 Judge 评分。
+      </div>
+
+      <h2>模块化单体骨架</h2>
+      <div class="architecture" aria-label="模块依赖图">
+        <div class="arch-box primary"><b>app — 唯一组合根</b><small>CLI → bootstrap → runEvaluationWorkflow；只有这里装配具体实现。</small></div>
+        <div class="arrow">↓ 调用全部业务模块</div>
+        <div class="arch-grid">
+          <div class="arch-box"><b>planning</b><small>冻结 Target、加载 Pack、编译计划</small></div>
+          <div class="arch-box"><b>runtime</b><small>准备环境、执行目标、迁移状态</small></div>
+          <div class="arch-box"><b>observation</b><small>Probe、文件快照、Diff、观测会话</small></div>
+          <div class="arch-box"><b>evaluation</b><small>Evidence、Closure、Judge、Gate、Report</small></div>
+          <div class="arch-box"><b>storage</b><small>不可变记录、CAS、内容寻址 Artifact</small></div>
+          <div class="arch-box"><b>platform</b><small>配置、安全预检、租约、Viewer、导出</small></div>
+        </div>
+        <div class="arrow">↓ 七个业务模块只依赖共享契约</div>
+        <div class="arch-box foundation"><b>core — 架构地基</b><small>领域模型 · 状态机 · Scope/Ref/Digest · PortResult · Failure taxonomy</small></div>
+      </div>
+
+      <div class="two-column">
+        <div>
+          <h3>为什么边界有效</h3>
+          <ul class="clean-list">
+            <li>契约测试直接扫描 import，禁止业务模块相互依赖。</li>
+            <li>具体实现只允许在 <code>app/bootstrap.ts</code> 实例化。</li>
+            <li>共享模型只有一份，避免跨模块重复定义和语义漂移。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>当前真实产品形态</h3>
+          <p>单机 CLI + 本地文件存储 + 静态 Viewer。没有常驻 API、数据库、消息队列或分布式 Worker；运行时没有第三方生产依赖。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" role="tabpanel" id="flow" aria-labelledby="tab-flow" hidden>
+      <h2>一次评测的真实执行链</h2>
+      <p class="section-lead">顺序来自 <code>runEvaluationWorkflow</code> 的持久化节点。核心约束是：先形成可验证事实，再允许下游消费。</p>
+      <div class="flow">
+        <article class="flow-step"><span class="flow-number">01</span><div><h3>冻结输入</h3><p>提交 Config、Target 描述、源码清单、锁文件与有效配置摘要。</p></div></article>
+        <article class="flow-step"><span class="flow-number">02</span><div><h3>检查 Target</h3><p>重新校验冻结内容，确认 DSH 版本、Headless、Probe 顺序和权限事实。</p></div></article>
+        <article class="flow-step"><span class="flow-number">03</span><div><h3>编译计划</h3><p>把 Pack 解析为单 Dataset/Case，并确定性匹配 Sensor、Judge、预算和环境能力。</p></div></article>
+        <article class="flow-step"><span class="flow-number">04</span><div><h3>租约与安全预检</h3><p>取得单 Run 租约；验证 UID 隔离、setpriv、目录权限与网络默认拒绝。</p></div></article>
+        <article class="flow-step"><span class="flow-number">05</span><div><h3>准备环境与基线</h3><p>创建 workspace/runtime home，暂存只读 Target，Seed 输入并采集文件 Before。</p></div></article>
+        <article class="flow-step"><span class="flow-number">06</span><div><h3>执行完整 Agent</h3><p>使用字面 argv 启动 DSH；Probe 记录行为，文件 Sensor 独立观察副作用。</p></div></article>
+        <article class="flow-step"><span class="flow-number">07</span><div><h3>密封证据</h3><p>Drain Probe、采集稳定 After，形成 Raw Observation、Evidence Bundle 与 Closure。</p></div></article>
+        <article class="flow-step"><span class="flow-number">08</span><div><h3>逐项判定</h3><p>Judge 只能读取 Closure 授权的证据，输出 Finding、Judgement 和 CheckResult。</p></div></article>
+        <article class="flow-step"><span class="flow-number">09</span><div><h3>Reset 与验证</h3><p>重置后重新独立采集；MATCH 才清理，否则隔离环境，但不改写 Agent Verdict。</p></div></article>
+        <article class="flow-step"><span class="flow-number">10</span><div><h3>Gate 与交付</h3><p>重读已提交 CheckResult，形成唯一 Gate；JSON 为权威，HTML 与导出为派生交付。</p></div></article>
+      </div>
+      <div class="callout">
+        <strong>两个容易误读的顺序</strong>
+        Reset 在 Gate 前完成，但 Gate 输入仍只有 CheckResult；报告在 Gate 后生成，所以报告失败不会改变已经形成的评分。
+      </div>
+      <h3>状态机不是日志装饰</h3>
+      <p>Run、Case、Attempt、Environment、ObservationSession 都是带 revision 的投影。每次迁移通过 CAS 保存历史与当前版本；非法跳转、旧 revision、缺失历史或损坏摘要会阻断恢复。</p>
+    </section>
+
+    <section class="panel" role="tabpanel" id="modules" aria-labelledby="tab-modules" hidden>
+      <h2>模块职责与代码重心</h2>
+      <p class="section-lead">边界清晰，但复杂度集中在少数超大文件；这不会破坏依赖方向，却会提高变更和评审成本。</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>模块</th><th>文件</th><th>行数</th><th>职责</th><th>维护压力</th></tr></thead>
+          <tbody>
+            <tr><td><code>app</code></td><td class="number">4</td><td class="number">3,197</td><td>组合根、CLI、工作流和 Viewer CLI</td><td>高：workflow.ts 2,330 行</td></tr>
+            <tr><td><code>core</code></td><td class="number">3</td><td class="number">2,023</td><td>共享模型、契约、状态机和失败语义</td><td>中：models.ts 1,564 行</td></tr>
+            <tr><td><code>planning</code></td><td class="number">3</td><td class="number">3,245</td><td>冻结 Target、Catalog、Planner</td><td>高：target/planner 均超过 1,200 行</td></tr>
+            <tr><td><code>runtime</code></td><td class="number">3</td><td class="number">1,266</td><td>环境、目标执行和生命周期投影</td><td>低</td></tr>
+            <tr><td><code>observation</code></td><td class="number">4</td><td class="number">2,418</td><td>Probe、文件 Sensor、Diff 与观测会话</td><td>中</td></tr>
+            <tr><td><code>evaluation</code></td><td class="number">5</td><td class="number">3,932</td><td>证据、Closure、Judge、Gate 和报告</td><td>高：report.ts 1,671 行</td></tr>
+            <tr><td><code>storage</code></td><td class="number">2</td><td class="number">1,976</td><td>不可变记录、CAS 和 Artifact</td><td>高：两文件承载全部持久化语义</td></tr>
+            <tr><td><code>platform</code></td><td class="number">5</td><td class="number">2,288</td><td>配置、安全、租约、Viewer 和导出</td><td>中</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="two-column">
+        <div>
+          <h3>可扩展的位置</h3>
+          <ul class="clean-list">
+            <li><code>packs/</code> 声明 Dataset、Scenario、Metric、Judge 绑定、环境和证据要求。</li>
+            <li><code>SensorAdapterDescriptor</code> 绑定观测实现及能力摘要。</li>
+            <li><code>JudgeImplementation</code> 注册实际评分算法。</li>
+            <li><code>RepositoryPort</code> 与 <code>ArtifactStorePort</code> 定义可替换存储边界。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>扩展的真实代价</h3>
+          <p>“新增 Pack 不修改源码”只适用于复用现有文件 Sensor 和规则 Judge。新增能力类型仍需同步修改实现、bootstrap 注册、Pack、证据契约和测试。</p>
+          <p>因此它是有明确扩展缝隙的单体，还不是运行时动态发现的插件平台。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" role="tabpanel" id="evidence" aria-labelledby="tab-evidence" hidden>
+      <h2>证据模型与安全边界</h2>
+      <p class="section-lead">最有价值的设计是将“Agent 做了什么”和“环境真正发生了什么”建模为不同可信等级的来源。</p>
+      <div class="evidence-flow" aria-label="证据处理流程">
+        <div class="evidence-node"><h3>Cooperative Trace</h3><p>DSH Probe：会话、工具调用、结果和最终回答。</p></div>
+        <div class="evidence-arrow">→</div>
+        <div class="evidence-node emphasis"><h3>Evidence Closure</h3><p>按 Check 限制事实类型、来源、信任级别和时间边界。</p></div>
+        <div class="evidence-arrow">→</div>
+        <div class="evidence-node"><h3>Deterministic Judge</h3><p>只读授权证据，输出 Finding、Judgement 和 CheckResult。</p></div>
+      </div>
+      <div class="arrow">↑</div>
+      <div class="evidence-node independent"><h3>Independent Observation</h3><p>文件 Before / After / Post-reset、类型、大小、SHA-256、稳定窗口和 symlink 边界。</p></div>
+
+      <div class="two-column">
+        <div>
+          <h3>完整性机制</h3>
+          <ul class="clean-list">
+            <li>Canonical JSON 和 Artifact 原始字节分别计算 SHA-256。</li>
+            <li>不可变对象使用摘要 Ref，生命周期对象额外绑定 revision。</li>
+            <li>Repository 写入时验证 Scope、Ref、提交顺序和 Gate 唯一性。</li>
+            <li><code>report.json</code> 是权威事实，HTML 只负责展示。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>运行隔离</h3>
+          <ul class="clean-list">
+            <li>生产模式要求 Linux VM 和 <code>dsheval</code>/<code>dshagent</code> 两个 UID。</li>
+            <li><code>setpriv</code> 清理附加组、能力并启用 no-new-privs。</li>
+            <li>Target 只接收受限环境变量和明确允许的目录。</li>
+            <li>网络通过允许端点与禁止目标的正反探针验证默认拒绝。</li>
+            <li>Viewer 只能监听 loopback，并拒绝 symlink 路径。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="callout warning">
+        <strong>安全保证的适用范围</strong>
+        Fixture 模式只返回 <code>PROCESS_FIXTURE</code>，不能证明生产隔离。真实安全结论必须来自 Linux VM 预检，而当前仓库仍缺这条发布验收证据。
+      </div>
+    </section>
+
+    <section class="panel" role="tabpanel" id="roadmap" aria-labelledby="tab-roadmap" hidden>
+      <h2>成熟度判断与演进路线</h2>
+      <p class="section-lead">应先补齐可重复验证的交付链，再扩展能力和规模；否则容易把可信纵向切片扩成不可验证的平台。</p>
+      <div class="two-column">
+        <div>
+          <h3>已经扎实</h3>
+          <ul class="clean-list">
+            <li>模块依赖方向有自动化架构测试。</li>
+            <li>双通道取证避免只相信 Agent 自述。</li>
+            <li>摘要、作用域、Ref 和状态历史可发现篡改。</li>
+            <li>Verdict、OperationalHealth 和失败归因相互独立。</li>
+            <li>生产安全预检采用 fail-closed。</li>
+            <li>Pack 与框架源码分离。</li>
+          </ul>
+        </div>
+        <div>
+          <h3>仍是 MVP</h3>
+          <ul class="clean-list">
+            <li>单 VM、单 Run、单 Dataset、单 Case、单 Attempt。</li>
+            <li>只有一个 Attention + PyTorch Pack。</li>
+            <li>绑定 DSH 0.1.1-rc.2 和 Linux setpriv。</li>
+            <li>只有文件 Sensor 与规则 Judge。</li>
+            <li>没有真实 DSH + 模型 VM 发布验收。</li>
+            <li>Sensor/Judge 仍由 bootstrap 静态注册。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>优先级</th><th>动作</th><th>原因与验收</th></tr></thead>
+          <tbody>
+            <tr><td><span class="priority p0">P0</span></td><td>修复测试入口并建立 Linux CI</td><td>零测试必须失败；目标 Linux 环境必须强制执行 85 项门禁。</td></tr>
+            <tr><td><span class="priority p0">P0</span></td><td>完成真实 DSH VM 验收</td><td>真实模型、双 UID、网络默认拒绝、Probe 与完整报告均需归档。</td></tr>
+            <tr><td><span class="priority p1">P1</span></td><td>拆分主编排和大文件</td><td>把 workflow 拆成阶段 Handler；分离 report 领域文档、ViewModel 和 renderer。</td></tr>
+            <tr><td><span class="priority p1">P1</span></td><td>扩充 Sensor 与 Judge</td><td>优先增加进程/资源、PDF/文档，再考虑 Browser、数据库和 LLM Judge。</td></tr>
+            <tr><td><span class="priority p2">P2</span></td><td>升级为显式插件装配</td><td>保留能力摘要和确定性匹配，让实现通过可审计 manifest 注册。</td></tr>
+            <tr><td><span class="priority p2">P2</span></td><td>最后扩展调度规模</td><td>多 Dataset、Retry、并发、数据库和 Worker 应建立在现有事实模型之上。</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout danger">
+        <strong>本次验证发现</strong>
+        <code>pnpm check</code> 通过；Windows 上 <code>pnpm test</code> 因单引号 glob 静默执行 0 项。直接运行 12 个编译测试文件后共有 85 项：48 通过、36 失败、1 跳过。失败主要来自目录 fsync、symlink 权限、POSIX UID/setpriv 和进程组语义，说明项目的 Linux 边界合理，但现有测试入口没有正确暴露平台不兼容。
+      </div>
+    </section>
+
+    <div class="source-links" aria-label="主要依据">
+      <a href="../README.md">README</a>
+      <a href="ARCHITECTURE.md">ARCHITECTURE.md</a>
+      <a href="CONTRACTS.md">CONTRACTS.md</a>
+      <a href="TESTING.md">TESTING.md</a>
+      <a href="../src/app/workflow.ts">workflow.ts</a>
+      <a href="../src/platform/security.ts">security.ts</a>
+      <a href="../packs/attention-pytorch-v1.json">Attention Pack</a>
+      <a href="https://github.com/Liangxia6/Eval">GitHub 仓库</a>
+    </div>
+
+    <footer>
+      本报告基于 D:\Eval 本地源码、docs-simple、packs 与 tests 交叉核验。统计不包含 tests、dist、node_modules 和工作区中的论文 PDF。打印时会自动展开全部章节。
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      const buttons = Array.from(document.querySelectorAll('[role="tab"]'));
+      const panels = Array.from(document.querySelectorAll('[role="tabpanel"]'));
+
+      const activate = (id, updateHash = true) => {
+        const selected = buttons.find((button) => button.dataset.tab === id) || buttons[0];
+        if (!selected) return;
+        buttons.forEach((button) => {
+          const active = button === selected;
+          button.setAttribute("aria-selected", String(active));
+          button.tabIndex = active ? 0 : -1;
+        });
+        panels.forEach((panel) => { panel.hidden = panel.id !== selected.dataset.tab; });
+        if (updateHash) history.replaceState(null, "", `#${selected.dataset.tab}`);
+      };
+
+      buttons.forEach((button, index) => {
+        button.addEventListener("click", () => activate(button.dataset.tab));
+        button.addEventListener("keydown", (event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          const direction = event.key === "ArrowRight" ? 1 : -1;
+          const next = buttons[(index + direction + buttons.length) % buttons.length];
+          next.focus();
+          activate(next.dataset.tab);
+        });
+      });
+
+      activate(location.hash.slice(1) || "overview", false);
+    })();
+  </script>
+</body>
+</html>
