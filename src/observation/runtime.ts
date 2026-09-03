@@ -1,3 +1,9 @@
+/**
+ * 文件职责：有界读取并解析 DSH Runtime Probe 的 JSONL 输出，记录关联、序列和边界问题，再把草稿绑定到已提交原始制品。
+ * 核心流程：安全打开 Probe 文件并按字节/时间限额读取，逐行验证外部 Envelope 与序列，生成观察和采集状态草稿，提交原始字节后物化领域记录及失败草稿。
+ * 与其他文件的真实交互：使用 core/models.ts 的作用域、摘要和不可变记录工具；实现身份被 observation/coordinator.ts 写入 SourceDescriptor；由 app/workflow.ts 驱动读取、解析、制品提交和物化。
+ * 公开接口：Probe 线协议及解析类型、有界读取类型与函数、实现身份常量、parseProbeJsonl、materializeProbeCollection、probeIssueFailureDrafts。
+ */
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
 
@@ -24,7 +30,7 @@ import {
 } from "../core/models.js";
 import type { FailureDraft, FailureRecord } from "../core/errors.js";
 
-/** The externally owned wire format emitted by the DSH runtime probe. */
+/** DSH Runtime Probe 输出的外部线协议；未知字段会原样保留。 */
 export interface ProbeEnvelope {
   readonly schema: "dsh-eval.probe/v1";
   readonly runId: string;
@@ -34,12 +40,14 @@ export interface ProbeEnvelope {
   readonly pid: number;
   readonly kind: string;
   readonly data: Readonly<Record<string, unknown>>;
-  /** Unknown external fields are deliberately retained. */
+  /** 保留外部协议中的未知字段，避免采集层无意丢失原始信息。 */
   readonly [field: string]: unknown;
 }
 
+/** 表示单条 Probe 记录能否与冻结的 RunId 和可选 PID 关联。 */
 export type ProbeAssociation = "MATCHED" | "UNRESOLVED";
 
+/** Probe 解析、序列完整性和生命周期边界可能产生的问题代码。 */
 export type ProbeIssueCode =
   | "BAD_JSON"
   | "INVALID_ENVELOPE"
@@ -58,6 +66,7 @@ export type ProbeIssueCode =
   | "PROBE_TRUNCATED"
   | "PROBE_CONTENT_RESTRICTED";
 
+/** 带可选行号和序列号的单个 Probe 完整性问题。 */
 export interface ProbeIssue {
   readonly code: ProbeIssueCode;
   readonly lineNumber?: number;
@@ -65,6 +74,7 @@ export interface ProbeIssue {
   readonly detail: string;
 }
 
+/** 解析器识别出的连续序列缺口及随后观察到的位置。 */
 export interface ProbeSequenceGap {
   readonly kind: "GAP";
   readonly firstMissing: number;
@@ -73,26 +83,24 @@ export interface ProbeSequenceGap {
   readonly lineNumber: number;
 }
 
+/** 单条有效 JSONL 记录在已提交原始制品中的字节位置与摘要。 */
 export interface ProbeLineLocation {
   readonly lineNumber: number;
-  /** Inclusive byte offset in the committed JSONL artifact. */
+  /** 在已提交 JSONL 制品中的起始字节偏移，包含该字节。 */
   readonly byteStart: number;
-  /** Exclusive byte offset, excluding the JSONL newline. */
+  /** 不包含 JSONL 换行符的结束字节偏移。 */
   readonly byteEnd: number;
   readonly lineDigest: ContentDigest;
 }
 
+/** 已验证 Envelope、关联结论和原始位置组成的解析记录。 */
 export interface ParsedProbeRecord {
   readonly envelope: ProbeEnvelope;
   readonly association: ProbeAssociation;
   readonly location: ProbeLineLocation;
 }
 
-/**
- * An observation draft is completed with common immutable-record metadata by
- * the repository. Keeping it as a draft prevents the collector from claiming
- * that bytes have already been committed.
- */
+/** 解析阶段生成的观察草稿；待原始字节提交后再由物化函数补齐不可变记录元数据。 */
 export interface ProbeRawObservationDraft {
   readonly observationId: string;
   readonly attemptId: string;
@@ -110,6 +118,7 @@ export interface ProbeRawObservationDraft {
   readonly rawDigest: ContentDigest;
 }
 
+/** 解析阶段汇总的 Probe 采集水位、缺口和完整性草稿。 */
 export interface ProbeCollectionStatusDraft {
   readonly collectionStatusId: string;
   readonly sourceRef: Ref<SourceDescriptor>;
@@ -126,6 +135,7 @@ export interface ProbeCollectionStatusDraft {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** 可写入 CollectionStatus 的规范化缺口描述。 */
 export interface ProbeCollectionGapDraft {
   readonly kind: string;
   readonly firstMissingSeq?: number;
@@ -134,9 +144,10 @@ export interface ProbeCollectionGapDraft {
   readonly detail: JsonValue;
 }
 
+/** 解析 Probe 字节流所需的冻结关联身份、采集时间和可选限制标记。 */
 export interface ProbeParseOptions {
   readonly expectedRunId: string;
-  /** PID from the committed Target-start receipt, when available. */
+  /** 已提交目标启动回执中的 PID（如果可用）。 */
   readonly expectedPid?: number;
   readonly attemptId: string;
   readonly sourceRef: Ref<SourceDescriptor>;
@@ -148,19 +159,20 @@ export interface ProbeParseOptions {
   readonly rawArtifactRef?: Ref<ArtifactRef>;
   readonly failureRefs?: readonly Ref<FailureRecord>[];
   readonly makeObservationId?: (lineNumber: number, probeSeq: number) => string;
-  /** The collector stopped at its frozen byte/time bound. */
+  /** 标记采集器是否因冻结的字节或时间上限停止。 */
   readonly inputTruncated?: boolean;
-  /** Raw bytes were sealed as Restricted and must not be copied into ordinary JSON records. */
+  /** 标记原始字节因命中 Secret Canary 而只能作为 Restricted 制品保存。 */
   readonly contentRestricted?: boolean;
 }
 
+/** 一次有界 Probe 文件读取的精确字节及停止原因。 */
 export interface BoundedProbeRead {
   readonly bytes: Uint8Array;
   readonly truncated: boolean;
   readonly timedOut: boolean;
 }
 
-/** Reads at most the frozen SourceRequirement bound without following a Target-created symlink. */
+/** 不跟随目标创建的符号链接，并按冻结限额读取 Probe 文件；由 app/workflow.ts 在 DRAINING 阶段调用。 */
 export async function readProbeFileBounded(input: {
   readonly path: string;
   readonly maxBytes: number;
@@ -219,10 +231,11 @@ export async function readProbeFileBounded(input: {
   }
 }
 
+/** Probe 解析产生的原始字节、可信前缀、记录、草稿和完整性问题集合。 */
 export interface ProbeParseResult {
-  /** Exact bytes supplied by the collector. These are never normalized. */
+  /** 采集器提供的精确字节，不做换行或编码规范化。 */
   readonly rawArtifactBytes: Uint8Array;
-  /** Longest trustworthy JSONL prefix; a malformed line stops parsing. */
+  /** 最长可信 JSONL 前缀；遇到畸形行即停止扩展。 */
   readonly validPrefixByteLength: number;
   readonly records: readonly ParsedProbeRecord[];
   readonly observations: readonly ProbeRawObservationDraft[];
@@ -230,6 +243,7 @@ export interface ProbeParseResult {
   readonly issues: readonly ProbeIssue[];
 }
 
+/** 原始 Probe 制品提交后物化观察和采集状态所需的输入。 */
 export interface MaterializeProbeCollectionInput {
   readonly scope: ScopeRef;
   readonly parseResult: ProbeParseResult;
@@ -240,15 +254,20 @@ export interface MaterializeProbeCollectionInput {
   readonly failureRefs?: readonly Ref<FailureRecord>[];
 }
 
+/** 可由仓储提交的 Probe RawObservation 列表与 CollectionStatus。 */
 export interface MaterializedProbeCollection {
   readonly observations: readonly RawObservation[];
   readonly collectionStatus: CollectionStatus;
 }
 
+/** 当前解析器接受的外部 Probe Envelope Schema。 */
 const PROBE_SCHEMA = "dsh-eval.probe/v1";
 
+/** 写入 SourceDescriptor 的 Probe 实现稳定标识。 */
 export const PROBE_IMPLEMENTATION_ID = "dsh-runtime-probe";
+/** 写入 SourceDescriptor 的 Probe 实现版本。 */
 export const PROBE_IMPLEMENTATION_VERSION = "1.0.0";
+/** 冻结到观察计划中的 Probe 能力清单。 */
 export const PROBE_CAPABILITIES = [
   "CONTENT_MODE_STRUCTURED",
   "CONTIGUOUS_SEQUENCE",
@@ -258,19 +277,15 @@ export const PROBE_CAPABILITIES = [
   "SOURCE_RUN_ID",
   "TOOL_LIFECYCLE",
 ] as const;
+/** PROBE_CAPABILITIES 的固定摘要，用于计划与运行实现之间的漂移检测。 */
 export const PROBE_CAPABILITY_DIGEST: ContentDigest = {
   algorithm: "sha256",
   byteLength: 132,
   value: "11ab0f3b91fd3b28943640d97465e81d06d5baaa3af1eb1668014306e0506418",
 };
 
-export function digestRawBytes(bytes: Uint8Array): ContentDigest {
-  return digestBytes(bytes);
-}
-
 /**
- * Parses a frozen Probe JSONL byte stream. The exact input bytes are returned
- * for ArtifactStore commit; malformed tails never erase the valid prefix.
+ * 解析冻结的 Probe JSONL 字节流并保留精确原文；由 app/workflow.ts 在原始制品提交前调用，内部校验 Envelope、序列及 start/turn/stop 边界。
  */
 export function parseProbeJsonl(
   input: Uint8Array | string,
@@ -333,7 +348,7 @@ export function parseProbeJsonl(
       lineNumber,
       byteStart: offset,
       byteEnd: contentEnd,
-      lineDigest: digestRawBytes(lineBytes),
+      lineDigest: digestBytes(lineBytes),
     };
     const runMatches = parsed.runId === options.expectedRunId;
     const pidMatches = options.expectedPid === undefined || parsed.pid === options.expectedPid;
@@ -491,7 +506,7 @@ export function parseProbeJsonl(
   };
 }
 
-/** Finalizes Probe drafts only after the exact JSONL bytes have been committed. */
+/** 在精确 JSONL 字节已提交后物化 Probe 观察与 CollectionStatus；由 app/workflow.ts 在 ArtifactStore 返回引用后调用。 */
 export function materializeProbeCollection(
   input: MaterializeProbeCollectionInput,
 ): MaterializedProbeCollection {
@@ -501,7 +516,7 @@ export function materializeProbeCollection(
   }
   assertSameAttemptScope(scope, input.rawArtifact.scope);
   if (
-    !digestEquals(digestRawBytes(input.parseResult.rawArtifactBytes), input.rawArtifact.artifactContentDigest) ||
+    !digestEquals(digestBytes(input.parseResult.rawArtifactBytes), input.rawArtifact.artifactContentDigest) ||
     !digestEquals(input.rawArtifact.contentDigest, input.rawArtifactRef.digest) ||
     input.rawArtifact.artifactId !== input.rawArtifactRef.id
   ) {
@@ -565,7 +580,7 @@ export function materializeProbeCollection(
   return { observations, collectionStatus };
 }
 
-/** Converts collector completeness issues into persistable, non-Agent failures. */
+/** 将采集完整性问题转换为可持久化的 Collector 失败草稿；由 app/workflow.ts 在物化 CollectionStatus 前调用。 */
 export function probeIssueFailureDrafts(
   parseResult: ProbeParseResult,
   input: {
@@ -592,6 +607,7 @@ export function probeIssueFailureDrafts(
   }));
 }
 
+/** 将领域 Ref 转成可嵌入捕获元数据的 JSON；由 materializeProbeCollection 调用。 */
 function refJson(ref: Ref): JsonObject {
   return {
     schema: ref.schema,
@@ -605,6 +621,7 @@ function refJson(ref: Ref): JsonObject {
   };
 }
 
+/** 校验 probe/start、已提交 turn 与 probe/stop 的数量和相对顺序；由 parseProbeJsonl 在逐行解析后调用。 */
 function validateProbeBoundaries(
   records: readonly ParsedProbeRecord[],
   issues: ProbeIssue[],
@@ -664,6 +681,7 @@ function validateProbeBoundaries(
   }
 }
 
+/** 对未知 JSON 值执行 ProbeEnvelope 结构守卫；由 parseProbeJsonl 逐行调用。 */
 function isProbeEnvelope(value: unknown): value is ProbeEnvelope {
   if (!isRecord(value)) return false;
   return (
@@ -682,10 +700,12 @@ function isProbeEnvelope(value: unknown): value is ProbeEnvelope {
   );
 }
 
+/** 将解析问题代码规范化为失败记录的 PROBE_* 原因码；由采集状态和失败草稿生成路径调用。 */
 function probeIssueReasonCode(code: ProbeIssueCode): string {
   return code.startsWith("PROBE_") ? code : `PROBE_${code}`;
 }
 
+/** 验证外部单调时钟值是非负安全整数或十进制字符串；由 isProbeEnvelope 调用。 */
 function isMonotonicNs(value: unknown): value is number | string {
   return (
     (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) ||
@@ -693,15 +713,18 @@ function isMonotonicNs(value: unknown): value is number | string {
   );
 }
 
+/** 在不会丢失整数精度时转换单调时钟值；由 parseProbeJsonl 构造 SourceTime 时调用。 */
 function toSafeInteger(value: number | string): number | undefined {
   const converted = typeof value === "number" ? value : Number(value);
   return Number.isSafeInteger(converted) && converted >= 0 ? converted : undefined;
 }
 
+/** 判断未知值是否为普通对象；由 Envelope 与嵌套 Session 事件校验调用。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** 按失败标识和摘要去重并排序引用；由 materializeProbeCollection 合并解析与调用方失败时使用。 */
 function stableFailureRefs(refs: readonly Ref<FailureRecord>[]): readonly Ref<FailureRecord>[] {
   const unique = new Map(refs.map((ref) => [`${ref.id}\u0000${ref.digest.value}`, ref] as const));
   return [...unique.values()].sort((left, right) => String(left.id).localeCompare(String(right.id), "en"));

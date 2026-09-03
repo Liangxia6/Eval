@@ -1,3 +1,9 @@
+/**
+ * 文件职责：按 EvidenceContract 为每个检查建立证据闭包，决定哪些证据可授权给 Judge。
+ * 核心流程：验证 Bundle、Evidence、Source 与 Ref 的完整性，再逐项检查事实类型、来源、信任度和完整度并生成 Closure。
+ * 真实交互：读取 evidence.ts 封装并密封的 EvidenceBundle；产出的 EvidenceClosure 由 judging.ts 校验并执行对应 Judge。
+ * 公开接口：BuildClosuresInput、ClosureBuildResult、buildEvidenceClosures。
+ */
 import {
   ContractViolation,
   assertSameAttemptScope,
@@ -19,6 +25,7 @@ import {
 } from "../core/models.js";
 import { verifyEvidenceBundleSeal } from "./evidence.js";
 
+/** 构建全部检查闭包所需的证据图、契约图及其已提交引用。 */
 export interface BuildClosuresInput {
   readonly scope: ScopeRef;
   readonly bundle: EvidenceBundle;
@@ -33,21 +40,32 @@ export interface BuildClosuresInput {
   readonly makeClosureId?: (checkId: string) => string;
 }
 
+/** 闭包记录及与之一一对应的不可变 Ref。 */
 export interface ClosureBuildResult {
   readonly closures: readonly EvidenceClosure[];
   readonly closureRefs: readonly Ref<EvidenceClosure>[];
 }
 
-/** Each Check is closed independently; one missing source cannot erase another hard fact. */
+/** 应用编排层调用的闭包入口；各 Check 独立闭合，单个事实缺口不会抹去其他检查的有效证据。 */
 export function buildEvidenceClosures(input: BuildClosuresInput): ClosureBuildResult {
   const scope = validateScope(input.scope);
   if (scope.attemptId === undefined || input.bundle.attemptId !== scope.attemptId) {
     throw new ContractViolation("SCOPE_MISMATCH", "EvidenceBundle and Closure Scope differ");
   }
-  if (input.evidenceContracts.length !== 3 || input.evidenceContractRefs.length !== 3) {
+  if (
+    input.evidenceContracts.length === 0 ||
+    input.evidenceContracts.length !== input.evidenceContractRefs.length
+  ) {
     throw new ContractViolation(
       "INVALID_EVIDENCE_CONTRACT_SET",
-      "MVP requires exactly three EvidenceContracts",
+      "EvidenceContracts must be non-empty and have one committed Ref per contract",
+    );
+  }
+  const contractIds = input.evidenceContracts.map((contract) => String(contract.evidenceContractId));
+  if (new Set(contractIds).size !== contractIds.length) {
+    throw new ContractViolation(
+      "INVALID_EVIDENCE_CONTRACT_SET",
+      "EvidenceContract IDs must be unique",
     );
   }
   const contractRefById = new Map(
@@ -92,6 +110,7 @@ export function buildEvidenceClosures(input: BuildClosuresInput): ClosureBuildRe
   };
 }
 
+/** closeOneCheck 的内部参数，携带当前契约及预先建立的引用索引。 */
 interface CloseOneInput {
   readonly input: BuildClosuresInput;
   readonly scope: ScopeRef;
@@ -102,6 +121,7 @@ interface CloseOneInput {
   readonly sourceById: ReadonlyMap<string, SourceDescriptor>;
 }
 
+/** 由 buildEvidenceClosures 逐契约调用，筛选授权证据并记录未满足要求。 */
 function closeOneCheck(options: CloseOneInput): EvidenceClosure {
   const { input, scope, contract, contractRef, evidenceRefById, sourceById } = options;
   const gaps: JsonObject[] = [];
@@ -206,6 +226,7 @@ function closeOneCheck(options: CloseOneInput): EvidenceClosure {
   });
 }
 
+/** 在闭包计算前核对 Bundle 声明的证据集合、来源身份、Scope 与摘要；结果参与闭包有效性。 */
 function validateEvidenceSet(
   input: BuildClosuresInput,
   evidenceRefById: ReadonlyMap<string, Ref<EvidenceRecord>>,
@@ -269,12 +290,14 @@ function validateEvidenceSet(
   return true;
 }
 
+/** 由 closeOneCheck 调用，按 UNVERIFIED < COOPERATIVE < INDEPENDENT 判断来源信任门槛。 */
 function trustMeets(actual: SourceTrust, minimum: SourceTrust): boolean {
   if (minimum === "UNVERIFIED") return true;
   if (minimum === "COOPERATIVE") return actual === "COOPERATIVE" || actual === "INDEPENDENT";
   return actual === "INDEPENDENT";
 }
 
+/** 对授权 Ref 做稳定排序，使 Closure 摘要不受输入顺序影响。 */
 function compareRefs(left: Ref, right: Ref): number {
   return `${left.schema}\u0000${left.id}\u0000${left.revision ?? ""}`.localeCompare(
     `${right.schema}\u0000${right.id}\u0000${right.revision ?? ""}`,
@@ -282,6 +305,7 @@ function compareRefs(left: Ref, right: Ref): number {
   );
 }
 
+/** 将 Ref 的身份、版本和摘要编码为集合比较键，供 validateEvidenceSet 使用。 */
 function refKey(ref: Ref): string {
   return `${ref.schema}\u0000${ref.id}\u0000${ref.revision ?? ""}\u0000${ref.digest.value}\u0000${ref.digest.byteLength}`;
 }

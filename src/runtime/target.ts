@@ -1,3 +1,9 @@
+/**
+ * 文件职责：以冻结的命令、身份和环境约束启动目标程序，限额收集输出，并归一化终止结果。
+ * 核心流程：校验执行请求，构建最小环境与 setpriv 参数，启动独立进程组，处理回执、取消和超时，最后汇总退出状态及有界输出。
+ * 与其他文件的真实交互：使用 core/contracts.ts 的 Linux 身份降权契约；由 app/workflow.ts 调用并将启动 PID、终止时间和结果写入运行投影及观察流程。
+ * 公开接口：TargetTerminationKind、TargetExecutionRequest、TargetExecutionResult、executeTarget。
+ */
 import { spawn } from "node:child_process";
 import type { ChildProcessByStdio } from "node:child_process";
 import { lstat } from "node:fs/promises";
@@ -10,6 +16,7 @@ import {
   linuxSetprivArguments,
 } from "../core/contracts.js";
 
+/** 将原始进程退出、用户取消、超时和执行器故障映射为工作流可判定的终止分类。 */
 export type TargetTerminationKind =
   | "EXITED"
   | "TARGET_FAILED"
@@ -17,6 +24,7 @@ export type TargetTerminationKind =
   | "CANCELLED"
   | "HARNESS_ERROR";
 
+/** app/workflow.ts 提交给目标执行器的冻结参数、资源上限与生命周期回调。 */
 export interface TargetExecutionRequest {
   executablePath: string;
   profile: string;
@@ -35,6 +43,7 @@ export interface TargetExecutionRequest {
   onStarted?: (pid: number) => Promise<void> | void;
 }
 
+/** 目标进程完成后返回给工作流的时间、退出信息及截断标记。 */
 export interface TargetExecutionResult {
   terminationKind: TargetTerminationKind;
   startedAt: string;
@@ -49,6 +58,7 @@ export interface TargetExecutionResult {
   errorMessage?: string;
 }
 
+/** 禁止模型配置覆盖的宿主、加载器和证据采集关键环境变量。 */
 const FORBIDDEN_ENVIRONMENT_NAMES = new Set([
   "HOME",
   "USERPROFILE",
@@ -62,12 +72,14 @@ const FORBIDDEN_ENVIRONMENT_NAMES = new Set([
   "DSH_HOME",
 ]);
 
+/** 校验将进入 argv 或路径处理的字符串；由 executeTarget 在启动前集中调用。 */
 function assertArgument(value: string, name: string): void {
   if (value.length === 0 || value.includes("\0")) {
     throw new Error(`${name} must be a non-empty NUL-free string`);
   }
 }
 
+/** 将 stdout/stderr 数据追加到固定字节预算内；由 executeTarget 的流监听器调用并返回累计长度与截断状态。 */
 function appendBounded(
   chunks: Buffer[],
   chunk: Buffer,
@@ -84,20 +96,20 @@ function appendBounded(
   };
 }
 
+/** 从固定框架变量和受限模型变量构造子进程环境；由 executeTarget 在 spawn 前调用。 */
 function buildEnvironment(request: TargetExecutionRequest): NodeJS.ProcessEnv {
   const environment: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
     LANG: process.env.LANG ?? "C.UTF-8",
     TMPDIR: path.join(request.runtimeDshHomePath, "tmp"),
     DSH_HOME: request.runtimeDshHomePath,
-    // dsh-eval-probe 0.1.0 (the Probe bundled with DSH 0.1.1-rc.2)
-    // consumes OUTPUT_DIR. Keep PROBE_OUTPUT as the framework-owned binding
-    // while making both names resolve to the exact same sealed path.
+    // DSH 0.1.1-rc.2 内置的 dsh-eval-probe 0.1.0 读取 OUTPUT_DIR；
+    // 同时保留框架拥有的 PROBE_OUTPUT Binding，并让两者指向同一冻结路径。
     DSH_EVAL_OUTPUT_DIR: request.probeOutputPath,
     DSH_EVAL_PROBE_OUTPUT: request.probeOutputPath,
     DSH_EVAL_SOURCE_RUN_ID: request.sourceRunId,
     DSH_EVAL_WORKSPACE: request.cwd,
-    // Probe 0.1.0 names its digest-preserving mode `hash`.
+    // Probe 0.1.0 将保留摘要的内容模式命名为 `hash`。
     DSH_EVAL_CONTENT_MODE: "hash",
     DO_NOT_TRACK: "1",
     DSH_TELEMETRY_MODE: "DISABLED",
@@ -121,6 +133,7 @@ function buildEnvironment(request: TargetExecutionRequest): NodeJS.ProcessEnv {
   return environment;
 }
 
+/** 向目标进程组发送终止信号并容忍进程已退出；由 executeTarget 的取消、超时和升级清理路径调用。 */
 function terminateProcess(pid: number | undefined, signal: NodeJS.Signals): void {
   if (pid === undefined) return;
   try {
@@ -133,8 +146,7 @@ function terminateProcess(pid: number | undefined, signal: NodeJS.Signals): void
 }
 
 /**
- * Executes the frozen DSH headless grammar. It deliberately accepts no shell
- * command and inherits only a small environment allow-list.
+ * 执行冻结的 DSH 无头命令并返回有界结果；由 app/workflow.ts 调用，内部通过 spawn、启动回执和进程组信号协调目标生命周期。
  */
 export async function executeTarget(
   request: TargetExecutionRequest,
@@ -257,6 +269,7 @@ export async function executeTarget(
     };
   }
 
+  /** 封装当前子进程组信号发送并记录执行器错误；由 beginTermination 及其升级定时器调用。 */
   const signalProcessGroup = (signal: NodeJS.Signals): void => {
     if (childClosed) return;
     try {
@@ -265,6 +278,7 @@ export async function executeTarget(
       terminationError = error instanceof Error ? error : new Error(String(error));
     }
   };
+  /** 开始 SIGTERM 到 SIGKILL 的有界终止序列；由取消、超时和启动回调失败路径调用。 */
   const beginTermination = (): void => {
     signalProcessGroup("SIGTERM");
     if (escalation === undefined) {
@@ -293,6 +307,7 @@ export async function executeTarget(
     stderrLength = appended.length;
     stderrTruncated ||= appended.truncated;
   });
+  /** 只结算一次启动回执等待；由 spawn/error/timeout 三条竞态路径共同调用。 */
   let settleStartReceipt!: () => void;
   let startReceiptSettled = false;
   const startReceiptPromise = new Promise<void>((resolve) => {
@@ -317,6 +332,7 @@ export async function executeTarget(
     });
   });
 
+  /** 将外部 AbortSignal 转换为取消原因并启动进程组清理；注册于本次 executeTarget 调用。 */
   const onAbort = (): void => {
     stopReason ??= "CANCELLED";
     beginTermination();

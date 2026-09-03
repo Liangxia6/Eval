@@ -1,3 +1,9 @@
+/**
+ * 文件职责：把独立文件传感器接入冻结观察计划，并将文件快照及采集完整性转换为可提交的领域记录和失败草稿。
+ * 核心流程：登记传感器能力，校验执行请求与只读 Binding，按 BEFORE/AFTER/POST_RESET 捕获快照，再绑定已提交制品并生成 CollectionStatus。
+ * 与其他文件的真实交互：调用 observation/sensors/file.ts 扫描与计算快照制品摘要；使用 core/models.ts 校验作用域和内容摘要；由 app/bootstrap.ts 实例化、app/workflow.ts 调用和持久化结果。
+ * 公开接口：文件传感器描述与注册表摘要、捕获上下文/结果/接口、物化输入与函数、失败草稿函数、FileEnvironmentSensor、validateCaptureContext。
+ */
 import {
   ContractViolation,
   assertSameAttemptScope,
@@ -32,6 +38,7 @@ import {
   type FileSnapshotDraft,
 } from "./sensors/file.js";
 
+/** 将文件传感器实现身份、版本和能力冻结为观察计划可引用的适配器描述。 */
 export const FILE_SENSOR_DESCRIPTOR: SensorAdapterDescriptor = Object.freeze({
   implementationId: validateStableId<"SensorImplementationId">(FILE_SENSOR_IMPLEMENTATION_ID),
   implementationVersion: FILE_SENSOR_IMPLEMENTATION_VERSION,
@@ -40,11 +47,13 @@ export const FILE_SENSOR_DESCRIPTOR: SensorAdapterDescriptor = Object.freeze({
   capabilities: FILE_SENSOR_CAPABILITIES,
 });
 
-/** The one-item static registry required by the MVP Bootstrap. */
+/** MVP Bootstrap 使用的单项静态传感器注册表摘要，用于运行期漂移校验。 */
 export const FILE_SENSOR_REGISTRY_DIGEST: ContentDigest = digestValue([FILE_SENSOR_DESCRIPTOR]);
 
+/** 文件传感器在一次 Attempt 生命周期中的三个采集时点。 */
 export type EnvironmentCaptureKind = "BEFORE" | "AFTER" | "POST_RESET";
 
+/** 工作流交给文件传感器的冻结请求、Binding 选择键和本地读取参数。 */
 export interface EnvironmentCaptureContext {
   readonly request: ObservationExecutionRequest;
   readonly sourceRequirementId: string;
@@ -56,20 +65,26 @@ export interface EnvironmentCaptureContext {
   readonly now?: () => string;
 }
 
+/** 一次捕获返回的快照草稿及经验证的来源和 Binding 身份。 */
 export interface EnvironmentCapture {
   readonly snapshot: FileSnapshotDraft;
   readonly sourceRequirement: SourceRequirement;
-  /** Token remains process-only and is never copied into the Capture. */
+  /** 仅保留 Binding 标识；读取令牌始终停留在进程内。 */
   readonly bindingId: string;
 }
 
+/** Bootstrap 注册的环境观察端口，按生命周期阶段暴露三种只读捕获。 */
 export interface EnvironmentSensor {
   readonly descriptor: SensorAdapterDescriptor;
+  /** 捕获目标运行前基线；工作流的基线阶段调用。 */
   captureBefore(context: EnvironmentCaptureContext): Promise<EnvironmentCapture>;
+  /** 捕获目标终止后的最终状态；工作流的排空阶段调用。 */
   captureAfter(context: EnvironmentCaptureContext): Promise<EnvironmentCapture>;
+  /** 捕获重置后的验证状态；工作流的清理阶段调用。 */
   verifyReset(context: EnvironmentCaptureContext): Promise<EnvironmentCapture>;
 }
 
+/** 将已提交 FileSnapshot 及其原始制品绑定为 RawObservation 的输入。 */
 export interface MaterializeFileObservationInput {
   readonly observationId: string;
   readonly scope: ScopeRef;
@@ -82,7 +97,7 @@ export interface MaterializeFileObservationInput {
   readonly producerVersion: string;
 }
 
-/** Binds a File Snapshot record back to its committed raw manifest Artifact. */
+/** 将 FileSnapshot 绑定回已提交的原始清单制品；由 app/workflow.ts 在每个文件采集阶段调用。 */
 export function materializeFileObservation(
   input: MaterializeFileObservationInput,
 ): RawObservation {
@@ -131,6 +146,7 @@ export function materializeFileObservation(
   });
 }
 
+/** 汇总一次文件来源采集状态所需的快照集合、必需阶段与稳定窗口结果。 */
 export interface MaterializeFileCollectionStatusInput {
   readonly collectionStatusId: string;
   readonly scope: ScopeRef;
@@ -145,6 +161,7 @@ export interface MaterializeFileCollectionStatusInput {
   readonly producerVersion: string;
 }
 
+/** 根据缺失阶段、部分快照和稳定窗口生成 CollectionStatus；由 app/workflow.ts 在基线、排空和重置采集后调用。 */
 export function materializeFileCollectionStatus(
   input: MaterializeFileCollectionStatusInput,
 ): CollectionStatus {
@@ -214,6 +231,7 @@ export function materializeFileCollectionStatus(
   });
 }
 
+/** 将文件来源的不完整原因去重并转换为持久化失败草稿；由 app/workflow.ts 在生成 CollectionStatus 前调用。 */
 export function fileCollectionFailureDrafts(input: {
   readonly scope: ScopeRef;
   readonly snapshots: readonly FileSnapshot[];
@@ -250,24 +268,27 @@ export function fileCollectionFailureDrafts(input: {
 }
 
 /**
- * The only EnvironmentSensor in the MVP. It receives a prepared read-only
- * binding for each operation and never obtains an EnvironmentController.
+ * MVP 的文件系统 EnvironmentSensor 实现；由 app/bootstrap.ts 注册，方法先验证只读 Binding，再委托 sensors/file.ts 捕获快照。
  */
 export class FileEnvironmentSensor implements EnvironmentSensor {
   public readonly descriptor = FILE_SENSOR_DESCRIPTOR;
 
+  /** 执行 BEFORE 捕获；由 app/workflow.ts 基线阶段通过 EnvironmentSensor 端口调用。 */
   public async captureBefore(context: EnvironmentCaptureContext): Promise<EnvironmentCapture> {
     return this.capture("BEFORE", context);
   }
 
+  /** 执行 AFTER 捕获；由 app/workflow.ts 在目标终止后的稳定窗口阶段调用。 */
   public async captureAfter(context: EnvironmentCaptureContext): Promise<EnvironmentCapture> {
     return this.capture("AFTER", context);
   }
 
+  /** 执行 POST_RESET 捕获；由 app/workflow.ts 在环境重置后调用。 */
   public async verifyReset(context: EnvironmentCaptureContext): Promise<EnvironmentCapture> {
     return this.capture("POST_RESET", context);
   }
 
+  /** 统一校验阶段与 Binding 并调用 captureFileSnapshot；由三个公开捕获方法复用。 */
   private async capture(
     kind: EnvironmentCaptureKind,
     context: EnvironmentCaptureContext,
@@ -290,6 +311,9 @@ export class FileEnvironmentSensor implements EnvironmentSensor {
   }
 }
 
+/**
+ * 校验注册表摘要、请求阶段、Attempt/代次、来源实现和只读授权；由 FileEnvironmentSensor.capture 调用，测试也直接验证其契约。
+ */
 export function validateCaptureContext(
   kind: EnvironmentCaptureKind,
   context: EnvironmentCaptureContext,
@@ -402,6 +426,7 @@ export function validateCaptureContext(
   return { requirement, binding };
 }
 
+/** 将领域 Ref 转换为可嵌入 RawObservation 元数据的 JSON；由 materializeFileObservation 调用。 */
 function refJson(ref: Ref): JsonObject {
   return {
     schema: ref.schema,

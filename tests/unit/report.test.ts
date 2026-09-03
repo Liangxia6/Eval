@@ -1,3 +1,7 @@
+/**
+ * 测试职责：验证 report.json 摘要、确定性 HTML 渲染、危险内容转义，以及旧版
+ * rendererVersion 的可重建兼容行为。
+ */
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
@@ -66,7 +70,7 @@ test("MVP-UT-REPORT-001 verified top-level JSON commits and renders byte-identic
   assert.equal(parsed.view.gate, "PASS");
   assert.equal(parsed.view.checks[0]?.outcome, "FAIL");
   assert.match(first, /Gate<br><strong class="pass">PASS<\/strong>/);
-  assert.match(first, /state\.expected-file: <span class="fail">FAIL<\/span>/);
+  assert.match(first, /artifact\.attention-code: <span class="fail">FAIL<\/span>/);
   assert.doesNotMatch(first, /<script/i);
   assert.doesNotMatch(first, /<img/i);
   assert.doesNotMatch(first, /href=["']javascript:/i);
@@ -85,8 +89,8 @@ test("MVP-UT-REPORT-001 verified top-level JSON commits and renders byte-identic
   const intuitive = renderStatusHtml(view, "dsheval-static/v3");
   assert.match(intuitive, /class="dsheval-v3"/u);
   assert.match(intuitive, /这次到底测什么/u);
-  assert.match(intuitive, /三件事，一眼看懂/u);
-  assert.match(intuitive, /过程可信|结果正确/u);
+  assert.match(intuitive, /评测结果，一眼看懂/u);
+  assert.match(intuitive, /产物交付/u);
   assert.match(intuitive, /技术证据与内部对象/u);
   assert.match(intuitive, /aria-label="1\.[^"]+: SUCCEEDED"/u);
   assert.doesNotMatch(intuitive, /<script/iu);
@@ -170,7 +174,7 @@ function maliciousView(): ReportViewModel {
     planSummary: {
       caseCount: 1,
       attemptCount: 1,
-      checkIds: ["state.expected-file"],
+      checkIds: ["artifact.attention-code"],
     },
     sources: [
       {
@@ -184,10 +188,10 @@ function maliciousView(): ReportViewModel {
     ],
     checks: [
       {
-        checkResultId: "check-result.state.expected-file",
-        checkId: "state.expected-file",
-        judgementId: "judgement.state.expected-file",
-        closureId: "closure.state.expected-file",
+        checkResultId: "check-result.artifact.attention-code",
+        checkId: "artifact.attention-code",
+        judgementId: "judgement.artifact.attention-code",
+        closureId: "closure.artifact.attention-code",
         closureState: "CLOSED",
         judgementStatus: "COMPLETED",
         outcome: "FAIL",

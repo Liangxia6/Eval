@@ -1,3 +1,9 @@
+/**
+ * 文件职责：构造观察来源与 ObservationSession，并以统一规则推进基线、激活、排空、封存或失败状态。
+ * 核心流程：冻结 Probe/File 来源描述，创建双来源 Session，校验每次状态迁移，封存时验证六项完成账本和已提交的采集状态。
+ * 与其他文件的真实交互：读取 observation/runtime.ts 与 observation/sensors/file.ts 的实现身份；依赖 core/models.ts 构造摘要和状态迁移；由 app/workflow.ts 持久化返回结果。
+ * 公开接口：来源与 Session 输入类型、来源/Session 构造函数、生命周期迁移函数、迟到记录诊断，以及完成账本构造函数。
+ */
 import {
   ContractViolation,
   assertLegalTransition,
@@ -10,7 +16,6 @@ import {
   type CollectionStatus,
   type CompletionLedger,
   type CompletionLedgerItem,
-  type ContentDigest,
   type FileSnapshot,
   type ObservationPlan,
   type ObservationSession,
@@ -32,6 +37,7 @@ import {
   PROBE_IMPLEMENTATION_VERSION,
 } from "./runtime.js";
 
+/** MVP 封存协议要求的六项完成证明及其规范顺序。 */
 const LEDGER_ORDER = [
   "TARGET_TERMINATION",
   "TOOL_CALLS",
@@ -41,6 +47,7 @@ const LEDGER_ORDER = [
   "FINAL_FILE_SNAPSHOT",
 ] as const satisfies readonly CompletionLedgerItem["kind"][];
 
+/** 创建 Probe 或文件 SourceDescriptor 时共享的冻结来源参数。 */
 export interface SourceDescriptorInput {
   readonly sourceId: string;
   readonly scope: ScopeRef;
@@ -52,6 +59,7 @@ export interface SourceDescriptorInput {
   readonly producerVersion: string;
 }
 
+/** 使用 runtime.ts 暴露的 Probe 实现身份创建协作型来源描述；由 app/workflow.ts 在 Session 建立前调用。 */
 export function createProbeSourceDescriptor(input: SourceDescriptorInput): SourceDescriptor {
   return withContentDigest({
     schema: "dsheval.mvp.source/v1" as const,
@@ -73,6 +81,7 @@ export function createProbeSourceDescriptor(input: SourceDescriptorInput): Sourc
   });
 }
 
+/** 使用文件传感器身份创建独立来源描述；由 app/workflow.ts 在 Session 建立前调用。 */
 export function createFileSourceDescriptor(input: SourceDescriptorInput): SourceDescriptor {
   return withContentDigest({
     schema: "dsheval.mvp.source/v1" as const,
@@ -94,6 +103,7 @@ export function createFileSourceDescriptor(input: SourceDescriptorInput): Source
   });
 }
 
+/** 创建初始 ObservationSession 所需的 Attempt 作用域、计划及两条来源引用。 */
 export interface CreateObservationSessionInput {
   readonly observationSessionId: string;
   readonly attemptId: string;
@@ -104,16 +114,20 @@ export interface CreateObservationSessionInput {
   readonly failureRefs?: readonly Ref<FailureRecord>[];
 }
 
+/** 校验来源唯一性和 Attempt 归属后创建 PLANNED Session；由 app/workflow.ts 在采集基线前调用。 */
 export function createObservationSession(input: CreateObservationSessionInput): ObservationSession {
   const scope = validateScope(input.scope);
   const attemptId = validateStableId<"AttemptId">(input.attemptId, "attemptId");
   if (scope.attemptId !== attemptId) {
     throw new ContractViolation("SCOPE_MISMATCH", "ObservationSession Attempt must match its Scope");
   }
-  if (input.sourceRefs.length !== 2) {
+  if (
+    input.sourceRefs.length === 0 ||
+    new Set(input.sourceRefs.map((ref) => String(ref.id))).size !== input.sourceRefs.length
+  ) {
     throw new ContractViolation(
       "INVALID_OBSERVATION_SOURCES",
-      "MVP ObservationSession requires exactly Probe and File sources",
+      "ObservationSession requires one or more unique Sources",
     );
   }
   const sessionId = validateStableId<"ObservationSessionId">(
@@ -138,6 +152,7 @@ export function createObservationSession(input: CreateObservationSessionInput): 
   });
 }
 
+/** 所有 Session 状态迁移共享的时间、原因和证据引用。 */
 export interface ObservationTransitionInput {
   readonly occurredAt: string;
   readonly reasonCode: string;
@@ -145,6 +160,7 @@ export interface ObservationTransitionInput {
   readonly failureRefs?: readonly Ref<FailureRecord>[];
 }
 
+/** 将 Session 从 PLANNED 推进到 BASELINING 并记录开始时间；由 app/workflow.ts 在文件基线捕获前调用。 */
 export function beginBaseline(
   current: ObservationSession,
   input: ObservationTransitionInput,
@@ -154,6 +170,7 @@ export function beginBaseline(
   });
 }
 
+/** 确认基线已开始并将 Session 推进到 BASELINED；由 app/workflow.ts 在 BEFORE 快照提交后调用。 */
 export function completeBaseline(
   current: ObservationSession,
   input: ObservationTransitionInput & {
@@ -168,6 +185,7 @@ export function completeBaseline(
   });
 }
 
+/** 在基线提交后将 Session 激活；由 app/workflow.ts 紧邻目标启动阶段调用。 */
 export function activateObservation(
   current: ObservationSession,
   input: ObservationTransitionInput,
@@ -180,6 +198,7 @@ export function activateObservation(
   });
 }
 
+/** 在目标终止时间之后进入 DRAINING 并冻结排空起点；由 app/workflow.ts 在读取 Probe 与最终快照前调用。 */
 export function beginDrain(
   current: ObservationSession,
   input: ObservationTransitionInput & {
@@ -200,12 +219,14 @@ export function beginDrain(
   });
 }
 
+/** 封存 Session 所需的双来源采集状态、完成账本与原始制品提交确认。 */
 export interface SealObservationInput extends ObservationTransitionInput {
   readonly collectionStatusRefs: readonly Ref<CollectionStatus>[];
   readonly completionLedger: CompletionLedger;
   readonly allRawArtifactsCommitted: boolean;
 }
 
+/** 验证排空、原始制品和完整账本后生成不可变 SEALED 迁移；由 app/workflow.ts 在全部观察证据提交后调用。 */
 export function sealObservation(
   current: ObservationSession,
   input: SealObservationInput,
@@ -236,6 +257,7 @@ export function sealObservation(
   });
 }
 
+/** 将尚未终结的 Session 标记为 FAILED；由 app/workflow.ts 在基线等观察阶段失败时调用。 */
 export function failObservation(
   current: ObservationSession,
   input: ObservationTransitionInput,
@@ -246,7 +268,7 @@ export function failObservation(
   return transitionSession(current, "FAILED", input, {});
 }
 
-/** A late record is diagnostic-only and never produces a revised Session. */
+/** 对封存后到达的记录生成诊断失败草稿；工作流或测试可调用，返回值不会修改已封存 Session。 */
 export function rejectPostSealObservation(
   session: ObservationSession,
   input: {
@@ -276,15 +298,7 @@ export function rejectPostSealObservation(
   };
 }
 
-export function sessionCompleteness(session: ObservationSession): "COMPLETE" | "PARTIAL" {
-  if (session.state !== "SEALED" || session.completionLedger === undefined) return "PARTIAL";
-  return session.completionLedger.every(
-    (item) => !item.required || item.status === "COMPLETE",
-  )
-    ? "COMPLETE"
-    : "PARTIAL";
-}
-
+/** 统一校验 Session 状态机、时间顺序和引用排序并构造下一投影；由本文件所有生命周期入口调用。 */
 function transitionSession(
   current: ObservationSession,
   toState: ObservationSessionState,
@@ -322,6 +336,7 @@ function transitionSession(
   };
 }
 
+/** 校验封存账本恰含六个必需且顺序固定的项目；由 sealObservation 调用。 */
 function validateCompletionLedger(ledger: CompletionLedger): void {
   if (ledger.length !== LEDGER_ORDER.length) {
     throw new ContractViolation(
@@ -346,6 +361,7 @@ function validateCompletionLedger(ledger: CompletionLedger): void {
   }
 }
 
+/** 按完整引用身份去重并稳定排序；由 Session、迁移和账本构造路径调用以保证摘要确定性。 */
 function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   const byIdentity = new Map<string, T>();
   for (const ref of refs) {
@@ -359,6 +375,7 @@ function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   });
 }
 
+/** 创建单项完成证明并稳定化原因与支撑引用；由 app/workflow.ts 组装封存账本时调用。 */
 export function ledgerItem(
   kind: CompletionLedgerItem["kind"],
   status: CompletionLedgerItem["status"],
@@ -376,13 +393,9 @@ export function ledgerItem(
   };
 }
 
+/** 按 LEDGER_ORDER 将六项证明组装为 CompletionLedger；由 app/workflow.ts 在 sealObservation 前调用。 */
 export function completionLedger(
   items: Readonly<Record<CompletionLedgerItem["kind"], CompletionLedgerItem>>,
 ): CompletionLedger {
   return LEDGER_ORDER.map((kind) => items[kind]) as unknown as CompletionLedger;
-}
-
-/** Useful for integrity assertions in tests and before repository CAS. */
-export function observationProjectionDigest(session: ObservationSession): ContentDigest {
-  return session.projectionDigest;
 }

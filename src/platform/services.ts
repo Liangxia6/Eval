@@ -1,3 +1,14 @@
+/**
+ * 文件职责：管理单 VM 全局 Run Lease，并检查本地持久化服务是否可安全使用。
+ *
+ * 核心流程：在 runRoot 原子创建唯一 Lease；启动时检查各 Root 的原子写能力，遍历
+ * 已有 Run 分区并验证记录摘要、生命周期和终态；安全结束后只释放当前进程的 Lease。
+ *
+ * 与其他文件的交互：`app/bootstrap.ts` 调用 checkLocalServices；`app/workflow.ts`
+ * 调用 acquireLease/releaseLease 并把返回事实保存为领域 LeaseRecord。
+ *
+ * 公开接口：LeaseFact、HealthCheckResult、acquireLease、releaseLease、checkLocalServices。
+ */
 import { randomUUID } from "node:crypto";
 import {
   mkdir,
@@ -24,6 +35,7 @@ import {
   validateContentDigest,
 } from "../core/models.js";
 
+/** 平台锁文件中的最小 Lease 事实。 */
 export interface LeaseFact {
   leaseId: string;
   runId: string;
@@ -35,6 +47,7 @@ export interface LeaseFact {
   releasedAt?: string;
 }
 
+/** Bootstrap 使用的本地 Root 和启动恢复健康结果。 */
 export interface HealthCheckResult {
   status: "HEALTHY" | "FAILED";
   checks: readonly {
@@ -44,13 +57,16 @@ export interface HealthCheckResult {
   }[];
 }
 
+/** 当前 Controller 进程的稳定所有者标记及本地 ID 语法。 */
 const PROCESS_START_TOKEN = `${process.pid}-${process.hrtime.bigint().toString(10)}`;
 const STABLE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
+/** 在平台路径操作前校验 Run ID 等外部标识。 */
 function assertStableId(value: string, label: string): void {
   if (!STABLE_ID.test(value)) throw new Error(`${label} must be a StableId`);
 }
 
+/** 建立或验证一个本地服务 Root，并返回 canonical path。 */
 async function safeServiceRoot(rootInput: string, label: string): Promise<string> {
   if (!path.isAbsolute(rootInput) || rootInput.includes("\0")) {
     throw new Error(`${label} must be an absolute NUL-free path`);
@@ -75,6 +91,7 @@ async function safeServiceRoot(rootInput: string, label: string): Promise<string
   return realpath(root);
 }
 
+/** 建立受约束的 locks 目录并返回唯一活动锁路径。 */
 async function lockPath(runRoot: string): Promise<string> {
   const root = await safeServiceRoot(runRoot, "runRoot");
   const directory = path.join(root, "locks");
@@ -90,6 +107,7 @@ async function lockPath(runRoot: string): Promise<string> {
   return path.join(await realpath(directory), "active-run.lock");
 }
 
+/** fsync 目录元数据，配合原子文件创建和重命名。 */
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await open(directory, "r");
   try {
@@ -99,6 +117,7 @@ async function syncDirectory(directory: string): Promise<void> {
   }
 }
 
+/** 原子创建 vm-global Lease；已存在或来源不明的锁一律报告冲突。 */
 export async function acquireLease(runRoot: string, runId: string): Promise<LeaseFact> {
   assertStableId(runId, "runId");
   const target = await lockPath(runRoot);
@@ -128,6 +147,7 @@ export async function acquireLease(runRoot: string, runId: string): Promise<Leas
   }
 }
 
+/** 仅在 Run、PID 和进程启动标记全部匹配时释放当前 Lease。 */
 export async function releaseLease(
   runRoot: string,
   activeLease: LeaseFact,
@@ -155,6 +175,7 @@ export async function releaseLease(
   return { ...activeLease, state: "RELEASED", releasedAt: new Date().toISOString() };
 }
 
+/** 实测指定 Root 是否支持安全 staging、fsync 和原子 rename。 */
 async function checkWritableAtomicRoot(root: string): Promise<string> {
   const safeRoot = await safeServiceRoot(root, "health root");
   const metadata = await stat(safeRoot);
@@ -175,6 +196,7 @@ async function checkWritableAtomicRoot(root: string): Promise<string> {
   }
 }
 
+/** 解析一个已提交 JSON 记录并要求顶层为对象。 */
 function parseRecordObject(bytes: Buffer, location: string): Record<string, unknown> {
   let parsed: unknown;
   try {
@@ -188,6 +210,7 @@ function parseRecordObject(bytes: Buffer, location: string): Record<string, unkn
   return parsed as Record<string, unknown>;
 }
 
+/** 递归验证 Run 分区内没有 symlink、临时残留或越界条目。 */
 async function validatePartitionTree(
   partition: string,
   directory: string,
@@ -226,6 +249,7 @@ async function validatePartitionTree(
   }
 }
 
+/** 验证最新 Run Projection 的 Schema、摘要、revision 和状态语义。 */
 function validateRunProjection(
   record: Record<string, unknown>,
   expectedRunId: string,
@@ -275,6 +299,7 @@ function validateRunProjection(
   return { state: record.state, revision, digest: declared.value };
 }
 
+/** 将一个已有 Run 分区分类为仅规划事实或已安全终止。 */
 async function inspectRunPartition(partition: string, runId: string): Promise<"PLANNING_ONLY" | "TERMINAL"> {
   await validatePartitionTree(partition, partition);
   const records = path.join(partition, "records");
@@ -357,6 +382,7 @@ async function inspectRunPartition(partition: string, runId: string): Promise<"P
   return "TERMINAL";
 }
 
+/** 遍历 runRoot，拒绝损坏分区或另一个未完成 Run，并返回恢复摘要。 */
 async function checkStartupRecovery(runRootInput: string, currentRunId?: string): Promise<string> {
   const runRoot = await safeServiceRoot(runRootInput, "runRoot");
   if (currentRunId !== undefined) assertStableId(currentRunId, "currentRunId");
@@ -390,6 +416,9 @@ async function checkStartupRecovery(runRootInput: string, currentRunId?: string)
   return `${terminal} terminal and ${planningOnly} planning-only prior partitions verified`;
 }
 
+/**
+ * 对 Repository、Artifact、Report、Workspace、Runtime Home 和启动恢复执行健康检查。
+ */
 export async function checkLocalServices(
   roots: Readonly<Record<"run" | "artifact" | "report" | "workspace" | "runtimeHome", string>>,
   options: { readonly currentRunId?: string } = {},

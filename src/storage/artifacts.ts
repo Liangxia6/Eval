@@ -1,3 +1,9 @@
+/**
+ * 文件职责：实现 ArtifactStorePort，把大字节产物按 Run 分区保存，并以不可变 ArtifactRef 索引和验证读取保护证据完整性。
+ * 核心流程：提交时校验元数据并原子创建对象、追加索引；读取时校验用途/Scope/索引/文件身份和摘要；初始化及显式检查时扫描恢复问题。
+ * 真实交互：应用编排层通过 core/contracts.ts 的 ArtifactStorePort 调用；复用 repositories.ts 的安全目录、原子写和 JSONL 追加原语，验证结果再交给 evaluation/evidence.ts。
+ * 公开接口：FileArtifactStoreOptions、ArtifactRecoveryIssue、FileArtifactStore。
+ */
 import { lstat, readFile, readdir, realpath } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 
@@ -40,6 +46,7 @@ import {
   ensureSafeDirectory,
 } from "./repositories.js";
 
+/** 创建文件 ArtifactStore 所需的两个存储根、Run 分区锚点与单文件大小上限。 */
 export interface FileArtifactStoreOptions {
   readonly artifactRoot: string;
   readonly runRoot: string;
@@ -49,6 +56,7 @@ export interface FileArtifactStoreOptions {
   readonly maxArtifactBytes: number;
 }
 
+/** 恢复扫描发现的索引、对象或临时文件异常。 */
 export interface ArtifactRecoveryIssue {
   readonly code:
     | "STALE_TEMP_FILE"
@@ -61,6 +69,7 @@ export interface ArtifactRecoveryIssue {
   readonly detail: string;
 }
 
+/** ArtifactStorePort 允许的读取目的白名单，用于敏感度授权判断。 */
 const PURPOSES = new Set<ArtifactReadPurpose>([
   "TASK_INPUT",
   "INSPECTION",
@@ -69,6 +78,7 @@ const PURPOSES = new Set<ArtifactReadPurpose>([
   "REPORT_INPUT",
 ]);
 
+/** 已提交 ArtifactRef 允许出现的精确字段集合，拒绝未纳入摘要语义的扩展字段。 */
 const ARTIFACT_REF_FIELDS = new Set([
   "schema",
   "artifactId",
@@ -87,6 +97,7 @@ const ARTIFACT_REF_FIELDS = new Set([
   "contentDigest",
 ]);
 
+/** 从 Node 文件系统异常中安全提取 code，供缺失文件与真实 I/O 故障分流。 */
 function errorCode(error: unknown): string | undefined {
   if (error !== null && typeof error === "object" && "code" in error) {
     const code = (error as { readonly code?: unknown }).code;
@@ -95,11 +106,13 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** 判断解析后的候选路径是否仍位于指定根目录内。 */
 function isWithin(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate);
   return pathFromRoot === "" || (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== "..");
 }
 
+/** 确认操作 Scope 与 Store 创建时的非空锚点字段兼容。 */
 function assertScopeAnchored(anchor: ScopeRef, candidate: ScopeRef): void {
   const expected = validateScope(anchor, "artifact store scope");
   const actual = validateScope(candidate, "artifact scope");
@@ -111,6 +124,7 @@ function assertScopeAnchored(anchor: ScopeRef, candidate: ScopeRef): void {
   }
 }
 
+/** 提交、读取和索引解析共用的 ArtifactRef 结构、取值、路径及 contentDigest 校验。 */
 function verifyArtifactRefMetadata(ref: ArtifactRef): void {
   if (ref === null || typeof ref !== "object" || Array.isArray(ref)) {
     throw new ContractViolation("EVIDENCE_INTEGRITY", "ArtifactRef must be an object");
@@ -161,6 +175,7 @@ function verifyArtifactRefMetadata(ref: ArtifactRef): void {
   }
 }
 
+/** 解析 append-only index.jsonl，拒绝破损尾部、非法 Ref 和重复 ArtifactId。 */
 function parseIndex(text: string): readonly ArtifactRef[] {
   if (text.length > 0 && !text.endsWith("\n")) {
     throw new ContractViolation("BAD_ARTIFACT_INDEX", "artifact index has an incomplete tail");
@@ -188,6 +203,7 @@ function parseIndex(text: string): readonly ArtifactRef[] {
   return result;
 }
 
+/** core/contracts.ts 的文件系统 ArtifactStorePort 适配器，由应用 bootstrap 按 Run 创建。 */
 export class FileArtifactStore implements ArtifactStorePort {
   readonly #artifactRoot: string;
   readonly #runRoot: string;
@@ -199,6 +215,7 @@ export class FileArtifactStore implements ArtifactStorePort {
   #initialization: Promise<void> | undefined;
   #poisoned = false;
 
+  /** 固定并校验存储根、Run/Scope 锚点及大小上限；实际目录在首次操作时初始化。 */
   public constructor(options: FileArtifactStoreOptions) {
     assertAbsoluteStorageRoot(options.artifactRoot, "artifactRoot");
     assertAbsoluteStorageRoot(options.runRoot, "runRoot");
@@ -217,6 +234,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     this.#maxArtifactBytes = options.maxArtifactBytes;
   }
 
+  /** Port 写入口：提供取消、幂等、串行写和错误映射后调用 #commit。 */
   public async commit(
     context: OperationContext,
     bytes: Uint8Array | string,
@@ -241,6 +259,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     });
   }
 
+  /** Port 读入口：按读取目的和 Scope 授权，并由 #readVerified 复验索引与字节摘要。 */
   public async readVerified(
     context: OperationContext,
     ref: ArtifactRef,
@@ -261,7 +280,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     });
   }
 
-  /** Atomically replaces the explicitly non-authoritative status page. */
+  /** 原子替换明确非权威的 status.html；应用编排层用它发布已提交事实的运行快照。 */
   public async replaceStatusHtml(context: OperationContext, html: string): Promise<PortResult<void>> {
     return this.#idempotent("replaceStatusHtml", context, { html }, async () => {
       if (context.cancellationToken.isCancellationRequested) {
@@ -281,11 +300,13 @@ export class FileArtifactStore implements ArtifactStorePort {
     });
   }
 
+  /** 供启动检查或运维诊断调用，返回当前 Artifact 分区的全部恢复问题。 */
   public async inspectRecoveryState(): Promise<readonly ArtifactRecoveryIssue[]> {
     await this.#partitionDirectory();
     return this.#scanRecoveryIssues();
   }
 
+  /** commit 的核心实现：验证元数据、原子创建对象后追加索引，并支持同内容 ID 的安全重放。 */
   async #commit(
     source: Uint8Array | string,
     metadata: ArtifactCommitMetadata,
@@ -377,6 +398,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     return proposed;
   }
 
+  /** readVerified 的核心实现：验证 Ref/授权/路径和读前后文件身份，最后比对字节摘要。 */
   async #readVerified(
     suppliedRef: ArtifactRef,
     suppliedScope: ScopeRef,
@@ -447,6 +469,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     return new Uint8Array(data);
   }
 
+  /** 读取并解析当前 Run 的 Artifact 索引；索引尚不存在时视为空集合。 */
   async #loadIndex(): Promise<readonly ArtifactRef[]> {
     const partition = await this.#partitionDirectory();
     const indexPath = join(partition, "index.jsonl");
@@ -462,14 +485,17 @@ export class FileArtifactStore implements ArtifactStorePort {
     }
   }
 
+  /** 通过 repositories.ts 的安全目录原语解析或创建 Run Artifact 分区。 */
   async #partitionDirectory(): Promise<string> {
     return ensureSafeDirectory(this.#artifactRoot, [this.#runId]);
   }
 
+  /** 解析或创建分区内仅存放不可变 Artifact 字节的 objects 目录。 */
   async #objectsDirectory(): Promise<string> {
     return ensureSafeDirectory(await this.#partitionDirectory(), ["objects"]);
   }
 
+  /** 首次真实操作前只执行一次恢复扫描；存在异常时阻断后续读写。 */
   async #ensureInitialized(): Promise<void> {
     this.#initialization ??= (async () => {
       await this.#partitionDirectory();
@@ -484,6 +510,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     return this.#initialization;
   }
 
+  /** 对照 index.jsonl 与 objects 目录，发现破损索引、孤儿/缺失对象和摘要不一致。 */
   async #scanRecoveryIssues(): Promise<readonly ArtifactRecoveryIssue[]> {
     const issues: ArtifactRecoveryIssue[] = [];
     let refs: readonly ArtifactRef[] = [];
@@ -536,6 +563,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     return issues;
   }
 
+  /** 区分路径不存在与其他文件系统错误，供不可变提交检查孤儿对象。 */
   async #pathExists(path: string): Promise<boolean> {
     try {
       await lstat(path);
@@ -546,6 +574,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     }
   }
 
+  /** 在当前 Store 实例内串行执行写动作，保护“对象创建 + 索引追加”等复合操作。 */
   async #withWriteLock<T>(action: () => Promise<T>): Promise<T> {
     const preceding = this.#writeQueue;
     let release!: () => void;
@@ -560,6 +589,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     }
   }
 
+  /** 按“操作名 + idempotencyKey”缓存 Promise；同键不同输入直接返回冲突。 */
   async #idempotent<T>(
     operation: string,
     context: OperationContext,
@@ -587,6 +617,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     return result;
   }
 
+  /** 将领域/文件系统异常归一为 ArtifactStorePort 的 rejected 或 failed 结果。 */
   #mapError<T>(context: OperationContext, error: unknown, fallbackReason: string): PortResult<T> {
     if (error instanceof ContractViolation) {
       const rejection =
@@ -609,6 +640,7 @@ export class FileArtifactStore implements ArtifactStorePort {
     );
   }
 
+  /** 为本适配器生成统一脱敏的 STORAGE FailureDraft，供所有 Port 失败路径复用。 */
   #failure(
     _context: OperationContext,
     category: FailureDraft["category"],
@@ -632,5 +664,3 @@ export class FileArtifactStore implements ArtifactStorePort {
     };
   }
 }
-
-export { FileArtifactStore as ArtifactStore };

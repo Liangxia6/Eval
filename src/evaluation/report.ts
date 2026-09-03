@@ -1,3 +1,9 @@
+/**
+ * 文件职责：汇总评测对象图，生成权威 EvaluationReport、可序列化报告文档及静态 HTML 视图。
+ * 核心流程：稳定化报告引用，验证完整对象图，投影为 ReportViewModel，将视图与渲染器版本纳入摘要后输出最终报告或运行状态页。
+ * 真实交互：上游消费 planning、observation、closure、judging、scoring 和 reset 阶段的已提交记录；下游由 ArtifactStore 保存 report.json/report.html 并更新 status.html。
+ * 公开接口：报告构建/视图/文档相关类型，以及 buildEvaluationReport、buildReportViewModel、buildReportDocument、序列化/解析和两类 HTML 渲染函数。
+ */
 import {
   ContractViolation,
   canonicalJson,
@@ -35,6 +41,7 @@ import {
 } from "../core/models.js";
 import { failureDisplayGroup, type FailureRecord } from "../core/errors.js";
 
+/** 构建权威 EvaluationReport 索引记录所需的 Scope、对象 Ref 和运行元数据。 */
 export interface BuildEvaluationReportInput {
   readonly reportId: string;
   readonly scope: ScopeRef;
@@ -57,6 +64,7 @@ export interface BuildEvaluationReportInput {
   readonly producerVersion: string;
 }
 
+/** 应用编排层调用，稳定化所有已提交 Ref 并创建带内容摘要的 EvaluationReport。 */
 export function buildEvaluationReport(input: BuildEvaluationReportInput): EvaluationReport {
   const scope = validateScope(input.scope);
   if (scope.runId === undefined || input.runRef.id !== scope.runId) {
@@ -88,8 +96,10 @@ export function buildEvaluationReport(input: BuildEvaluationReportInput): Evalua
   });
 }
 
+/** 状态页十步时间线允许的展示状态。 */
 export type WorkflowStepStatus = "PENDING" | "RUNNING" | "SUCCEEDED" | "FAILED" | "BLOCKED";
 
+/** 单个工作流步骤的展示投影，关联对象、故障分组和排障提示。 */
 export interface WorkflowStepView {
   readonly number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
   readonly label: string;
@@ -101,6 +111,7 @@ export interface WorkflowStepView {
   readonly hintCode?: string;
 }
 
+/** 观测来源及其采集完整性/健康状态的展示投影。 */
 export interface SourceView {
   readonly sourceId: string;
   readonly sourceType: string;
@@ -110,6 +121,7 @@ export interface SourceView {
   readonly gaps: readonly string[];
 }
 
+/** 面向报告的脱敏 Finding 投影及其证据 ID。 */
 export interface FindingView {
   readonly code: string;
   readonly severity: string;
@@ -117,6 +129,7 @@ export interface FindingView {
   readonly evidenceIds: readonly string[];
 }
 
+/** 串联 Closure、Judgement、CheckResult 和 Finding 的单检查展示投影。 */
 export interface CheckView {
   readonly checkResultId: string;
   readonly checkId: string;
@@ -130,6 +143,7 @@ export interface CheckView {
   readonly findings: readonly FindingView[];
 }
 
+/** EvidenceRecord 的下钻信息，保留其来源层级和原始观测/Artifact 关联。 */
 export interface EvidenceDrilldownView {
   readonly evidenceId: string;
   readonly factType: string;
@@ -144,6 +158,7 @@ export interface EvidenceDrilldownView {
   readonly derivationRuleId?: string;
 }
 
+/** RawObservation 的定位投影，用于从报告追溯 JSONL 字节区间或文件快照。 */
 export interface RawObservationDrilldownView {
   readonly observationId: string;
   readonly sourceId: string;
@@ -160,6 +175,7 @@ export interface RawObservationDrilldownView {
   readonly phase?: string;
 }
 
+/** 文件快照及条目级状态的报告投影。 */
 export interface FileSnapshotDrilldownView {
   readonly snapshotId: string;
   readonly phase: string;
@@ -175,6 +191,7 @@ export interface FileSnapshotDrilldownView {
   }[];
 }
 
+/** 文件 Diff 的精简报告投影，列出变化路径及未变化计数。 */
 export interface FileDiffDrilldownView {
   readonly diffId: string;
   readonly digest: string;
@@ -185,7 +202,7 @@ export interface FileDiffDrilldownView {
   readonly unchangedCount: number;
 }
 
-/** This normalized view is persisted inside report.json before HTML rendering. */
+/** report.json 内持久化的规范化展示模型，也是所有 HTML 渲染器的唯一事实输入。 */
 export interface ReportViewModel {
   readonly runId: string;
   readonly targetSummary: string;
@@ -204,7 +221,10 @@ export interface ReportViewModel {
     readonly attemptCount: 1;
     readonly checkIds: readonly string[];
     readonly scenarioId?: string;
+    readonly datasetIds?: readonly string[];
+    readonly labelIds?: readonly string[];
     readonly environmentId?: string;
+    readonly environmentObserverSourceRequirementId?: string;
     readonly inputPaths?: readonly string[];
     readonly allowedPaths?: readonly string[];
     readonly forbiddenPaths?: readonly string[];
@@ -235,6 +255,7 @@ export interface ReportViewModel {
   }[];
 }
 
+/** buildReportViewModel 接收的完整领域对象图；函数会先验证所有摘要与引用链。 */
 export interface ReportViewInput {
   readonly run: EvaluationRun;
   readonly target: TargetSnapshot;
@@ -262,6 +283,7 @@ export interface ReportViewInput {
   readonly currentPhase: string;
 }
 
+/** 将已验证的领域对象图投影成稳定、脱敏且便于静态渲染的 ReportViewModel。 */
 export function buildReportViewModel(input: ReportViewInput): ReportViewModel {
   validateReportViewGraph(input);
   validateTimeline(input.timeline);
@@ -330,7 +352,14 @@ export function buildReportViewModel(input: ReportViewInput): ReportViewModel {
         ? {}
         : {
             scenarioId: String(input.evaluationPlan.casePlan.scenarioId),
+            datasetIds: [String(input.evaluationPlan.casePlan.datasetId)],
+            labelIds: input.evaluationPlan.casePlan.labelBindings
+              .map((binding) => String(binding.labelId))
+              .sort(),
             environmentId: String(input.evaluationPlan.casePlan.environmentId),
+            environmentObserverSourceRequirementId: String(
+              input.evaluationPlan.casePlan.environmentObserverSourceRequirementId,
+            ),
             inputPaths: planInputPaths(input.evaluationPlan),
             allowedPaths: input.evaluationPlan.casePlan.allowedPaths.map(String).sort(),
             forbiddenPaths: input.evaluationPlan.casePlan.forbiddenPaths.map(String).sort(),
@@ -429,6 +458,7 @@ export function buildReportViewModel(input: ReportViewInput): ReportViewModel {
   };
 }
 
+/** 从 EvaluationPlan.seedSpec 提取输入文件路径，供计划摘要和直观版页面展示。 */
 function planInputPaths(plan: EvaluationPlan): readonly string[] {
   const entries = plan.casePlan.seedSpec.entries;
   if (!Array.isArray(entries)) return [];
@@ -441,6 +471,7 @@ function planInputPaths(plan: EvaluationPlan): readonly string[] {
     .sort();
 }
 
+/** 将单条 RawObservation 与对应 Source 合并为可下钻视图；由 buildReportViewModel 调用。 */
 function rawObservationView(
   observation: RawObservation,
   sources: readonly SourceDescriptor[],
@@ -471,19 +502,22 @@ function rawObservationView(
   };
 }
 
+/** 从捕获元数据中的 JSON Ref 安全读取 ID，供 RawObservation 定位使用。 */
 function jsonRefId(value: JsonValue | undefined): string | undefined {
   if (!isRecord(value)) return undefined;
   return typeof value.id === "string" ? value.id : undefined;
 }
 
+/** 将权威报告索引、展示模型和渲染器版本绑定在同一顶层摘要中的持久化文档。 */
 export interface EvaluationReportDocument
   extends Omit<EvaluationReport, "contentDigest"> {
   readonly view: ReportViewModel;
   readonly rendererVersion: string;
-  /** The sole top-level digest binds report refs, presentation facts and renderer. */
+  /** 唯一顶层摘要同时约束报告引用、展示事实和渲染器版本。 */
   readonly contentDigest: ContentDigest;
 }
 
+/** report.json 必须精确包含的顶层字段白名单。 */
 const REPORT_DOCUMENT_REQUIRED_FIELDS = [
   "schema",
   "reportId",
@@ -507,8 +541,10 @@ const REPORT_DOCUMENT_REQUIRED_FIELDS = [
   "rendererVersion",
   "contentDigest",
 ] as const;
+/** report.json 允许按运行阶段缺席的可选顶层字段。 */
 const REPORT_DOCUMENT_OPTIONAL_FIELDS = new Set(["gateDecisionRef", "resetVerificationRef"]);
 
+/** 把 EvaluationReport 与视图、渲染器版本封装成新的完整性边界，并重算顶层摘要。 */
 export function buildReportDocument(
   report: EvaluationReport,
   view: ReportViewModel,
@@ -527,11 +563,13 @@ export function buildReportDocument(
   return withContentDigest({ ...base, view, rendererVersion });
 }
 
+/** 验证报告文档后输出带结尾换行的规范 JSON，供 ArtifactStore 持久化。 */
 export function serializeReportDocument(document: EvaluationReportDocument): string {
   verifyReportDocument(document);
   return `${canonicalJson(document)}\n`;
 }
 
+/** 解析已有 report.json 并验证结构与摘要，供离线重渲染等读取路径使用。 */
 export function parseVerifiedReportDocument(json: string): EvaluationReportDocument {
   let value: unknown;
   try {
@@ -547,18 +585,19 @@ export function parseVerifiedReportDocument(json: string): EvaluationReportDocum
   return document;
 }
 
-/** Deterministic, self-contained and script-free final renderer. */
+/** 验证权威文档后生成确定、自包含且无脚本的最终 HTML 报告。 */
 export function renderReportHtml(document: EvaluationReportDocument): string {
   verifyReportDocument(document);
   return renderHtml("DSHEval Evaluation Report", document.view, true, document.rendererVersion);
 }
 
-/** status.html is non-authoritative and contains only already committed facts. */
+/** 根据已提交事实生成非权威 status.html；应用层可在运行过程中反复原子替换。 */
 export function renderStatusHtml(view: ReportViewModel, rendererVersion: string): string {
   validateTimeline(view.timeline);
   return renderHtml("DSHEval Run Status", view, false, rendererVersion);
 }
 
+/** 两个公开渲染入口共用的版本分派器；v3 走直观页面，其余版本保留兼容布局。 */
 function renderHtml(
   title: string,
   view: ReportViewModel,
@@ -573,7 +612,9 @@ function renderHtml(
   const settledSteps = view.timeline.filter((step) =>
     step.status === "SUCCEEDED" || step.status === "FAILED" || step.status === "BLOCKED"
   ).length;
+  /** 兼容旧版布局：仅增强模板为各内容区生成导航锚点。 */
   const sectionId = (id: string): string => enhanced ? ` id="${id}"` : "";
+  /** 兼容旧版布局：增强模板使用语义状态胶囊，v1 只输出转义文本。 */
   const semanticPill = (value: string): string => enhanced
     ? `<span class="status-pill ${statusTone(value)}">${e(value)}</span>`
     : e(value);
@@ -589,7 +630,7 @@ function renderHtml(
     "Before / Probe",
     "Agent 执行",
     "Evidence 闭合",
-    "三项判定",
+    "评测判定",
     "Reset 验证",
     "Gate / 报告",
   ] as const;
@@ -694,6 +735,7 @@ ${progress}${operationalStrip}${failureAlert}<section${sectionId("workflow")} cl
 </body></html>\n`;
 }
 
+/** v3 页面为当前内置检查提供的面向用户文案。 */
 interface FriendlyCheckCopy {
   readonly title: string;
   readonly question: string;
@@ -701,29 +743,30 @@ interface FriendlyCheckCopy {
   readonly pending: string;
 }
 
+/** 将已知 CheckId 映射为直观标题/问题/结果文案，未知检查回退为通用表述。 */
 function friendlyCheckCopy(checkId: string): FriendlyCheckCopy {
-  if (checkId === "protocol.integrity") {
+  if (checkId.startsWith("artifact.")) {
     return {
-      title: "过程可信",
-      question: "执行轨迹完整吗？",
-      success: "Probe 起止、事件顺序和工具调用都完整。",
-      pending: "正在等待完整的 DSH 执行轨迹。",
+      title: "产物交付",
+      question: "是否交付了 Dataset 要求的产物？",
+      success: "独立环境观测确认必需产物已经生成。",
+      pending: "正在观察工作区中的必需产物。",
     };
   }
-  if (checkId === "security.path-boundary") {
+  if (checkId.startsWith("tool.")) {
     return {
-      title: "没有乱动文件",
-      question: "修改范围合规吗？",
-      success: "只修改了允许的输出路径，输入文件保持不变。",
-      pending: "正在比较执行前后的文件变化。",
+      title: "工具执行",
+      question: "Agent 是否实际完成了要求的工具调用？",
+      success: "Trace 中存在符合 Dataset 规则的完整工具调用。",
+      pending: "正在等待工具调用与完成记录。",
     };
   }
-  if (checkId === "state.expected-file") {
+  if (checkId.startsWith("response.")) {
     return {
-      title: "结果正确",
-      question: "目标文件符合要求吗？",
-      success: "目标文件存在，类型和内容摘要均与预期一致。",
-      pending: "正在核对目标文件的类型和内容。",
+      title: "最终回答",
+      question: "最终回答是否满足 Dataset 的基本要求？",
+      success: "Agent 已提交符合规则的最终回答。",
+      pending: "正在等待 Agent 的最终回答。",
     };
   }
   return {
@@ -734,6 +777,7 @@ function friendlyCheckCopy(checkId: string): FriendlyCheckCopy {
   };
 }
 
+/** 将单检查三值结果转换为中文展示文本。 */
 function friendlyOutcome(outcome: CheckOutcome | undefined): string {
   if (outcome === "PASS") return "通过";
   if (outcome === "FAIL") return "不通过";
@@ -741,6 +785,7 @@ function friendlyOutcome(outcome: CheckOutcome | undefined): string {
   return "等待判定";
 }
 
+/** 将 Gate 三值结论转换为报告主标题。 */
 function friendlyGate(gate: CheckOutcome | undefined): string {
   if (gate === "PASS") return "评测通过";
   if (gate === "FAIL") return "评测未通过";
@@ -748,6 +793,7 @@ function friendlyGate(gate: CheckOutcome | undefined): string {
   return "评测进行中";
 }
 
+/** 将工作流步骤状态转换为中文展示文本。 */
 function friendlyStepStatus(status: WorkflowStepStatus): string {
   if (status === "SUCCEEDED") return "完成";
   if (status === "RUNNING") return "进行中";
@@ -756,6 +802,7 @@ function friendlyStepStatus(status: WorkflowStepStatus): string {
   return "等待";
 }
 
+/** 将文件变化枚举转换为中文展示文本。 */
 function friendlyChange(kind: string): string {
   if (kind === "ADDED") return "新增";
   if (kind === "REMOVED") return "删除";
@@ -764,6 +811,7 @@ function friendlyChange(kind: string): string {
   return kind;
 }
 
+/** 为已知 SourceType 提供用户可理解的标题和来源说明。 */
 function friendlySource(type: string): { title: string; detail: string } {
   if (type === "FILESYSTEM") {
     return { title: "文件结果", detail: "由 DSHEval 独立读取执行前后的真实文件状态。" };
@@ -774,6 +822,7 @@ function friendlySource(type: string): { title: string; detail: string } {
   return { title: type, detail: "评测过程中采集的证据来源。" };
 }
 
+/** 将常见证据、来源及重置状态转换为中文展示文本。 */
 function friendlyEvidenceState(value: string): string {
   if (value === "COMPLETE") return "完整";
   if (value === "PARTIAL") return "部分";
@@ -785,6 +834,7 @@ function friendlyEvidenceState(value: string): string {
   return value;
 }
 
+/** renderHtml 为 v3 调用的直观报告模板，突出结论、能力标签、进度和技术依据。 */
 function renderIntuitiveHtml(
   title: string,
   view: ReportViewModel,
@@ -796,16 +846,20 @@ function renderIntuitiveHtml(
   const settledSteps = view.timeline.filter((step) =>
     step.status === "SUCCEEDED" || step.status === "FAILED" || step.status === "BLOCKED"
   ).length;
-  const scenarioTitle = view.planSummary.scenarioId === "scenario.filesystem.copy-exact/v1"
-    ? "文件精确复制"
-    : view.planSummary.scenarioId ?? "尚未生成题目";
-  const departmentTitle = view.planSummary.environmentId === "environment.filesystem.workspace/v1"
-    ? "文件系统"
-    : view.planSummary.environmentId ?? "尚未匹配科室";
-  const inputPath = view.planSummary.inputPaths?.[0] ?? "input/source.txt";
-  const outputPath = view.planSummary.allowedPaths?.[0] ?? "output/result.txt";
+  const scenarioTitle = view.planSummary.scenarioId ?? "尚未生成题目";
+  const labelTitles = new Map([
+    ["label.artifact-delivery/v1", "产物交付"],
+    ["label.instruction-following/v1", "指令遵循"],
+    ["label.tool-code/v1", "工具（代码与终端）"],
+  ]);
+  const labelTitle = view.planSummary.labelIds
+    ?.map((labelId) => labelTitles.get(labelId) ?? labelId)
+    .join("、") ?? "尚未选择评测指标";
+  const datasetTitle = view.planSummary.datasetIds?.join("、") ?? "尚未选择数据集";
+  const inputPath = view.planSummary.inputPaths?.[0] ?? "无预置输入文件";
+  const outputPath = view.planSummary.allowedPaths?.[0] ?? "output";
   const gateLead = view.gate === "PASS"
-    ? "任务结果、执行过程和文件边界均满足本次标准。"
+    ? "本次计划中的全部必需评测标准均已满足。"
     : view.gate === "FAIL"
       ? "至少一项硬性标准未满足，请查看下方红色评分项。"
       : view.gate === "UNEVALUABLE"
@@ -852,7 +906,7 @@ function renderIntuitiveHtml(
   const timeline = view.timeline.map((step) => {
     const status = statusClass(step.status);
     const expanded = step.status === "RUNNING" || step.status === "FAILED" || step.status === "BLOCKED";
-    const labels = ["冻结评测目标", "检查 DSH 能力", "生成唯一计划", "安全预检", "准备测试环境", "执行 DSH Agent", "整理并闭合证据", "生成三项判定", "重置并独立验证", "形成最终结论"] as const;
+    const labels = ["冻结评测目标", "检查 DSH 能力", "生成唯一计划", "安全预检", "准备测试环境", "执行 DSH Agent", "整理并闭合证据", "生成评测判定", "重置并独立验证", "形成最终结论"] as const;
     return `<li class="journey-step ${status}" aria-label="${e(`${step.number}. ${step.label}: ${step.status}`)}"><span class="journey-number">${step.number}</span><div><strong>${e(labels[step.number - 1] ?? step.label)}</strong><small>${e(friendlyStepStatus(step.status))}</small></div><details${expanded ? " open" : ""}><summary>详情</summary><p>${e(step.label)}</p><p>${e(step.startedAt ?? "尚未开始")} → ${e(step.endedAt ?? "尚未结束")}</p>${step.failureGroups.length === 0 ? "" : `<p>Failure: ${step.failureGroups.map(e).join(", ")}</p>`}${step.hintCode === undefined ? "" : `<p>${e(troubleshootingHint(step.hintCode))}</p>`}</details></li>`;
   }).join("");
 
@@ -892,15 +946,16 @@ function renderIntuitiveHtml(
 <main id="top">
   <header class="hero tone-${gateTone}"><div class="hero-main"><p class="eyebrow">${view.fixture ? "FIXTURE 流水线演示" : "正式 DSH 评测"}</p><h1>${e(friendlyGate(view.gate))}</h1><p class="hero-lead">${e(gateLead)}</p>${gateAbsence}<div class="hero-chips"><span>${e(view.operationalHealth === "HEALTHY" ? "系统正常" : `系统 ${view.operationalHealth}`)}</span><span>${e(view.reset.environmentState === "CLEANED" ? "环境已清理" : `环境 ${view.reset.environmentState}`)}</span><span>${e(view.securityIsolation === "AGENT_SEPARATED" ? "Agent 已隔离" : view.securityIsolation)}</span></div></div><div class="gate-orb"><small>最终结论</small><strong>${e(friendlyOutcome(view.gate))}</strong><span>${view.checks.filter((check) => check.outcome === "PASS").length} / ${planChecks.length} 项通过</span></div><details class="run-meta"><summary>运行信息</summary><div>Run<br><strong>${e(view.runId)}</strong></div><div>Target<br><strong>${e(view.targetSummary)}</strong></div><div>Execution class<br><strong>${view.fixture ? "FIXTURE" : "FORMAL"}</strong></div><div>Security isolation<br><strong>${e(view.securityIsolation)}</strong></div><div>Phase<br><strong>${e(view.currentPhase)}</strong></div><div>Run state<br><strong>${e(view.runState)}</strong></div><div>Gate<br><strong class="${gateTone}">${e(view.gate ?? "尚未产生")}</strong></div></details></header>
   ${fixtureNotice}
-  <section class="section coverage" id="coverage"><div class="section-heading"><div><p class="eyebrow">当前资产覆盖</p><h2>这次到底测什么</h2></div><p>当前只是最小样板，不是完整能力排行榜。</p></div><div class="coverage-grid"><article><strong>1</strong><span>个科室</span><small>${e(departmentTitle)}</small></article><article><strong>1</strong><span>道测试题</span><small>${e(scenarioTitle)}</small></article><article><strong>1</strong><span>条输入样本</span><small>${e(inputPath)}</small></article><article><strong>${planChecks.length}</strong><span>项硬标准</span><small>任一失败都不能通过</small></article></div><div class="task-card"><div><p class="eyebrow">测试任务</p><h3>${e(scenarioTitle)}</h3><p>读取输入文件，把字节原样写到唯一允许的输出文件，不修改其他路径。</p>${view.planSummary.deadlineMs === undefined ? "" : `<small>最长执行时间 ${e(Math.round(view.planSummary.deadlineMs / 1000))} 秒 · 单次 Attempt</small>`}</div><div class="task-flow"><code>${e(inputPath)}</code><span>DSH Agent</span><code>${e(outputPath)}</code></div></div></section>
+  <section class="section coverage" id="coverage"><div class="section-heading"><div><p class="eyebrow">当前资产覆盖</p><h2>这次到底测什么</h2></div><p>请求选择可复用能力标签；Dataset Pack 提供题目、指标参数、环境和观测要求。</p></div><div class="coverage-grid"><article><strong>${view.planSummary.labelIds?.length ?? 0}</strong><span>个能力标签</span><small>${e(labelTitle)}</small></article><article><strong>1</strong><span>个数据集</span><small>${e(datasetTitle)}</small></article><article><strong>1</strong><span>道测试题</span><small>${e(scenarioTitle)}</small></article><article><strong>${planChecks.length}</strong><span>项硬标准</span><small>任一失败都不能通过</small></article></div><div class="task-card"><div><p class="eyebrow">测试任务</p><h3>${e(scenarioTitle)}</h3><p>任务内容和判定参数来自已冻结的 Dataset Pack，DSHEval 只负责执行、观测与验证。</p>${view.planSummary.deadlineMs === undefined ? "" : `<small>最长执行时间 ${e(Math.round(view.planSummary.deadlineMs / 1000))} 秒 · 单次 Attempt</small>`}</div><div class="task-flow"><code>${e(inputPath)}</code><span>DSH Agent</span><code>${e(outputPath)}</code></div></div></section>
   <section class="section journey" id="journey"><div class="section-heading"><div><p class="eyebrow">实时运行过程</p><h2>现在走到哪里</h2></div><div class="progress-copy"><strong>${settledSteps} / 10</strong><span>已结算流程步骤</span></div></div><div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="${settledSteps}"><span style="width:${settledSteps * 10}%"></span></div><ol class="journey-list">${timeline}</ol></section>
-  <section class="section results" id="results"><div class="section-heading"><div><p class="eyebrow">评分结果</p><h2>三件事，一眼看懂</h2></div><p>先看结论；内部对象和证据链放在“技术依据”里。</p></div><div class="score-grid">${scoreCards || "<p>尚未生成评分计划。</p>"}</div></section>
+  <section class="section results" id="results"><div class="section-heading"><div><p class="eyebrow">评分结果</p><h2>评测结果，一眼看懂</h2></div><p>先看结论；内部对象和证据链放在“技术依据”里。</p></div><div class="score-grid">${scoreCards || "<p>尚未生成评分计划。</p>"}</div></section>
   <section class="section reality"><div class="section-heading"><div><p class="eyebrow">真实环境结果</p><h2>文件发生了什么</h2></div></div><div class="reality-grid"><article class="change-card"><h3>执行前后变化</h3><ul>${changeRows || "<li><span class=\"change-kind\">无变化</span><span>尚未观察到文件变化</span></li>"}</ul></article><article class="reset-card tone-${resetTone}"><span class="reset-icon" aria-hidden="true">${resetTone === "pass" ? "✓" : resetTone === "pending" ? "·" : "!"}</span><div><h3>${resetTitle}</h3><p>${e(friendlyEvidenceState(view.reset.result))} · ${e(friendlyEvidenceState(view.reset.environmentState))}</p><details><summary>独立验证详情</summary><p>Reset：${e(view.reset.result)} · Environment：${e(view.reset.environmentState)}</p>${resetDetails || "<p>没有额外差异。</p>"}</details></div></article></div><div class="source-grid">${sourceCards || "<p>尚未建立观测来源。</p>"}</div></section>
   <section class="section failures ${view.failures.length === 0 ? "all-clear" : "has-failures"}" id="failures"><div class="section-heading"><div><p class="eyebrow">故障归因</p><h2>${view.failures.length === 0 ? "没有记录到系统故障" : `发现 ${view.failures.length} 条故障`}</h2></div><p>${view.failures.length === 0 ? "Agent、采集器、Judge 和基础设施均没有故障记录。" : "故障归因不会被混成 Agent 失败。"}</p></div>${failures === "" ? "" : `<ul>${failures}</ul>`}</section>
   <details class="section technical" id="technical"><summary><span><small>可审计详情</small><strong>技术证据与内部对象</strong></span><span>展开查看</span></summary><div class="technical-body"><h2>EvidenceRecord</h2>${evidenceDetails || "<p>尚未产生 Evidence</p>"}<h2>RawObservation 定位</h2><ul>${rawDetails || "<li>尚未产生 RawObservation</li>"}</ul><h2>File Snapshot Entries</h2>${snapshots || "<p>尚未产生 File Snapshot</p>"}<h2>File Diff</h2>${diffDetails || "<p>尚未产生 File Diff</p>"}<h2>Artifacts</h2><ul>${artifacts || "<li>None</li>"}</ul></div></details>
 </main><footer><span>${finalReport ? "权威终态报告" : "非权威实时状态"}</span><code>${e(view.runId)}</code><small>Renderer ${e(rendererVersion)} · No scripts or network dependencies</small></footer></body></html>\n`;
 }
 
+/** v3 直观报告模板的内联样式，不引入网络资源或脚本。 */
 const INTUITIVE_RENDERER_CSS = `
 :root {
   color-scheme: light;
@@ -1109,8 +1164,10 @@ footer code { max-width: 50vw; }
 }
 `;
 
+/** v1 兼容渲染器的最小内联样式。 */
 const LEGACY_RENDERER_CSS = ":root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,sans-serif}body{max-width:1100px;margin:auto;padding:24px;line-height:1.5}header,.panel,.check{border:1px solid #8886;border-radius:10px;padding:16px;margin:12px 0}.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.summary div{background:#8881;padding:8px;border-radius:6px}.timeline{padding-left:24px}.step{margin:8px 0;padding:8px;border-left:5px solid #888}.step.ok{border-color:#16803c}.step.bad{border-color:#b42318}.step.busy{border-color:#1769aa}.pass{color:#16803c}.fail{color:#b42318}.unevaluable{color:#a15c00}table{width:100%;border-collapse:collapse}th,td{text-align:left;vertical-align:top;border-bottom:1px solid #8885;padding:7px}code,pre{overflow-wrap:anywhere}small{opacity:.75}a{color:inherit}dt{font-weight:700}dd{margin-bottom:5px}";
 
+/** v2 增强兼容渲染器的内联样式。 */
 const ENHANCED_RENDERER_CSS = `
 :root {
   color-scheme: light dark;
@@ -1286,12 +1343,14 @@ footer { padding: 18px 4px; color: var(--muted); }
   .timeline { grid-template-columns: repeat(5, 1fr); }
 }`;
 
+/** 按文档绑定的 rendererVersion 选择对应内联样式。 */
 function rendererStyles(rendererVersion: string): string {
   if (rendererVersion === "dsheval-static/v3") return INTUITIVE_RENDERER_CSS;
   if (rendererVersion === "dsheval-static/v2") return ENHANCED_RENDERER_CSS;
   return LEGACY_RENDERER_CSS;
 }
 
+/** 序列化、解析和最终渲染前共同调用，严格验证字段白名单、身份关系与顶层摘要。 */
 function verifyReportDocument(document: EvaluationReportDocument): void {
   try {
     if (!isRecord(document) || !isRecord(document.view)) {
@@ -1349,6 +1408,7 @@ function verifyReportDocument(document: EvaluationReportDocument): void {
   }
 }
 
+/** buildReportViewModel 的入口守卫：复验所有记录摘要及 Source→Evidence→Closure→Judgement→Gate 引用链。 */
 function validateReportViewGraph(input: ReportViewInput): void {
   assertProjectionDigest(input.run, "Run");
   assertProjectionDigest(input.attempt, "Attempt");
@@ -1478,6 +1538,7 @@ function validateReportViewGraph(input: ReportViewInput): void {
   }
 }
 
+/** validateReportViewGraph 用于复验不可变记录 contentDigest 的通用断言。 */
 function assertImmutableDigest(
   record: { readonly schema: string; readonly contentDigest: ContentDigest },
   label: string,
@@ -1487,6 +1548,7 @@ function assertImmutableDigest(
   }
 }
 
+/** validateReportViewGraph 用于复验生命周期投影 projectionDigest 的通用断言。 */
 function assertProjectionDigest(
   record: { readonly projectionDigest: ContentDigest },
   label: string,
@@ -1496,16 +1558,19 @@ function assertProjectionDigest(
   }
 }
 
+/** 比较 Ref 的 ID 与摘要是否同时指向指定记录。 */
 function refMatches(ref: Ref, id: string, digest: ContentDigest): boolean {
   return String(ref.id) === String(id) && digestEquals(ref.digest, digest);
 }
 
+/** 状态与报告渲染前确认时间线恰好包含顺序固定的十个步骤。 */
 function validateTimeline(timeline: readonly WorkflowStepView[]): void {
   if (timeline.length !== 10 || timeline.some((step, index) => step.number !== index + 1)) {
     throw new ContractViolation("INVALID_TIMELINE", "Status timeline must contain ordered steps 1..10");
   }
 }
 
+/** 将常见 reasonCode 映射为报告中的中文排障建议。 */
 function troubleshootingHint(reasonCode: string): string {
   const hints: Readonly<Record<string, string>> = {
     PLAN_UNSATISFIABLE: "检查缺失资产、Sensor 或 Judge 后重新规划。",
@@ -1521,6 +1586,7 @@ function troubleshootingHint(reasonCode: string): string {
   return hints[reasonCode] ?? reasonCode;
 }
 
+/** 所有模板插值共用的 HTML 转义函数，也公开供渲染相关测试复用。 */
 export function escapeHtml(value: unknown): string {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1530,10 +1596,12 @@ export function escapeHtml(value: unknown): string {
     .replaceAll("'", "&#39;");
 }
 
+/** 把任意对象 ID 编码成安全且可复现的 HTML anchor。 */
 function safeAnchor(value: string): string {
   return Buffer.from(value, "utf8").toString("hex");
 }
 
+/** 将时间线状态映射为兼容模板的 CSS class。 */
 function statusClass(status: WorkflowStepStatus): string {
   if (status === "SUCCEEDED") return "ok";
   if (status === "FAILED" || status === "BLOCKED") return "bad";
@@ -1541,6 +1609,7 @@ function statusClass(status: WorkflowStepStatus): string {
   return "";
 }
 
+/** 将多种领域状态归并为 v2/v3 页面使用的四类语义色调。 */
 function statusTone(value: string): "tone-good" | "tone-bad" | "tone-warn" | "tone-neutral" {
   const normalized = value.toUpperCase();
   if (
@@ -1582,10 +1651,12 @@ function statusTone(value: string): "tone-good" | "tone-bad" | "tone-warn" | "to
   return "tone-neutral";
 }
 
+/** 将 CheckOutcome 映射为旧模板使用的结果 CSS class。 */
 function outcomeClass(outcome: string): string {
   return outcome === "PASS" ? "pass" : outcome === "FAIL" ? "fail" : outcome === "UNEVALUABLE" ? "unevaluable" : "";
 }
 
+/** buildEvaluationReport 用于按身份去重并稳定排序对象 Ref。 */
 function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   const unique = new Map<string, T>();
   for (const ref of refs) unique.set(`${ref.schema}\u0000${ref.id}\u0000${ref.revision ?? ""}`, ref);
@@ -1594,6 +1665,7 @@ function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   );
 }
 
+/** 报告 JSON 解析与元数据读取共用的普通对象类型守卫。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

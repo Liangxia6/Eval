@@ -1,3 +1,13 @@
+/**
+ * 文件功能：统一描述“哪里失败了、为什么失败、应该归谁处理”。
+ *
+ * 执行模块发现问题时先创建 FailureDraft。工作流准备保存时，为它补上 ID、版本和摘要，
+ * 得到 FailureRecord。报告页面再把记录归为 Agent 失败、采集失败、Judge 失败或基础设施失败。
+ * 这样不同故障不会被混成一句笼统的“评测失败”。
+ *
+ * 主要交互：各执行模块产生 FailureDraft；`contracts.ts` 把它放进统一返回结果；
+ * `storage/repositories.ts` 保存正式记录；`evaluation/report.ts` 按失败类型展示。
+ */
 import {
   ContractViolation,
   type ArtifactRef,
@@ -11,6 +21,7 @@ import {
   withContentDigest,
 } from "./models.js";
 
+/** 问题来自哪里：用户输入、被测 Agent、DSHEval、运行环境或外部服务。 */
 export type FailureOrigin =
   | "USER"
   | "TARGET"
@@ -19,6 +30,7 @@ export type FailureOrigin =
   | "EXTERNAL_DEPENDENCY"
   | "UNKNOWN";
 
+/** 问题发生在哪一类环节，例如计划、执行、观测、Judge、保存或清理。 */
 export type FailureCategory =
   | "INPUT_VALIDATION"
   | "TARGET_RESOLUTION"
@@ -39,8 +51,10 @@ export type FailureCategory =
   | "CLEANUP_FAILURE"
   | "INTERNAL_INVARIANT";
 
+/** 问题的严重程度。 */
 export type FailureSeverity = "INFO" | "WARNING" | "ERROR" | "CRITICAL";
 
+/** 由哪个模块发现或产生了问题。 */
 export type FailureActor =
   | "APP"
   | "PLANNING"
@@ -57,6 +71,7 @@ export type FailureActor =
   | "USER"
   | "UNKNOWN";
 
+/** 刚发现问题时创建的失败信息；已经脱敏，但还没有正式记录 ID 和摘要。 */
 export interface FailureDraft {
   readonly scope: ScopeRef;
   readonly category: FailureCategory;
@@ -72,6 +87,7 @@ export interface FailureDraft {
   readonly occurredAt: IsoDateTime;
 }
 
+/** 可以保存的正式失败记录：在 FailureDraft 基础上增加 ID、版本和内容摘要。 */
 export interface FailureRecord extends FailureDraft {
   readonly schema: "dsheval.mvp.failure/v1";
   readonly failureId: StableId<"FailureId">;
@@ -79,6 +95,7 @@ export interface FailureRecord extends FailureDraft {
   readonly contentDigest: ContentDigest;
 }
 
+/** 报告页面面向用户展示的六类失败分组。 */
 export type FailureDisplayGroup =
   | "plan_conflict"
   | "infrastructure_error"
@@ -87,16 +104,7 @@ export type FailureDisplayGroup =
   | "judge_error"
   | "CANCELLED";
 
-export class DshevalFailure extends Error {
-  public readonly draft: FailureDraft;
-
-  public constructor(draft: FailureDraft, options?: ErrorOptions) {
-    super(draft.messageRedacted, options);
-    this.name = "DshevalFailure";
-    this.draft = draft;
-  }
-}
-
+/** 保存前检查失败信息是否完整，以及它是否属于正确的 Run/Case/Attempt。 */
 export function validateFailureDraft(draft: FailureDraft): FailureDraft {
   validateScope(draft.scope);
   if (draft.retryable !== false) {
@@ -111,6 +119,7 @@ export function validateFailureDraft(draft: FailureDraft): FailureDraft {
   return draft;
 }
 
+/** 给失败草稿补上正式 ID、版本和摘要，生成可以保存的失败记录。 */
 export function commitFailureDraft(
   draft: FailureDraft,
   failureId: StableId<"FailureId"> | string,
@@ -126,6 +135,7 @@ export function commitFailureDraft(
   return withContentDigest(recordWithoutDigest);
 }
 
+/** 把内部失败类型转换成报告中的 Agent、采集、Judge、计划或基础设施分组。 */
 export function failureDisplayGroup(failure: FailureDraft): FailureDisplayGroup {
   if (failure.category === "CANCELLED") return "CANCELLED";
   if (failure.category === "JUDGE_FAILURE" || failure.actor === "JUDGE") return "judge_error";
@@ -157,6 +167,10 @@ export function failureDisplayGroup(failure: FailureDraft): FailureDisplayGroup 
   return "infrastructure_error";
 }
 
+/**
+ * 把未预料到的程序异常转换成安全的失败记录草稿。
+ * 原始异常可能含路径或密钥，所以报告只保留固定的脱敏说明。
+ */
 export function internalFailureDraft(
   scope: ScopeRef,
   phase: string,
@@ -168,7 +182,7 @@ export function internalFailureDraft(
     readonly cause?: unknown;
   } = {},
 ): FailureDraft {
-  // The unknown exception text is intentionally not copied: it may contain a path or secret.
+  // unknown 异常文本可能包含路径或密钥，因此这里只使用调用方提供或固定的脱敏消息。
   const messageRedacted = options.messageRedacted ?? "An unexpected DSHEval invariant failed";
   const draft: FailureDraft = {
     scope: validateScope(scope),

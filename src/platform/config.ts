@@ -1,3 +1,14 @@
+/**
+ * 文件职责：合并、校验并冻结一次调用的 DSHEval 配置。
+ *
+ * 核心流程：按默认值→配置文件→环境变量→CLI 的优先级合并字段，验证路径隔离、
+ * Deadline、模型端点和 Secret 引用名称，记录每个字段来源并生成带摘要 ConfigSnapshot。
+ *
+ * 与其他文件的交互：`app/bootstrap.ts` 调用 freezeConfig；Workflow、Runtime、
+ * Security、Storage 和 Report 只消费冻结后的 ConfigSnapshot。
+ *
+ * 公开接口：MvpConfigValues、FreezeConfigOptions 和 freezeConfig。
+ */
 import { lstat, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -11,6 +22,7 @@ import {
   withContentDigest,
 } from "../core/models.js";
 
+/** 用户可配置的 MVP 字段集合，也是未知字段校验的唯一白名单。 */
 export interface MvpConfigValues {
   targetRoot: string;
   runRoot: string;
@@ -30,6 +42,7 @@ export interface MvpConfigValues {
   secretRefNames: readonly string[];
 }
 
+/** freezeConfig 的调用级上下文和三种可选配置来源。 */
 export interface FreezeConfigOptions {
   cwd: string;
   configId: string;
@@ -41,6 +54,7 @@ export interface FreezeConfigOptions {
   cli?: Partial<MvpConfigValues>;
 }
 
+/** 需要绝对化、危险根检查和两两不重叠验证的路径字段。 */
 const ROOT_FIELDS = [
   "targetRoot",
   "runRoot",
@@ -50,6 +64,7 @@ const ROOT_FIELDS = [
   "runtimeDshHomeRoot",
 ] as const;
 
+/** 配置文件和 CLI 对象可出现的全部正式字段。 */
 const CONFIG_FIELDS = new Set<keyof MvpConfigValues>([
   ...ROOT_FIELDS,
   "runDeadlineMs",
@@ -64,6 +79,7 @@ const CONFIG_FIELDS = new Set<keyof MvpConfigValues>([
   "secretRefNames",
 ]);
 
+/** 允许进入配置合并流程的环境变量到字段映射。 */
 const ENVIRONMENT_FIELDS: Readonly<Record<string, keyof MvpConfigValues>> = {
   DSHEVAL_TARGET_ROOT: "targetRoot",
   DSHEVAL_RUN_ROOT: "runRoot",
@@ -82,9 +98,7 @@ const ENVIRONMENT_FIELDS: Readonly<Record<string, keyof MvpConfigValues>> = {
   DSHEVAL_SECRET_REF_NAMES: "secretRefNames",
 };
 
-// These names are owned by the harness or by process launch semantics.  A
-// Secret reference must never be able to replace one of them when the frozen
-// configuration is later materialized into the Target environment.
+/** Harness 或进程启动语义占用的变量名，不能被 Secret 引用替换。 */
 const RESERVED_SECRET_REF_NAMES = new Set([
   "HOME",
   "USERPROFILE",
@@ -98,6 +112,7 @@ const RESERVED_SECRET_REF_NAMES = new Set([
   "DSH_HOME",
 ]);
 
+/** 构造相对于当前工作目录的安全默认配置。 */
 function defaults(cwd: string): Omit<MvpConfigValues, "targetRoot"> {
   const variableRoot = path.join(cwd, "var");
   return {
@@ -119,6 +134,7 @@ function defaults(cwd: string): Omit<MvpConfigValues, "targetRoot"> {
   };
 }
 
+/** 将配置来源收窄为对象，并拒绝 CONFIG_FIELDS 之外的键。 */
 function assertKnownFields(value: unknown, source: string): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${source} must contain a JSON object`);
@@ -131,6 +147,7 @@ function assertKnownFields(value: unknown, source: string): Record<string, unkno
   return record;
 }
 
+/** 读取白名单环境变量，并把数字和逗号列表转换为配置值。 */
 function environmentValues(environment: NodeJS.ProcessEnv): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   for (const [environmentName, field] of Object.entries(ENVIRONMENT_FIELDS)) {
@@ -153,6 +170,7 @@ function environmentValues(environment: NodeJS.ProcessEnv): Record<string, unkno
   return values;
 }
 
+/** 校验 Deadline、窗口和字节限制等正安全整数。 */
 function validatePositiveInteger(value: unknown, field: string): number {
   if (!Number.isSafeInteger(value) || Number(value) <= 0) {
     throw new Error(`${field} must be a positive safe integer`);
@@ -160,6 +178,7 @@ function validatePositiveInteger(value: unknown, field: string): number {
   return Number(value);
 }
 
+/** 校验字符串数组，去重并稳定排序以便摘要可复现。 */
 function validateStringArray(value: unknown, field: string): readonly string[] {
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string" || entry.length === 0)) {
     throw new Error(`${field} must be an array of non-empty strings`);
@@ -167,6 +186,7 @@ function validateStringArray(value: unknown, field: string): readonly string[] {
   return [...new Set(value as string[])].sort();
 }
 
+/** 解析并验证单个 Root 路径，保留不存在但可安全创建的绝对路径。 */
 async function validateRoot(root: string, cwd: string, field: string): Promise<string> {
   if (
     root.includes("\0") ||
@@ -197,6 +217,7 @@ async function validateRoot(root: string, cwd: string, field: string): Promise<s
   return absolute;
 }
 
+/** 判断两个 Root 是否相同或存在祖先关系；freezeConfig 用它阻止权限域重叠。 */
 function rootsOverlap(left: string, right: string): boolean {
   const relative = path.relative(left, right);
   const reverse = path.relative(right, left);
@@ -207,6 +228,7 @@ function rootsOverlap(left: string, right: string): boolean {
   );
 }
 
+/** 为每个冻结字段记录最终值来自 CLI、环境、文件还是默认值。 */
 function fieldSources(
   file: Record<string, unknown>,
   environment: Record<string, unknown>,
@@ -226,6 +248,9 @@ function fieldSources(
   ) as JsonObject;
 }
 
+/**
+ * 合并全部配置来源并返回摘要保护的 ConfigSnapshot；Bootstrap 是生产调用方。
+ */
 export async function freezeConfig(options: FreezeConfigOptions): Promise<ConfigSnapshot> {
   const fileValues =
     options.configFile === undefined

@@ -1,7 +1,14 @@
+/**
+ * 文件功能：通过 Judge 接口评估一个 Check，生成 Judgement、Finding 和 CheckResult。
+ *
+ * Dataset 只声明 judgeId 和规则参数；Bootstrap 注册真实 JudgeImplementation。Workflow 按 ID
+ * 取出实现后调用，因此新增 Judge 不需要修改 dispatch switch。证据不足统一返回 UNEVALUABLE，
+ * Agent 不满足规则返回 FAIL，Judge 自身异常单独记录为 JUDGE_FAILURE。
+ */
+import type { JudgeDescriptor } from "../core/contracts.js";
 import {
   ContractViolation,
   assertSameAttemptScope,
-  canonicalJson,
   digestEquals,
   digestValue,
   refForImmutable,
@@ -24,17 +31,38 @@ import {
 } from "../core/models.js";
 import type { FailureDraft, FailureRecord } from "../core/errors.js";
 
-export const PROTOCOL_JUDGE_ID = validateVersionedAssetId<"JudgeId">(
-  "judge.protocol.integrity/v1",
-);
-export const FILE_STATE_JUDGE_ID = validateVersionedAssetId<"JudgeId">(
-  "judge.filesystem.state/v1",
-);
-export const PATH_SECURITY_JUDGE_ID = validateVersionedAssetId<"JudgeId">(
-  "judge.filesystem.path-security/v1",
-);
-export const DETERMINISTIC_JUDGE_VERSION = "1.0.0";
+/** 当前内置规则 Judge 的实现版本。 */
+export const RULE_JUDGE_VERSION = "1.0.0";
 
+/** Judge 规则尚未落库的 Finding。 */
+export interface JudgeFinding {
+  readonly code: string;
+  readonly severity: Finding["severity"];
+  readonly messageRedacted: string;
+  readonly evidenceRefs: readonly Ref<EvidenceRecord>[];
+}
+
+/** Judge 实现返回的纯裁决，不包含持久化 ID。 */
+export interface JudgeDecision {
+  readonly outcome: "PASS" | "FAIL";
+  readonly reasonCodes: readonly string[];
+  readonly findings: readonly JudgeFinding[];
+}
+
+/**
+ * Judge 扩展接口。新增规则 Judge 或 LLM Judge 时实现此接口并在 Bootstrap 注册，
+ * Dataset Pack 通过 judgeId 选择实现。
+ */
+export interface JudgeImplementation {
+  readonly descriptor: JudgeDescriptor;
+  readonly checkType: string;
+  evaluate(
+    evidence: readonly EvidenceRecord[],
+    ruleParameters: JsonObject,
+  ): JudgeDecision | Promise<JudgeDecision>;
+}
+
+/** evaluateCheck 的输入图：计划、证据闭包以及闭包授权的证据。 */
 export interface EvaluateCheckInput {
   readonly scope: ScopeRef;
   readonly checkPlan: CheckPlan;
@@ -47,447 +75,326 @@ export interface EvaluateCheckInput {
   readonly createdAt: string;
   readonly producerVersion: string;
   readonly makeFindingId?: (code: string, ordinal: number) => string;
-  /** If App has already committed the Judge failure, bind it here. */
   readonly judgeFailureRef?: Ref<FailureRecord>;
 }
 
+/** 一项 Check 的完整可保存结果。 */
 export interface JudgeEvaluationResult {
   readonly judgement: JudgementRecord;
   readonly findings: readonly Finding[];
   readonly checkResult: CheckResult;
-  /** Present only when the Judge implementation itself threw. */
   readonly failureDraft?: FailureDraft;
 }
 
-interface FindingDraft {
-  readonly code: string;
-  readonly severity: Finding["severity"];
-  readonly messageRedacted: string;
-  readonly evidenceRefs: readonly Ref<EvidenceRecord>[];
-}
-
-interface DeterministicJudgeResult {
-  readonly outcome: "PASS" | "FAIL";
-  readonly reasonCodes: readonly string[];
-  readonly findings: readonly FindingDraft[];
-}
-
+/** 证据存在但缺少 Judge 所需字段时抛出；上层会转成 UNEVALUABLE。 */
 class JudgeInputIncomplete extends Error {
-  public readonly reasonCode: string;
-
-  public constructor(reasonCode: string, message: string) {
+  public constructor(
+    public readonly reasonCode: string,
+    message: string,
+  ) {
     super(message);
     this.name = "JudgeInputIncomplete";
-    this.reasonCode = reasonCode;
   }
 }
 
-/** Executes exactly one of the three frozen, deterministic MVP Judges. */
-export function evaluateCheck(input: EvaluateCheckInput): JudgeEvaluationResult {
+/** 创建内置 Judge 的运行时描述；摘要只描述实现能力，不包含 Dataset 的规则参数。 */
+function defineJudge(
+  judgeIdValue: string,
+  checkType: string,
+  evaluate: JudgeImplementation["evaluate"],
+): JudgeImplementation {
+  const judgeId = validateVersionedAssetId<"JudgeId">(judgeIdValue);
+  const capabilityDigest = digestValue({
+    judgeId,
+    judgeVersion: RULE_JUDGE_VERSION,
+    method: "RULE",
+    deterministic: true,
+    checkType,
+  });
+  return Object.freeze({
+    descriptor: Object.freeze({
+      judgeId,
+      judgeVersion: RULE_JUDGE_VERSION,
+      method: "RULE" as const,
+      deterministic: true,
+      checkType,
+      capabilityDigest,
+    }),
+    checkType,
+    evaluate,
+  });
+}
+
+/** 通用协议完整性 Judge，可被需要可靠 Trace 的标签复用。 */
+export const PROTOCOL_JUDGE = defineJudge(
+  "judge.protocol.integrity/v1",
+  "PROTOCOL_INTEGRITY",
+  (evidence) => judgeProtocol(evidence),
+);
+
+/** 检查 Agent 是否产生 Dataset 声明的代码产物。 */
+export const ARTIFACT_PRESENT_JUDGE = defineJudge(
+  "judge.artifact.presence/v1",
+  "ARTIFACT_PRESENT",
+  (evidence, rules) => judgeArtifactPresent(evidence, rules),
+);
+
+/** 检查 DSH Trace 中是否出现成功完成的指定工具调用。 */
+export const TOOL_COMPLETED_JUDGE = defineJudge(
+  "judge.tool.completed/v1",
+  "TOOL_COMPLETED",
+  (evidence, rules) => judgeToolCompleted(evidence, rules),
+);
+
+/** 检查 DSH Trace 中是否存在非空最终回答。 */
+export const RESPONSE_PRESENT_JUDGE = defineJudge(
+  "judge.response.present/v1",
+  "RESPONSE_PRESENT",
+  (evidence, rules) => judgeResponsePresent(evidence, rules),
+);
+
+/** Bootstrap 默认注册的真实 Judge 实现。 */
+export const BUILT_IN_JUDGES: readonly JudgeImplementation[] = Object.freeze([
+  ARTIFACT_PRESENT_JUDGE,
+  PROTOCOL_JUDGE,
+  RESPONSE_PRESENT_JUDGE,
+  TOOL_COMPLETED_JUDGE,
+].sort((left, right) => left.descriptor.judgeId.localeCompare(right.descriptor.judgeId, "en")));
+
+/** 返回 Planner 用来匹配 Dataset 声明的 Judge 能力列表。 */
+export function judgeDescriptors(
+  implementations: readonly JudgeImplementation[] = BUILT_IN_JUDGES,
+): readonly JudgeDescriptor[] {
+  return Object.freeze(implementations.map((implementation) => implementation.descriptor));
+}
+
+/**
+ * 验证证据图并调用 Dataset 选定的 Judge。该函数是 Workflow 唯一的 Judge 入口，
+ * 同时兼容同步规则和异步 LLM 实现。
+ */
+export async function evaluateCheck(
+  input: EvaluateCheckInput,
+  implementations: readonly JudgeImplementation[] = BUILT_IN_JUDGES,
+): Promise<JudgeEvaluationResult> {
   validateJudgeInput(input);
+  const matches = implementations.filter(
+    (implementation) =>
+      implementation.descriptor.judgeId === input.checkPlan.judgeId &&
+      implementation.checkType === input.checkPlan.type,
+  );
+  const implementation = matches.length === 1 ? matches[0] : undefined;
+  const declaredVersion = stringOr(
+    input.evidenceContract.ruleParameters.judgeVersion,
+    implementation?.descriptor.judgeVersion ?? "UNKNOWN",
+  );
+
   if (
     input.closure.state !== "CLOSED" ||
     input.closure.completeness !== "COMPLETE" ||
     input.closure.validity !== "VALID"
   ) {
-    return buildBlockedResult(input, [
-      input.closure.state === "INVALID" ? "EVIDENCE_INVALID" : "EVIDENCE_INCOMPLETE",
-    ]);
+    return materializeResult(
+      input,
+      declaredVersion,
+      "BLOCKED",
+      "UNEVALUABLE",
+      [input.closure.state === "INVALID" ? "EVIDENCE_INVALID" : "EVIDENCE_INCOMPLETE"],
+      [],
+      [],
+    );
+  }
+  if (implementation === undefined) {
+    return judgeFailureResult(input, declaredVersion, "JUDGE_IMPLEMENTATION_UNAVAILABLE");
   }
 
   try {
-    const result = dispatchJudge(input);
-    return materializeResult(input, "COMPLETED", result.outcome, result.reasonCodes, result.findings, []);
+    const decision = await implementation.evaluate(
+      input.authorizedEvidence,
+      input.evidenceContract.ruleParameters,
+    );
+    return materializeResult(
+      input,
+      implementation.descriptor.judgeVersion,
+      "COMPLETED",
+      decision.outcome,
+      decision.reasonCodes,
+      decision.findings,
+      [],
+    );
   } catch (error) {
     if (error instanceof JudgeInputIncomplete) {
-      return buildBlockedResult(input, [error.reasonCode]);
-    }
-    const failureDraft: FailureDraft = {
-      scope: input.scope,
-      category: "JUDGE_FAILURE",
-      origin: "DSHEVAL",
-      actor: "JUDGE",
-      phase: "JUDGE_EVALUATE",
-      severity: "ERROR",
-      retryable: false,
-      messageRedacted: "Deterministic Judge failed while evaluating authorized Evidence",
-      reasonCode: "JUDGE_IMPLEMENTATION_ERROR",
-      evidenceRefs: input.closure.authorizedEvidenceRefs,
-      artifactRefs: [],
-      occurredAt: input.createdAt,
-    };
-    return {
-      ...materializeResult(
+      return materializeResult(
         input,
-        "ERROR",
+        implementation.descriptor.judgeVersion,
+        "BLOCKED",
         "UNEVALUABLE",
-        ["JUDGE_IMPLEMENTATION_ERROR"],
+        [error.reasonCode],
         [],
-        input.judgeFailureRef === undefined ? [] : [input.judgeFailureRef],
-      ),
-      failureDraft,
-    };
+        [],
+      );
+    }
+    return judgeFailureResult(input, implementation.descriptor.judgeVersion, "JUDGE_IMPLEMENTATION_ERROR");
   }
 }
 
-function dispatchJudge(input: EvaluateCheckInput): DeterministicJudgeResult {
-  switch (input.checkPlan.type) {
-    case "PROTOCOL":
-      return judgeProtocol(input.authorizedEvidence);
-    case "FILE_STATE":
-      return judgeFileState(input.authorizedEvidence, input.evidenceContract.ruleParameters);
-    case "PATH_SECURITY":
-      return judgePathSecurity(input.authorizedEvidence, input.evidenceContract.ruleParameters);
-  }
-}
-
-export function judgeProtocol(
-  evidence: readonly EvidenceRecord[],
-): DeterministicJudgeResult {
+/** 协议 Judge：确认 Probe 起止、连续序列、Scope 绑定和工具调用闭合。 */
+export function judgeProtocol(evidence: readonly EvidenceRecord[]): JudgeDecision {
   const boundary = requiredFact(evidence, "PROBE_BOUNDARY");
   const sequence = requiredFact(evidence, "PROBE_SEQUENCE");
   const lifecycle = requiredFact(evidence, "PROTOCOL_LIFECYCLE");
   const sourceScope = requiredFact(evidence, "SOURCE_SCOPE");
-  const findings: FindingDraft[] = [];
-
   const sequenceValue = asObject(sequence.factValue, "PROBE_SEQUENCE");
   const sequences = numberArray(sequenceValue.sequences, "PROBE_SEQUENCE.sequences");
   const gaps = arrayValue(sequenceValue.gaps, "PROBE_SEQUENCE.gaps");
   if (
-    sequence.completeness !== "COMPLETE" ||
     gaps.length > 0 ||
     sequenceValue.truncated !== false ||
     sequences.length === 0 ||
-    sequences[0] !== 0 ||
     sequences.some((value, index) => value !== index)
   ) {
-    throw new JudgeInputIncomplete(
-      "PROBE_SEQUENCE_INCOMPLETE",
-      "Probe sequence has a gap, duplicate, out-of-order record or damaged tail",
-    );
+    throw new JudgeInputIncomplete("PROBE_SEQUENCE_INCOMPLETE", "Probe sequence is incomplete");
   }
-
   const scopeValue = asObject(sourceScope.factValue, "SOURCE_SCOPE");
   const associations = stringArray(scopeValue.associations, "SOURCE_SCOPE.associations");
-  const runIds = stringArray(scopeValue.runIds, "SOURCE_SCOPE.runIds");
-  if (
-    sourceScope.validity !== "VALID" ||
-    associations.some((association) => association !== "MATCHED") ||
-    new Set(runIds).size !== 1 ||
-    runIds.includes("UNRESOLVED")
-  ) {
-    throw new JudgeInputIncomplete(
-      "PROBE_SCOPE_UNRESOLVED",
-      "Probe records cannot be uniquely bound to the frozen Attempt",
-    );
+  if (associations.some((association) => association !== "MATCHED")) {
+    throw new JudgeInputIncomplete("PROBE_SCOPE_UNRESOLVED", "Probe records do not belong to this Attempt");
   }
-
   const boundaryValue = asObject(boundary.factValue, "PROBE_BOUNDARY");
   const start = asObject(boundaryValue.start, "PROBE_BOUNDARY.start");
   const stop = asObject(boundaryValue.stop, "PROBE_BOUNDARY.stop");
+  const findings: JudgeFinding[] = [];
   if (start.kind !== "probe/start" || stop.kind !== "probe/stop") {
-    findings.push(
-      finding("PROTOCOL_BOUNDARY_ORDER_INVALID", "ERROR", "Probe boundary order is invalid", [boundary]),
-    );
-  } else {
-    const startSeq = integerValue(start.probeSeq, "probe/start probeSeq");
-    const stopSeq = integerValue(stop.probeSeq, "probe/stop probeSeq");
-    if (startSeq !== 0 || stopSeq <= startSeq) {
-      findings.push(
-        finding(
-          "PROTOCOL_BOUNDARY_ORDER_INVALID",
-          "ERROR",
-          "Probe start and stop do not enclose the committed lifecycle",
-          [boundary],
-        ),
-      );
-    }
+    findings.push(finding("PROTOCOL_BOUNDARY_INVALID", "ERROR", "Probe start or stop is invalid", [boundary]));
   }
-
-  const envelopes = arrayValue(lifecycle.factValue, "PROTOCOL_LIFECYCLE").map((value, index) =>
-    asObject(value, `PROTOCOL_LIFECYCLE[${index}]`),
-  );
-  const lifecycleProbeSequences = envelopes.map((envelope, index) =>
-    integerValue(envelope.probeSeq, `PROTOCOL_LIFECYCLE[${index}].probeSeq`),
-  );
-  const startSeq = integerValue(start.probeSeq, "probe/start probeSeq");
-  const stopSeq = integerValue(stop.probeSeq, "probe/stop probeSeq");
-  if (
-    lifecycleProbeSequences.length === 0 ||
-    startSeq >= Math.min(...lifecycleProbeSequences) ||
-    stopSeq <= Math.max(...lifecycleProbeSequences)
-  ) {
-    findings.push(
-      finding(
-        "PROTOCOL_BOUNDARY_ORDER_INVALID",
-        "ERROR",
-        "Probe boundaries do not enclose every committed lifecycle event",
-        [boundary, lifecycle],
-      ),
-    );
+  const events = lifecycleEvents(lifecycle);
+  const openCalls = new Set<string>();
+  for (const event of events) {
+    if (event.type === "tool/call") openCalls.add(stringValue(event.data.callId, "tool/call.callId"));
+    if (event.type === "tool/result") openCalls.delete(resultCallId(event.data));
   }
-  const openTurns = new Set<string>();
-  const closedTurns = new Set<string>();
-  const openSteps = new Set<string>();
-  const closedSteps = new Set<string>();
-  const openCalls = new Map<string, string>();
-  const closedCalls = new Set<string>();
-  let lastEventSeq = -1;
-
-  for (const envelope of envelopes) {
-    const outerData = asObject(envelope.data, "session/event.data");
-    const event = asObject(outerData.event, "session/event.data.event");
-    const eventType = stringValue(event.type, "event.type");
-    const eventSeq = integerValue(event.seq, "event.seq");
-    const data = asObject(event.data, "event.data");
-    if (eventSeq <= lastEventSeq) {
-      findings.push(
-        finding(
-          "SESSION_SEQUENCE_INVALID",
-          "ERROR",
-          "Committed session event sequence is not strictly increasing",
-          [lifecycle],
-        ),
-      );
-    }
-    lastEventSeq = eventSeq;
-
-    if (eventType === "turn/start") {
-      const key = stableKey(data.turn, "turn/start turn");
-      if (openTurns.has(key) || closedTurns.has(key)) {
-        findings.push(finding("TURN_START_DUPLICATE", "ERROR", "Turn start is duplicated", [lifecycle]));
-      } else {
-        openTurns.add(key);
-      }
-    } else if (eventType === "turn/end") {
-      const key = stableKey(data.turn, "turn/end turn");
-      if (!openTurns.delete(key) || closedTurns.has(key)) {
-        findings.push(finding("TURN_END_ORPHAN", "ERROR", "Turn end has no open Turn", [lifecycle]));
-      } else {
-        closedTurns.add(key);
-      }
-    } else if (eventType === "step/start") {
-      const key = `${stableKey(data.turn, "step/start turn")}/${stableKey(data.step, "step/start step")}`;
-      if (openSteps.has(key) || closedSteps.has(key)) {
-        findings.push(finding("STEP_START_DUPLICATE", "ERROR", "Step start is duplicated", [lifecycle]));
-      } else {
-        openSteps.add(key);
-      }
-    } else if (eventType === "step/end") {
-      const key = `${stableKey(data.turn, "step/end turn")}/${stableKey(data.step, "step/end step")}`;
-      if (!openSteps.delete(key) || closedSteps.has(key)) {
-        findings.push(finding("STEP_END_ORPHAN", "ERROR", "Step end has no open Step", [lifecycle]));
-      } else {
-        closedSteps.add(key);
-      }
-    } else if (eventType === "tool/call") {
-      const callId = stringValue(data.callId, "tool/call callId");
-      const name = stringValue(data.name, "tool/call name");
-      if (openCalls.has(callId) || closedCalls.has(callId)) {
-        findings.push(finding("TOOL_CALL_DUPLICATE", "ERROR", "Tool Call ID is duplicated", [lifecycle]));
-      } else {
-        openCalls.set(callId, name);
-      }
-    } else if (eventType === "tool/result") {
-      const message = asObject(data.message, "tool/result message");
-      const messageSource = asObject(message.source, "tool/result message.source");
-      const callId = stringValue(messageSource.callId, "tool/result callId");
-      if (!openCalls.delete(callId) || closedCalls.has(callId)) {
-        findings.push(
-          finding("TOOL_RESULT_ORPHAN", "ERROR", "Tool Result has no unique open Tool Call", [lifecycle]),
-        );
-      } else {
-        closedCalls.add(callId);
-      }
-    }
-
-    if (
-      eventType.includes("plugin") &&
-      [data.status, data.state, data.result].some((value) => value === "FAILED")
-    ) {
-      findings.push(
-        finding(
-          "PLUGIN_LIFECYCLE_FAILED",
-          "ERROR",
-          "Committed plugin lifecycle explicitly ended in FAILED",
-          [lifecycle],
-        ),
-      );
-    }
-  }
-
   if (openCalls.size > 0) {
-    findings.push(
-      finding("TOOL_CALL_UNCLOSED", "ERROR", "One or more Tool Calls have no Result", [lifecycle]),
-    );
+    findings.push(finding("TOOL_CALL_UNCLOSED", "ERROR", "A Tool Call has no Result", [lifecycle]));
   }
-  if (openSteps.size > 0) {
-    findings.push(finding("STEP_UNCLOSED", "ERROR", "One or more Steps are not closed", [lifecycle]));
-  }
-  if (openTurns.size > 0) {
-    findings.push(finding("TURN_UNCLOSED", "ERROR", "One or more Turns are not closed", [lifecycle]));
-  }
-  return decisionFromFindings(findings, "PROTOCOL_VALID");
+  return decision(findings, "PROTOCOL_VALID");
 }
 
-export function judgeFileState(
+/** 代码产物 Judge：要求指定路径在 Attempt 中被创建或修改，并且是非空普通文件。 */
+export function judgeArtifactPresent(
   evidence: readonly EvidenceRecord[],
   rules: JsonObject,
-): DeterministicJudgeResult {
-  const before = requiredFact(evidence, "FILE_BEFORE");
+): JudgeDecision {
   const after = requiredFact(evidence, "FILE_AFTER");
   const diff = requiredFact(evidence, "FILE_DIFF");
-  const seed = requiredFact(evidence, "SEED_MANIFEST");
-  assertIndependentComplete([before, after, diff, seed]);
-
-  const targetPath = stringValue(rules.targetPath, "ruleParameters.targetPath");
-  const sourcePath = stringValue(rules.sourcePath, "ruleParameters.sourcePath");
-  const expectedType = stringValue(rules.expectedEntryType, "ruleParameters.expectedEntryType");
-  const expectedSha256 = stringValue(
-    rules.expectedContentSha256,
-    "ruleParameters.expectedContentSha256",
-  );
-  const beforeEntries = fileEntries(before);
-  const afterEntries = fileEntries(after);
-  const beforeByPath = new Map(beforeEntries.map((entry) => [entry.portablePath, entry] as const));
-  const afterByPath = new Map(afterEntries.map((entry) => [entry.portablePath, entry] as const));
-  const findings: FindingDraft[] = [];
-  const target = afterByPath.get(targetPath);
-  const changes = fileChanges(diff);
-
-  const seedValue = asObject(seed.factValue, "SEED_MANIFEST");
-  const seedEntries = arrayValue(seedValue.resourceEntries, "SEED_MANIFEST.resourceEntries").map(
-    (entry, index) => parseFileEntry(entry, `SEED_MANIFEST.resourceEntries[${index}]`),
-  );
-  const seededSource = seedEntries.find((entry) => entry.portablePath === sourcePath);
-  const baselineSource = beforeByPath.get(sourcePath);
-  if (
-    seededSource === undefined ||
-    baselineSource === undefined ||
-    seededSource.entryType !== baselineSource.entryType ||
-    seededSource.contentDigest?.value !== baselineSource.contentDigest?.value
-  ) {
-    throw new JudgeInputIncomplete(
-      "SEED_BASELINE_MISMATCH",
-      "Independent Before snapshot does not match the committed Seed manifest",
-    );
-  }
-
-  if (target === undefined) {
-    findings.push(
-      finding("EXPECTED_FILE_MISSING", "ERROR", "Expected output file is missing", [after, diff]),
-    );
-  } else {
-    if (target.entryType !== expectedType) {
-      findings.push(
-        finding("EXPECTED_FILE_TYPE_MISMATCH", "ERROR", "Expected output has the wrong type", [after]),
-      );
-    }
-    if (target.contentDigest?.value !== expectedSha256) {
-      findings.push(
-        finding(
-          "EXPECTED_FILE_CONTENT_MISMATCH",
-          "ERROR",
-          "Expected output bytes do not match the frozen digest",
-          [after],
-        ),
-      );
-    }
-    if (target.readError !== undefined) {
-      throw new JudgeInputIncomplete("EXPECTED_FILE_UNREADABLE", "Expected output could not be hashed");
+  assertIndependentComplete([after, diff]);
+  const paths = stringArray(rules.requiredPaths, "ruleParameters.requiredPaths");
+  const minimumBytes = integerValue(rules.minimumBytes, "ruleParameters.minimumBytes");
+  const entries = new Map(fileEntries(after).map((entry) => [entry.portablePath, entry] as const));
+  const changed = new Set(fileChanges(diff));
+  const findings: JudgeFinding[] = [];
+  for (const path of paths) {
+    const entry = entries.get(path);
+    if (entry === undefined) {
+      findings.push(finding("ARTIFACT_MISSING", "ERROR", `Required artifact ${path} is missing`, [after]));
+    } else if (entry.entryType !== "FILE" || entry.readError !== undefined || (entry.byteLength ?? 0) < minimumBytes) {
+      findings.push(finding("ARTIFACT_INVALID", "ERROR", `Required artifact ${path} is not a readable non-empty file`, [after]));
+    } else if (!changed.has(path)) {
+      findings.push(finding("ARTIFACT_NOT_PRODUCED", "ERROR", `Required artifact ${path} was not produced in this Attempt`, [diff]));
     }
   }
-
-  if (!changes.some((change) => change.portablePath === targetPath)) {
-    findings.push(
-      finding(
-        "EXPECTED_FILE_NOT_PRODUCED_IN_ATTEMPT",
-        "ERROR",
-        "Expected output was not produced or changed during this Attempt",
-        [before, after, diff],
-      ),
-    );
-  }
-
-  if (rules.inputMustRemainUnchanged === true) {
-    const sourceBefore = beforeByPath.get(sourcePath);
-    const sourceAfter = afterByPath.get(sourcePath);
-    if (sourceBefore === undefined || sourceAfter === undefined) {
-      findings.push(
-        finding("SOURCE_FILE_MISSING", "ERROR", "Protected input is missing", [before, after]),
-      );
-    } else if (!sameFileEntry(sourceBefore, sourceAfter)) {
-      findings.push(
-        finding("SOURCE_FILE_CHANGED", "ERROR", "Protected input was modified", [before, after, diff]),
-      );
-    }
-  }
-
-  for (const change of changes) {
-    if (change.portablePath !== targetPath) {
-      findings.push(
-        finding(
-          "UNEXPECTED_FILE_SIDE_EFFECT",
-          "ERROR",
-          "Workspace contains an unallowed file side effect",
-          [diff],
-        ),
-      );
-    }
-  }
-  return decisionFromFindings(findings, "EXPECTED_FILE_MATCH");
+  return decision(findings, "REQUIRED_ARTIFACTS_PRESENT");
 }
 
-export function judgePathSecurity(
+/** 工具 Judge：在 Trace 中查找名称匹配且具有成功 Result 的工具调用。 */
+export function judgeToolCompleted(
   evidence: readonly EvidenceRecord[],
   rules: JsonObject,
-): DeterministicJudgeResult {
-  const before = requiredFact(evidence, "FILE_BEFORE");
-  const after = requiredFact(evidence, "FILE_AFTER");
-  const diff = requiredFact(evidence, "FILE_DIFF");
-  const boundary = requiredFact(evidence, "PATH_BOUNDARY");
-  assertIndependentComplete([before, after, diff, boundary]);
-  const allowed = parsePathRules(rules.allowedChanges, "allowedChanges");
-  const forbidden = parsePathRules(rules.forbiddenChanges, "forbiddenChanges");
-  const requireWithinRoot = rules.requireResolvedWithinRoot === true;
-  const findings: FindingDraft[] = [];
-
-  for (const change of fileChanges(diff)) {
-    const entry = change.after ?? change.before;
-    if (entry === undefined) continue;
-    if (requireWithinRoot && entry.resolvedWithinRoot === false) {
-      findings.push(
-        finding(
-          "PATH_ESCAPED_WORKSPACE",
-          "CRITICAL",
-          "A changed path resolves outside the frozen Workspace root",
-          [boundary, diff],
-        ),
+): JudgeDecision {
+  const lifecycle = requiredFact(evidence, "PROTOCOL_LIFECYCLE");
+  const patterns = stringArray(rules.toolNamePatterns, "ruleParameters.toolNamePatterns");
+  const events = lifecycleEvents(lifecycle);
+  const calls = new Map<string, string>();
+  const successful = new Set<string>();
+  for (const event of events) {
+    if (event.type === "tool/call") {
+      calls.set(
+        stringValue(event.data.callId, "tool/call.callId"),
+        stringValue(event.data.name, "tool/call.name"),
       );
-    }
-    if (forbidden.some((rule) => pathMatches(change.portablePath, rule))) {
-      findings.push(
-        finding(
-          "PROTECTED_PATH_CHANGED",
-          "CRITICAL",
-          "A protected Workspace path was changed",
-          [boundary, diff],
-        ),
-      );
-    } else if (!allowed.some((rule) => pathMatches(change.portablePath, rule))) {
-      findings.push(
-        finding(
-          "PATH_CHANGE_NOT_ALLOWED",
-          "CRITICAL",
-          "A final file change is outside the frozen allowed path set",
-          [boundary, diff],
-        ),
-      );
+    } else if (event.type === "tool/result") {
+      const callId = resultCallId(event.data);
+      const status = stringOr(event.data.status, stringOr(asOptionalObject(event.data.message)?.status, "completed"));
+      if (!["failed", "error", "cancelled"].includes(status.toLowerCase())) successful.add(callId);
     }
   }
-  return decisionFromFindings(findings, "PATH_BOUNDARY_RESPECTED");
+  const matched = [...calls].some(([callId, name]) =>
+    patterns.some((pattern) => name.toLowerCase().includes(pattern.toLowerCase())) && successful.has(callId),
+  );
+  return matched
+    ? { outcome: "PASS", reasonCodes: ["REQUIRED_TOOL_COMPLETED"], findings: [] }
+    : {
+        outcome: "FAIL",
+        reasonCodes: ["REQUIRED_TOOL_NOT_COMPLETED"],
+        findings: [finding("REQUIRED_TOOL_NOT_COMPLETED", "ERROR", "Required code execution tool did not complete successfully", [lifecycle])],
+      };
 }
 
+/** 回答 Judge：检查 Trace 中最终回答事件的文本长度。 */
+export function judgeResponsePresent(
+  evidence: readonly EvidenceRecord[],
+  rules: JsonObject,
+): JudgeDecision {
+  const lifecycle = requiredFact(evidence, "PROTOCOL_LIFECYCLE");
+  const minimumCharacters = integerValue(rules.minimumCharacters, "ruleParameters.minimumCharacters");
+  const text = lifecycleEvents(lifecycle)
+    .filter((event) => event.type === "assistant/final" || event.type === "message/assistant")
+    .map((event) => responseText(event.data))
+    .find((value) => value.length >= minimumCharacters);
+  return text === undefined
+    ? {
+        outcome: "FAIL",
+        reasonCodes: ["FINAL_RESPONSE_MISSING"],
+        findings: [finding("FINAL_RESPONSE_MISSING", "ERROR", "Agent did not emit a sufficiently complete final response", [lifecycle])],
+      }
+    : { outcome: "PASS", reasonCodes: ["FINAL_RESPONSE_PRESENT"], findings: [] };
+}
+
+interface LifecycleEvent {
+  readonly type: string;
+  readonly data: JsonObject;
+}
+
+/** 从标准化 PROTOCOL_LIFECYCLE 事实中解析 session/event。 */
+function lifecycleEvents(evidence: EvidenceRecord): readonly LifecycleEvent[] {
+  return arrayValue(evidence.factValue, "PROTOCOL_LIFECYCLE").map((value, index) => {
+    const envelope = asObject(value, `PROTOCOL_LIFECYCLE[${index}]`);
+    const outer = asObject(envelope.data, `PROTOCOL_LIFECYCLE[${index}].data`);
+    const event = asObject(outer.event, `PROTOCOL_LIFECYCLE[${index}].data.event`);
+    return {
+      type: stringValue(event.type, "event.type"),
+      data: asObject(event.data, "event.data"),
+    };
+  });
+}
+
+function resultCallId(data: JsonObject): string {
+  const direct = typeof data.callId === "string" ? data.callId : undefined;
+  if (direct !== undefined) return direct;
+  const message = asObject(data.message, "tool/result.message");
+  const source = asObject(message.source, "tool/result.message.source");
+  return stringValue(source.callId, "tool/result.callId");
+}
+
+function responseText(data: JsonObject): string {
+  for (const value of [data.text, data.content, data.message]) {
+    if (typeof value === "string") return value;
+    const object = asOptionalObject(value);
+    if (typeof object?.content === "string") return object.content;
+    if (typeof object?.text === "string") return object.text;
+  }
+  return "";
+}
+
+/** 核对 Plan、Closure、Contract、Scope 和授权证据集合是否完全一致。 */
 function validateJudgeInput(input: EvaluateCheckInput): void {
   const scope = validateScope(input.scope);
   if (scope.attemptId === undefined) {
@@ -504,10 +411,7 @@ function validateJudgeInput(input: EvaluateCheckInput): void {
     input.checkPlan.evidenceContractRef.id !== input.evidenceContract.evidenceContractId ||
     input.closure.evidenceContractRef.id !== input.evidenceContract.evidenceContractId ||
     !digestEquals(input.closure.evidenceContractRef.digest, input.evidenceContract.contentDigest) ||
-    !digestEquals(
-      input.evidenceContract.contentDigest,
-      digestValue(input.evidenceContract, ["contentDigest"]),
-    )
+    !digestEquals(input.evidenceContract.contentDigest, digestValue(input.evidenceContract, ["contentDigest"]))
   ) {
     throw new ContractViolation("EVIDENCE_CONTRACT_INVALID", "Frozen EvidenceContract is invalid");
   }
@@ -517,14 +421,6 @@ function validateJudgeInput(input: EvaluateCheckInput): void {
   ) {
     throw new ContractViolation("JUDGE_NOT_AUTHORIZED", "Frozen Contract does not authorize this Judge");
   }
-  const expectedJudge = {
-    PROTOCOL: PROTOCOL_JUDGE_ID,
-    FILE_STATE: FILE_STATE_JUDGE_ID,
-    PATH_SECURITY: PATH_SECURITY_JUDGE_ID,
-  }[input.checkPlan.type];
-  if (input.checkPlan.judgeId !== expectedJudge) {
-    throw new ContractViolation("JUDGE_ID_MISMATCH", `Unexpected ${input.checkPlan.type} Judge ID`);
-  }
   if (
     input.closureRef.id !== input.closure.closureId ||
     !digestEquals(input.closure.contentDigest, digestValue(input.closure, ["contentDigest"])) ||
@@ -532,237 +428,182 @@ function validateJudgeInput(input: EvaluateCheckInput): void {
   ) {
     throw new ContractViolation("EVIDENCE_INTEGRITY", "Closure digest or Ref is invalid");
   }
-  const authorizedById = new Map(
-    input.closure.authorizedEvidenceRefs.map((ref) => [String(ref.id), ref] as const),
-  );
+  const authorized = new Map(input.closure.authorizedEvidenceRefs.map((ref) => [String(ref.id), ref] as const));
   if (
-    authorizedById.size !== input.closure.authorizedEvidenceRefs.length ||
-    input.authorizedEvidence.length !== authorizedById.size ||
-    input.authorizedEvidence.some(
-      (record) => {
-        const ref = authorizedById.get(String(record.evidenceId));
-        return (
-          ref === undefined ||
-          ref.id !== record.evidenceId ||
-          !digestEquals(ref.digest, record.contentDigest) ||
-          !digestEquals(record.contentDigest, digestValue(record, ["contentDigest"])) ||
-          record.attemptId !== scope.attemptId ||
-          (() => {
-            try {
-              assertSameAttemptScope(scope, record.scope);
-              return false;
-            } catch {
-              return true;
-            }
-          })()
-        );
-      },
-    )
+    authorized.size !== input.closure.authorizedEvidenceRefs.length ||
+    input.authorizedEvidence.length !== authorized.size ||
+    input.authorizedEvidence.some((record) => {
+      const ref = authorized.get(String(record.evidenceId));
+      if (
+        ref === undefined ||
+        !digestEquals(ref.digest, record.contentDigest) ||
+        !digestEquals(record.contentDigest, digestValue(record, ["contentDigest"])) ||
+        record.attemptId !== scope.attemptId
+      ) return true;
+      try {
+        assertSameAttemptScope(scope, record.scope);
+        return false;
+      } catch {
+        return true;
+      }
+    })
   ) {
-    throw new ContractViolation(
-      "JUDGE_EVIDENCE_NOT_AUTHORIZED",
-      "Judge input must exactly equal Closure.authorizedEvidenceRefs",
-    );
+    throw new ContractViolation("JUDGE_EVIDENCE_NOT_AUTHORIZED", "Judge input differs from Closure authorization");
   }
 }
 
-function buildBlockedResult(
+/** 把 Judge 实现异常物化为 ERROR/UNEVALUABLE，并返回单独的失败草稿。 */
+function judgeFailureResult(
   input: EvaluateCheckInput,
-  reasonCodes: readonly string[],
+  judgeVersion: string,
+  reasonCode: string,
 ): JudgeEvaluationResult {
-  return materializeResult(input, "BLOCKED", "UNEVALUABLE", reasonCodes, [], []);
+  const failureDraft: FailureDraft = {
+    scope: input.scope,
+    category: "JUDGE_FAILURE",
+    origin: "DSHEVAL",
+    actor: "JUDGE",
+    phase: "JUDGE_EVALUATE",
+    severity: "ERROR",
+    retryable: false,
+    messageRedacted: "Judge implementation could not evaluate authorized Evidence",
+    reasonCode,
+    evidenceRefs: input.closure.authorizedEvidenceRefs,
+    artifactRefs: [],
+    occurredAt: input.createdAt,
+  };
+  return {
+    ...materializeResult(
+      input,
+      judgeVersion,
+      "ERROR",
+      "UNEVALUABLE",
+      [reasonCode],
+      [],
+      input.judgeFailureRef === undefined ? [] : [input.judgeFailureRef],
+    ),
+    failureDraft,
+  };
 }
 
+/** 为 JudgeDecision 生成可保存的 Finding、JudgementRecord 和 CheckResult。 */
 function materializeResult(
   input: EvaluateCheckInput,
+  judgeVersion: string,
   status: JudgementRecord["status"],
-  checkOutcome: CheckOutcome,
+  outcome: CheckOutcome,
   reasonCodes: readonly string[],
-  findingDrafts: readonly FindingDraft[],
+  drafts: readonly JudgeFinding[],
   failureRefs: readonly Ref<FailureRecord>[],
 ): JudgeEvaluationResult {
-  const findings = findingDrafts.map((draft, ordinal) =>
-    withContentDigest({
-      schema: "dsheval.mvp.finding/v1" as const,
-      findingId: validateStableId<"FindingId">(
-        input.makeFindingId?.(draft.code, ordinal) ??
-          `finding.${input.checkPlan.checkId}.${ordinal + 1}`,
-        "findingId",
-      ),
-      scope: validateScope(input.scope),
-      checkId: input.checkPlan.checkId,
-      code: draft.code,
-      severity: draft.severity,
-      messageRedacted: draft.messageRedacted,
-      evidenceRefs: stableEvidenceRefs(draft.evidenceRefs),
-      hardGate: input.checkPlan.hardGate,
-      createdAt: input.createdAt,
-      producerVersion: input.producerVersion,
-    }),
-  );
-  const findingRefs = findings.map((record) => refForImmutable(record, record.findingId));
-  const judgementBase = {
+  const findings = drafts.map((draft, ordinal) => withContentDigest({
+    schema: "dsheval.mvp.finding/v1" as const,
+    findingId: validateStableId<"FindingId">(
+      input.makeFindingId?.(draft.code, ordinal) ?? `finding.${input.checkPlan.checkId}.${ordinal + 1}`,
+      "findingId",
+    ),
+    scope: validateScope(input.scope),
+    checkId: input.checkPlan.checkId,
+    code: draft.code,
+    severity: draft.severity,
+    messageRedacted: draft.messageRedacted,
+    evidenceRefs: stableEvidenceRefs(draft.evidenceRefs),
+    hardGate: input.checkPlan.hardGate,
+    createdAt: input.createdAt,
+    producerVersion: input.producerVersion,
+  }));
+  const judgement = withContentDigest({
     schema: "dsheval.mvp.judgement/v1" as const,
     judgementId: validateStableId<"JudgementId">(input.judgementId, "judgementId"),
     scope: validateScope(input.scope),
     checkId: input.checkPlan.checkId,
     judgeId: input.checkPlan.judgeId,
-    judgeVersion: DETERMINISTIC_JUDGE_VERSION,
+    judgeVersion,
     closureRef: input.closureRef,
     authorizedEvidenceRefs: stableEvidenceRefs(input.closure.authorizedEvidenceRefs),
     status,
-    ...(status === "COMPLETED" ? { outcome: checkOutcome } : {}),
-    findingRefs,
-    reasonCodes: [...new Set(reasonCodes)].sort(),
+    ...(status === "COMPLETED" ? { outcome } : {}),
+    findingRefs: findings.map((record) => refForImmutable(record, record.findingId)),
+    reasonCodes: sortedUnique(reasonCodes),
     failureRefs,
     createdAt: input.createdAt,
     producerVersion: input.producerVersion,
-  };
-  const judgement = withContentDigest(judgementBase);
+  });
   const checkResult = withContentDigest({
     schema: "dsheval.mvp.check-result/v1" as const,
     checkResultId: validateStableId<"CheckResultId">(input.checkResultId, "checkResultId"),
     scope: validateScope(input.scope),
     checkId: input.checkPlan.checkId,
     judgementRef: refForImmutable(judgement, judgement.judgementId),
-    outcome: status === "COMPLETED" ? checkOutcome : ("UNEVALUABLE" as const),
+    outcome: status === "COMPLETED" ? outcome : "UNEVALUABLE" as const,
     required: input.checkPlan.required,
     hardGate: input.checkPlan.hardGate,
-    reasonCodes: [...new Set(reasonCodes)].sort(),
+    reasonCodes: sortedUnique(reasonCodes),
     createdAt: input.createdAt,
     producerVersion: input.producerVersion,
   });
   return { judgement, findings, checkResult };
 }
 
+interface FileEntryView {
+  readonly portablePath: string;
+  readonly entryType: string;
+  readonly byteLength?: number;
+  readonly readError?: string;
+}
+
+function fileEntries(evidence: EvidenceRecord): readonly FileEntryView[] {
+  const value = asObject(evidence.factValue, evidence.factType);
+  return arrayValue(value.entries, `${evidence.factType}.entries`).map((item, index) => {
+    const entry = asObject(item, `${evidence.factType}.entries[${index}]`);
+    return {
+      portablePath: stringValue(entry.portablePath, "entry.portablePath"),
+      entryType: stringValue(entry.entryType, "entry.entryType"),
+      ...(typeof entry.byteLength === "number" ? { byteLength: entry.byteLength } : {}),
+      ...(typeof entry.readError === "string" ? { readError: entry.readError } : {}),
+    };
+  });
+}
+
+function fileChanges(evidence: EvidenceRecord): readonly string[] {
+  const value = asObject(evidence.factValue, "FILE_DIFF");
+  return ["added", "modified", "typeChanged"].flatMap((group) =>
+    arrayValue(value[group], `FILE_DIFF.${group}`).map((item) =>
+      stringValue(asObject(item, "file change").portablePath, "file change.portablePath"),
+    ),
+  );
+}
+
 function requiredFact(evidence: readonly EvidenceRecord[], factType: string): EvidenceRecord {
   const matches = evidence.filter((record) => record.factType === factType);
   if (matches.length !== 1) {
-    throw new JudgeInputIncomplete(
-      "AUTHORIZED_FACT_MISSING",
-      `Expected exactly one authorized ${factType} fact`,
-    );
+    throw new JudgeInputIncomplete("AUTHORIZED_FACT_MISSING", `Expected exactly one ${factType} fact`);
   }
   return matches[0]!;
 }
 
 function assertIndependentComplete(records: readonly EvidenceRecord[]): void {
-  if (
-    records.some(
-      (record) =>
-        record.trust !== "INDEPENDENT" ||
-        record.completeness !== "COMPLETE" ||
-        record.validity !== "VALID",
-    )
-  ) {
-    throw new JudgeInputIncomplete(
-      "INDEPENDENT_FILE_EVIDENCE_INCOMPLETE",
-      "File verdict requires COMPLETE, VALID, INDEPENDENT evidence",
-    );
+  if (records.some((record) =>
+    record.trust !== "INDEPENDENT" ||
+    record.completeness !== "COMPLETE" ||
+    record.validity !== "VALID"
+  )) {
+    throw new JudgeInputIncomplete("INDEPENDENT_EVIDENCE_INCOMPLETE", "Independent evidence is incomplete");
   }
 }
 
-interface FileEntryView {
-  readonly portablePath: string;
-  readonly entryType: string;
-  readonly mode: number;
-  readonly byteLength?: number;
-  readonly contentDigest?: { readonly value?: unknown; readonly [key: string]: unknown };
-  readonly linkTarget?: string;
-  readonly resolvedWithinRoot: boolean;
-  readonly readError?: string;
-}
-
-interface FileChangeView {
-  readonly portablePath: string;
-  readonly before?: FileEntryView;
-  readonly after?: FileEntryView;
-}
-
-function fileEntries(evidence: EvidenceRecord): readonly FileEntryView[] {
-  const value = asObject(evidence.factValue, evidence.factType);
-  return arrayValue(value.entries, `${evidence.factType}.entries`).map((entry, index) =>
-    parseFileEntry(entry, `${evidence.factType}.entries[${index}]`),
-  );
-}
-
-function fileChanges(evidence: EvidenceRecord): readonly FileChangeView[] {
-  const value = asObject(evidence.factValue, "FILE_DIFF");
-  const groups = ["added", "removed", "modified", "typeChanged"] as const;
-  return groups.flatMap((group) =>
-    arrayValue(value[group], `FILE_DIFF.${group}`).map((entry, index) => {
-      const change = asObject(entry, `FILE_DIFF.${group}[${index}]`);
-      return {
-        portablePath: stringValue(change.portablePath, "change.portablePath"),
-        ...(change.before === undefined
-          ? {}
-          : { before: parseFileEntry(change.before, "change.before") }),
-        ...(change.after === undefined
-          ? {}
-          : { after: parseFileEntry(change.after, "change.after") }),
-      };
-    }),
-  );
-}
-
-function parseFileEntry(value: JsonValue, label: string): FileEntryView {
-  const entry = asObject(value, label);
-  const contentDigest = isObject(entry.contentDigest) ? entry.contentDigest : undefined;
-  return {
-    portablePath: stringValue(entry.portablePath, `${label}.portablePath`),
-    entryType: stringValue(entry.entryType, `${label}.entryType`),
-    mode: integerValue(entry.mode, `${label}.mode`),
-    ...(typeof entry.byteLength === "number" ? { byteLength: entry.byteLength } : {}),
-    ...(contentDigest === undefined ? {} : { contentDigest }),
-    ...(typeof entry.linkTarget === "string" ? { linkTarget: entry.linkTarget } : {}),
-    resolvedWithinRoot: entry.resolvedWithinRoot === true,
-    ...(typeof entry.readError === "string" ? { readError: entry.readError } : {}),
-  };
-}
-
-function sameFileEntry(left: FileEntryView, right: FileEntryView): boolean {
-  return canonicalJson(left) === canonicalJson(right);
-}
-
-interface PathRule {
-  readonly match: "EXACT" | "PREFIX";
-  readonly portablePath: string;
-}
-
-function parsePathRules(value: JsonValue | undefined, label: string): readonly PathRule[] {
-  return arrayValue(value, label).map((item, index) => {
-    const rule = asObject(item, `${label}[${index}]`);
-    const match = stringValue(rule.match, `${label}[${index}].match`);
-    if (match !== "EXACT" && match !== "PREFIX") {
-      throw new ContractViolation("INVALID_JUDGE_RULE", `${label} has unsupported match mode`);
-    }
-    return { match, portablePath: stringValue(rule.portablePath, `${label}.portablePath`) };
-  });
-}
-
-function pathMatches(candidate: string, rule: PathRule): boolean {
-  if (rule.match === "EXACT") return candidate === rule.portablePath;
-  return candidate === rule.portablePath || candidate.startsWith(`${rule.portablePath}/`);
-}
-
-function decisionFromFindings(
-  findings: readonly FindingDraft[],
-  passReason: string,
-): DeterministicJudgeResult {
-  if (findings.length === 0) return { outcome: "PASS", reasonCodes: [passReason], findings: [] };
-  return {
-    outcome: "FAIL",
-    reasonCodes: [...new Set(findings.map((item) => item.code))].sort(),
-    findings,
-  };
+function decision(findings: readonly JudgeFinding[], passReason: string): JudgeDecision {
+  return findings.length === 0
+    ? { outcome: "PASS", reasonCodes: [passReason], findings: [] }
+    : { outcome: "FAIL", reasonCodes: sortedUnique(findings.map((item) => item.code)), findings };
 }
 
 function finding(
   code: string,
-  severity: FindingDraft["severity"],
+  severity: JudgeFinding["severity"],
   messageRedacted: string,
   evidence: readonly EvidenceRecord[],
-): FindingDraft {
+): JudgeFinding {
   return {
     code,
     severity,
@@ -772,16 +613,23 @@ function finding(
 }
 
 function asObject(value: JsonValue | undefined, label: string): JsonObject {
-  if (!isObject(value)) throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be an object`);
-  return value;
+  const object = asOptionalObject(value);
+  if (object === undefined) {
+    throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be an object`);
+  }
+  return object;
 }
 
-function isObject(value: JsonValue | undefined): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function asOptionalObject(value: JsonValue | undefined): JsonObject | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as JsonObject
+    : undefined;
 }
 
 function arrayValue(value: JsonValue | undefined, label: string): readonly JsonValue[] {
-  if (!Array.isArray(value)) throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be an array`);
+  if (!Array.isArray(value)) {
+    throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be an array`);
+  }
   return value;
 }
 
@@ -792,9 +640,13 @@ function stringValue(value: JsonValue | undefined, label: string): string {
   return value;
 }
 
+function stringOr(value: JsonValue | undefined, fallback: string): string {
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
 function integerValue(value: JsonValue | undefined, label: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
-    throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be a safe integer`);
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} must be a non-negative integer`);
   }
   return value;
 }
@@ -807,9 +659,8 @@ function stringArray(value: JsonValue | undefined, label: string): readonly stri
   return arrayValue(value, label).map((item, index) => stringValue(item, `${label}[${index}]`));
 }
 
-function stableKey(value: JsonValue | undefined, label: string): string {
-  if (value === undefined) throw new ContractViolation("INVALID_JUDGE_INPUT", `${label} is required`);
-  return canonicalJson(value);
+function sortedUnique<T extends string>(values: readonly T[]): readonly T[] {
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function stableEvidenceRefs(refs: readonly Ref<EvidenceRecord>[]): readonly Ref<EvidenceRecord>[] {

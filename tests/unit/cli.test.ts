@@ -1,3 +1,7 @@
+/**
+ * 测试职责：验证 CLI 参数判别联合、退出码、stdout/stderr 协议、报告命令边界，
+ * 以及 inspect/plan/run 对主 Workflow 的正确映射。
+ */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cp, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
@@ -50,7 +54,7 @@ test("MVP-UT-CLI-001 parses the three Target commands without implicit fixture m
       "--target",
       "target.json",
       "--pack",
-      "packs/filesystem",
+      "packs/attention-pytorch-v1.json",
       "--config",
       "config.json",
       "--run-id",
@@ -60,7 +64,7 @@ test("MVP-UT-CLI-001 parses the three Target commands without implicit fixture m
       command: "plan",
       target: "target.json",
       fixture: false,
-      packRoot: "packs/filesystem",
+      packRoot: "packs/attention-pytorch-v1.json",
       configFile: "config.json",
       runId: "run-plan-1",
     },
@@ -111,7 +115,7 @@ test("MVP-UT-CLI-001 rejects ambiguous, misplaced, and implicitly enabled fixtur
     /only once/u,
   );
   assert.throws(
-    () => parseCliArgs(["run", "--target", "a.json", "--fixture-behavior", "copy"]),
+    () => parseCliArgs(["run", "--target", "a.json", "--fixture-behavior", "attention-success"]),
     /explicit --fixture/u,
   );
   assert.throws(
@@ -122,7 +126,7 @@ test("MVP-UT-CLI-001 rejects ambiguous, misplaced, and implicitly enabled fixtur
         "a.json",
         "--fixture",
         "--fixture-behavior",
-        "copy",
+        "attention-success",
       ]),
     /not valid/u,
   );
@@ -166,7 +170,6 @@ test("MVP-E2E-012 MVP-UT-CLI-001 non-FULL_AGENT targets are a stable pre-plan re
         dshHome: ".dsh",
         profile: "default",
         targetIdentity: "dshagent",
-        requestedScope: "FILESYSTEM_MVP",
         pluginId: "unsupported-on-purpose",
       }),
       "utf8",
@@ -195,14 +198,14 @@ test("MVP-E2E-012 MVP-UT-CLI-001 non-FULL_AGENT targets are a stable pre-plan re
   }
 });
 
-test("MVP-UT-PLAN-002 missing Scenario makes the plan UNSATISFIABLE before Run creation", async () => {
+test("MVP-UT-PLAN-002 missing Dataset Pack makes the plan UNSATISFIABLE before Run creation", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-cli-missing-scenario-"));
   try {
     const packRoot = path.join(root, "packs");
     await cp(path.join(process.cwd(), "packs"), packRoot, { recursive: true });
     await rename(
-      path.join(packRoot, "scenarios", "filesystem-copy-exact-v1.json"),
-      path.join(packRoot, "scenarios", "filesystem-copy-exact-v1.missing"),
+      path.join(packRoot, "attention-pytorch-v1.json"),
+      path.join(packRoot, "attention-pytorch-v1.missing"),
     );
     const diagnostics: string[] = [];
     const result = await runCli(
@@ -226,9 +229,9 @@ test("MVP-UT-PLAN-002 missing Scenario makes the plan UNSATISFIABLE before Run c
     const reasonCodes = "reasonCodes" in result
       ? result.reasonCodes as readonly string[]
       : [];
-    assert.ok(reasonCodes.includes("PACK_FILE_SET_INVALID"));
+    assert.ok(reasonCodes.includes("PACK_SELECTION_AMBIGUOUS"));
     assert.deepEqual(diagnostics, [
-      "plan finished with exit code 2 (PACK_FILE_SET_INVALID)",
+      "plan finished with exit code 2 (PACK_SELECTION_AMBIGUOUS)",
     ]);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -240,19 +243,15 @@ test("MVP-E2E-012 maxAttempts=2 is rejected during Planning without Run creation
   try {
     const packRoot = path.join(root, "packs");
     await cp(path.join(process.cwd(), "packs"), packRoot, { recursive: true });
-    const scenarioPath = path.join(
-      packRoot,
-      "scenarios",
-      "filesystem-copy-exact-v1.json",
-    );
-    const scenario = JSON.parse(await readFile(scenarioPath, "utf8")) as {
+    const packPath = path.join(packRoot, "attention-pytorch-v1.json");
+    const pack = JSON.parse(await readFile(packPath, "utf8")) as {
       contentDigest: unknown;
-      execution: Record<string, unknown>;
+      scenario: { execution: Record<string, unknown> };
       [key: string]: unknown;
     };
-    scenario.execution = { ...scenario.execution, maxAttempts: 2 };
-    scenario.contentDigest = digestValue(scenario, ["contentDigest"]);
-    await writeFile(scenarioPath, `${JSON.stringify(scenario, null, 2)}\n`, "utf8");
+    pack.scenario.execution = { ...pack.scenario.execution, maxAttempts: 2 };
+    pack.contentDigest = digestValue(pack, ["contentDigest"]);
+    await writeFile(packPath, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
 
     const diagnostics: string[] = [];
     const runId = "fixture-retry-scope-rejected";
@@ -265,7 +264,7 @@ test("MVP-E2E-012 maxAttempts=2 is rejected during Planning without Run creation
         packRoot,
         "--fixture",
         "--fixture-behavior",
-        "copy",
+        "attention-success",
         "--run-id",
         runId,
       ],
@@ -278,8 +277,8 @@ test("MVP-E2E-012 maxAttempts=2 is rejected during Planning without Run creation
     assert.equal(result.exitCode, 2);
     assert.equal("runState" in result, false);
     assert.equal("gate" in result, false);
-    assert.ok((result.reasonCodes as readonly string[]).includes("UNSUPPORTED_PACK"));
-    assert.deepEqual(diagnostics, ["run finished with exit code 2 (UNSUPPORTED_PACK)"]);
+    assert.ok((result.reasonCodes as readonly string[]).includes("MULTI_CASE_OR_RETRY_UNSUPPORTED"));
+    assert.deepEqual(diagnostics, ["run finished with exit code 2 (MULTI_CASE_OR_RETRY_UNSUPPORTED)"]);
 
     assert.equal("recordsPath" in result, true);
     const persisted = "recordsPath" in result

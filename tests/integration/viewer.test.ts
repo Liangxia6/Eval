@@ -1,3 +1,7 @@
+/**
+ * 测试职责：启动真实回环 HTTP Viewer，验证等待、实时、最终报告切换以及 Host、
+ * symlink、字节上限和关闭端口等只读安全边界。
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";

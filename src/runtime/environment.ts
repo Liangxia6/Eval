@@ -1,3 +1,9 @@
+/**
+ * 文件职责：为每个 Attempt 创建受约束的 Workspace 与 Runtime Home，冻结目标文件树，播种场景资源，并执行重置和清理。
+ * 核心流程：校验根目录、稳定标识和便携路径，创建精确的 run/case/attempt 目录，复制只读运行材料，随后按工作流阶段播种、重置或删除。
+ * 与其他文件的真实交互：由 app/workflow.ts 编排；返回的路径交给 runtime/target.ts 启动目标，并由 observation 下的 Probe 与文件传感器读取证据。
+ * 公开接口：SeedEntrySpec、SeedResourceEntry、PreparedEnvironment、StagedTargetRuntime，以及环境准备、目标暂存、播种、重置和清理函数。
+ */
 import { createHash } from "node:crypto";
 import {
   chmod,
@@ -14,6 +20,7 @@ import {
 import os from "node:os";
 import path from "node:path";
 
+/** 从冻结 EnvironmentDefinition 转换出的单个播种目录或文件规格。 */
 export interface SeedEntrySpec {
   portablePath: string;
   entryType: "DIRECTORY" | "FILE";
@@ -23,6 +30,7 @@ export interface SeedEntrySpec {
   encoding?: "utf8";
 }
 
+/** seedEnvironment 返回给工作流记录的实际播种资源及文件摘要。 */
 export interface SeedResourceEntry {
   portablePath: string;
   entryType: "DIRECTORY" | "FILE";
@@ -32,6 +40,7 @@ export interface SeedResourceEntry {
   sha256?: string;
 }
 
+/** prepareEnvironment 为目标执行和观察器建立的 Attempt 级路径集合。 */
 export interface PreparedEnvironment {
   workspacePath: string;
   runtimeDshHomePath: string;
@@ -40,18 +49,22 @@ export interface PreparedEnvironment {
   resetGeneration: number;
 }
 
+/** 冻结目标树在 Runtime Home 内的只读副本及经复核的入口摘要。 */
 export interface StagedTargetRuntime {
   stagedTargetRoot: string;
   stagedExecutablePath: string;
   executableSha256: string;
 }
 
+/** 用于映射目录层级的稳定标识约束，防止分隔符和宽泛路径进入文件系统。 */
 const STABLE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
+/** 校验文件系统路径片段使用的稳定标识；由 Attempt 路径和 Profile 处理调用。 */
 function validateId(value: string, name: string): void {
   if (!STABLE_ID.test(value)) throw new Error(`${name} is not a StableId`);
 }
 
+/** 校验相对、无遍历且无通配符的便携路径；由源树检查和 Workspace 播种调用。 */
 export function validatePortablePath(portablePath: string): string {
   if (
     portablePath.length === 0 ||
@@ -66,11 +79,13 @@ export function validatePortablePath(portablePath: string): string {
   return portablePath;
 }
 
+/** 判断候选路径在词法上是否位于指定根内；供本文件全部路径边界检查复用。 */
 function isWithin(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
+/** 逐级拒绝候选路径中的符号链接祖先；由精确目录校验和播种写入前检查调用。 */
 async function assertNoSymlinkAncestors(root: string, candidate: string): Promise<void> {
   const relative = path.relative(root, candidate);
   if (!isWithin(root, candidate)) throw new Error("path escapes configured root");
@@ -87,6 +102,7 @@ async function assertNoSymlinkAncestors(root: string, candidate: string): Promis
   }
 }
 
+/** 创建或解析安全的真实根目录，并拒绝文件系统根、用户目录和符号链接；由环境生命周期入口调用。 */
 async function resolvedRoot(root: string, create = true): Promise<string> {
   if (!path.isAbsolute(root) || root.includes("\0")) {
     throw new Error("environment root must be an absolute NUL-free path");
@@ -115,6 +131,7 @@ async function resolvedRoot(root: string, create = true): Promise<string> {
   return resolved;
 }
 
+/** 从三个稳定标识推导精确 Attempt 路径；由创建和身份复核逻辑调用。 */
 function attemptPath(root: string, runId: string, caseId: string, attemptId: string): string {
   validateId(runId, "runId");
   validateId(caseId, "caseId");
@@ -126,6 +143,7 @@ function attemptPath(root: string, runId: string, caseId: string, attemptId: str
   return candidate;
 }
 
+/** 创建新的 root/run/case/attempt 目录并复核每级真实身份；由 prepareEnvironment 分别用于 Workspace 与 Runtime Home。 */
 async function ensureAttemptDirectory(
   root: string,
   runId: string,
@@ -155,9 +173,8 @@ async function ensureAttemptDirectory(
     throw new Error("attempt directory already exists");
   }
   await mkdir(expected, { recursive: false, mode: 0o770 });
-  // mkdir honors the service umask. Formal runs require the frozen target
-  // group to have write access to the exact Attempt directory, so seal the
-  // intended mode explicitly instead of depending on the launcher umask.
+  // mkdir 会受服务进程 umask 影响；正式运行要求冻结目标所属组可写入精确 Attempt 目录，
+  // 因此显式固定权限，避免依赖启动器的 umask。
   await chmod(expected, 0o770);
   const metadata = await lstat(expected);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
@@ -166,6 +183,7 @@ async function ensureAttemptDirectory(
   return expected;
 }
 
+/** 将输入复核为恰好三级的既有 Attempt 目录；所有重置、清理和暂存写入都经此入口限制删除或修改范围。 */
 async function assertExactAttemptDirectory(
   rootInput: string,
   attemptInput: string,
@@ -207,6 +225,7 @@ async function assertExactAttemptDirectory(
   return { root, attempt, ids: parts as unknown as readonly [string, string, string] };
 }
 
+/** 递归验证冻结源树仅含文件、目录及根内符号链接；由 Profile 和目标暂存流程在复制前调用。 */
 async function assertSafeSourceTree(root: string, source: string): Promise<void> {
   const relative = path.relative(root, source).split(path.sep).join("/");
   if (relative !== "") validatePortablePath(relative);
@@ -225,6 +244,7 @@ async function assertSafeSourceTree(root: string, source: string): Promise<void>
   for (const entry of entries) await assertSafeSourceTree(root, path.join(source, entry.name));
 }
 
+/** 确定性复制已验证源树，并将目录和文件收紧为只读模式；由 Profile 与目标 Runtime 暂存调用。 */
 async function copyFrozenTree(
   sourceRoot: string,
   source: string,
@@ -265,6 +285,7 @@ async function copyFrozenTree(
   await chmod(destination, (metadata.mode & 0o111) === 0 ? 0o444 : 0o555);
 }
 
+/** 在准备失败后仅回滚已创建且身份重新验证的 Attempt 目录；由 prepareEnvironment 的异常路径调用。 */
 async function rollbackCreatedAttempt(
   root: string,
   attempt: string,
@@ -280,6 +301,9 @@ async function rollbackCreatedAttempt(
   await rm(verified.attempt, { recursive: true, force: false, maxRetries: 0 });
 }
 
+/**
+ * 创建一次执行的 Workspace、隔离 Runtime Home、可选冻结 Profile 和 Probe 输出目录；由 app/workflow.ts 在创建运行投影后调用。
+ */
 export async function prepareEnvironment(input: {
   workspaceRoot: string;
   runtimeDshHomeRoot: string;
@@ -368,6 +392,7 @@ export async function prepareEnvironment(input: {
   }
 }
 
+/** 流式计算文件 SHA-256；由 stageTargetRuntime 在复制前后验证入口内容一致性。 */
 async function sha256File(file: string): Promise<string> {
   const { createReadStream } = await import("node:fs");
   const hash = createHash("sha256");
@@ -376,8 +401,7 @@ async function sha256File(file: string): Promise<string> {
 }
 
 /**
- * Creates the only executable tree visible to dshagent. The frozen target root
- * itself can therefore remain unreadable to the target OS identity.
+ * 将已冻结目标树复制到本 Attempt 的 Runtime Home 并复核入口摘要；由 app/workflow.ts 在 executeTarget 前调用。
  */
 export async function stageTargetRuntime(input: {
   sourceRoot: string;
@@ -449,6 +473,7 @@ export async function stageTargetRuntime(input: {
   return { stagedTargetRoot, stagedExecutablePath, executableSha256 };
 }
 
+/** 按便携路径顺序向新 Workspace 写入冻结种子并返回可审计元数据；由 app/workflow.ts 在基线快照前调用。 */
 export async function seedEnvironment(
   workspacePath: string,
   entries: readonly SeedEntrySpec[],
@@ -518,6 +543,7 @@ export async function seedEnvironment(
   return resources;
 }
 
+/** 删除并重建经身份复核的 Workspace，递增重置代次；由 app/workflow.ts 在目标执行和评判结束后调用。 */
 export async function resetEnvironment(input: {
   workspaceRoot: string;
   workspacePath: string;
@@ -536,6 +562,7 @@ export async function resetEnvironment(input: {
   return { resetGeneration: input.resetGeneration + 1, expectedEntries: [] };
 }
 
+/** 在独立快照确认 Workspace 为空后移除 Attempt 目录；由 app/workflow.ts 的正常及恢复清理路径调用。 */
 export async function cleanupEnvironment(input: {
   workspaceRoot: string;
   workspacePath: string;
@@ -549,7 +576,7 @@ export async function cleanupEnvironment(input: {
   await rmdir(workspace);
 }
 
-/** Removes only the frozen per-attempt Runtime Home after Probe drain/seal. */
+/** 在 Probe 排空和 Session 封存后删除经身份复核的 Attempt Runtime Home；由 app/workflow.ts 清理阶段调用。 */
 export async function cleanupRuntimeDshHome(input: {
   runtimeDshHomeRoot: string;
   runtimeDshHomePath: string;
@@ -566,7 +593,7 @@ export async function cleanupRuntimeDshHome(input: {
   await rm(attempt, { recursive: true, force: false, maxRetries: 0 });
 }
 
-/** Explicitly test-only hook for the reset-mismatch E2E fixture. */
+/** 为 reset-mismatch 集成夹具写入残留文件；仅由带 fixture-* RunId 的测试流程调用。 */
 export async function injectFixtureOnlyResetResidue(input: {
   workspaceRoot: string;
   workspacePath: string;
@@ -588,6 +615,7 @@ export async function injectFixtureOnlyResetResidue(input: {
   return residue;
 }
 
+/** 统计目录直属项数量；由 cleanupEnvironment 验证 Workspace 已为空时调用。 */
 async function readFileCount(directory: string): Promise<number> {
   const { opendir } = await import("node:fs/promises");
   const handle = await opendir(directory);
@@ -600,6 +628,7 @@ async function readFileCount(directory: string): Promise<number> {
   return count;
 }
 
+/** 递归恢复控制器对冻结树的写权限；由重置、清理与失败回滚在安全删除前调用。 */
 async function makeTreeControllerWritable(directory: string): Promise<void> {
   const entries = await readdir(directory, { withFileTypes: true });
   for (const entry of entries) {

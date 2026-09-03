@@ -1,10 +1,23 @@
+/**
+ * 文件功能：规定 DSHEval 各模块之间“怎样调用、怎样返回结果”。
+ *
+ * 可以把 Port 理解为模块接口。例如工作流只调用 RepositoryPort 的“保存记录”，
+ * 不需要知道 FileRepository 怎样写 JSON 文件。所有接口统一返回 PortResult，明确区分
+ * 成功、业务条件不满足、执行失败和用户取消，避免异常被当成成功结果。
+ *
+ * 主要交互：`app/bootstrap.ts` 为这些接口装配实际实现；planning、runtime、observation、
+ * evaluation 调用它们；storage 实现数据保存和产物保存接口。
+ *
+ * 阅读重点：OperationContext 是一次调用携带的运行信息；PortResult 是统一返回格式；
+ * RepositoryPort、ArtifactStorePort 和 EvaluationAssetMatchingPort 是三类主要模块接口。
+ */
 import type {
   ArtifactId,
   ArtifactReadPurpose,
   ArtifactRef,
   ConfigSnapshot,
   ContentDigest,
-  FilesystemPack,
+  EvaluationPack,
   InspectionSnapshot,
   IsoDateTime,
   LifecycleProjectionBase,
@@ -19,11 +32,13 @@ import type {
 } from "./models.js";
 import type { FailureActor, FailureDraft } from "./errors.js";
 
+/** 表示当前任务是否已被取消；耗时步骤可以随时检查它并停止执行。 */
 export interface CancellationToken {
   readonly isCancellationRequested: boolean;
   throwIfCancellationRequested?(): void;
 }
 
+/** 一次模块调用附带的公共信息：调用编号、截止时间、取消状态、调用者和 Trace 编号。 */
 export interface OperationContext {
   readonly operationId: StableId<"OperationId">;
   readonly idempotencyKey: string;
@@ -33,9 +48,13 @@ export interface OperationContext {
   readonly traceId: StableId<"TraceId">;
 }
 
-/** Linux Appliance identity launcher used by both Preflight probes and the DSH process. */
+/** VM 中用于降低进程权限的 Linux 命令路径。环境检查和 Agent 启动会共同使用它。 */
 export const LINUX_SETPRIV_PATH = "/usr/bin/setpriv";
 
+/**
+ * 生成以受限用户启动 Agent 的命令参数。环境检查和运行时启动器都会调用；
+ * 非法用户 ID、非绝对命令路径或危险的 NUL 字符会直接被拒绝。
+ */
 export function linuxSetprivArguments(
   uid: number,
   gid: number,
@@ -64,6 +83,7 @@ export function linuxSetprivArguments(
   ]);
 }
 
+/** 调用没有执行时的原因，例如输入错误、资源不存在或前置条件不满足。 */
 export type RejectionCode =
   | "INVALID_INPUT"
   | "NOT_FOUND"
@@ -73,12 +93,17 @@ export type RejectionCode =
   | "STALE_REVISION"
   | "AUTHORIZATION_DENIED";
 
+/** 不影响本次调用继续执行的安全提示；消息必须已经去除敏感信息。 */
 export interface PortWarning {
   readonly code: string;
   readonly messageRedacted: string;
   readonly detail?: Readonly<Record<string, string | number | boolean>>;
 }
 
+/**
+ * 所有模块接口共用的返回格式。调用方根据 status 明确处理成功、条件不满足、
+ * 系统失败或取消，并继续向上报告失败记录和提示。
+ */
 export type PortResult<T> =
   | {
       readonly status: "SUCCEEDED";
@@ -103,10 +128,12 @@ export type PortResult<T> =
       readonly warnings: readonly PortWarning[];
     };
 
+/** 把正常返回值包装成统一的成功结果。 */
 export function succeeded<T>(value: T, warnings: readonly PortWarning[] = []): PortResult<T> {
   return Object.freeze({ status: "SUCCEEDED", value, failureDrafts: [], warnings });
 }
 
+/** 表示调用条件不满足，例如输入不合法或目标能力不足。 */
 export function rejected<T = never>(
   rejectionCode: RejectionCode,
   failureDrafts: readonly FailureDraft[] = [],
@@ -115,6 +142,7 @@ export function rejected<T = never>(
   return Object.freeze({ status: "REJECTED", rejectionCode, failureDrafts, warnings });
 }
 
+/** 表示执行过程中发生故障，并要求至少记录一个失败原因。 */
 export function failed<T = never>(
   first: FailureDraft,
   ...rest: readonly FailureDraft[]
@@ -123,6 +151,7 @@ export function failed<T = never>(
   return Object.freeze({ status: "FAILED", failureDrafts, warnings: [] });
 }
 
+/** 表示操作被取消，并要求至少记录一个取消原因。 */
 export function cancelled<T = never>(
   first: FailureDraft,
   ...rest: readonly FailureDraft[]
@@ -131,6 +160,11 @@ export function cancelled<T = never>(
   return Object.freeze({ status: "CANCELLED", failureDrafts, warnings: [] });
 }
 
+/**
+ * 评测记录的保存和读取接口。它既保存创建后不再修改的事实记录，
+ * 也通过追加状态变化来更新 Run、Attempt 等对象的当前状态。
+ * `storage/repositories.ts` 提供文件系统实现，工作流是主要调用方。
+ */
 export interface RepositoryPort {
   putImmutable<T extends object>(
     context: OperationContext,
@@ -150,6 +184,7 @@ export interface RepositoryPort {
   get<T>(context: OperationContext, ref: Ref<T>): Promise<PortResult<Readonly<T>>>;
 }
 
+/** 保存产物时必须同时记录的信息，例如产物 ID、所属运行、文件类型和脱敏状态。 */
 export interface ArtifactCommitMetadata {
   readonly artifactId: ArtifactId;
   readonly scope: ScopeRef;
@@ -162,6 +197,10 @@ export interface ArtifactCommitMetadata {
   readonly redactionState: "NOT_REQUIRED" | "APPLIED" | "FAILED";
 }
 
+/**
+ * 产物文件的保存和读取接口。读取时会校验摘要，确保文件没有被替换或损坏；
+ * `storage/artifacts.ts` 提供文件系统实现。
+ */
 export interface ArtifactStorePort {
   commit(
     context: OperationContext,
@@ -177,7 +216,7 @@ export interface ArtifactStorePort {
   ): Promise<PortResult<Uint8Array>>;
 }
 
-/** Narrow write capability used by Planning; it cannot read or enumerate artifacts. */
+/** Planner 只需要“保存计划产物”这一项能力，因此使用这个较小的写入接口。 */
 export interface PlanArtifactMaterializer {
   commit(
     context: OperationContext,
@@ -186,23 +225,28 @@ export interface PlanArtifactMaterializer {
   ): Promise<PortResult<Readonly<ArtifactRef>>>;
 }
 
+/** 一个可用 Judge 的版本和能力摘要；Planner 用它确认数据集要求的 Judge 是否存在。 */
 export interface JudgeDescriptor {
   readonly judgeId: VersionedAssetId<"JudgeId">;
   readonly judgeVersion: string;
-  readonly deterministic: true;
+  /** RULE 为本地规则，LLM 为模型判定；Planner 只匹配已注册实现。 */
+  readonly method: "RULE" | "LLM";
+  readonly deterministic: boolean;
+  readonly checkType: string;
   readonly capabilityDigest: ContentDigest;
 }
 
+/** Planner 选择评测内容时需要的全部输入：Agent 信息、数据集、配置及可用的观测器和 Judge。 */
 export interface EvaluationAssetMatchingInput {
   readonly targetSnapshot: TargetSnapshot;
   readonly inspectionSnapshot: InspectionSnapshot;
-  readonly filesystemPack: FilesystemPack;
+  readonly evaluationPack: EvaluationPack;
   readonly configSnapshot: ConfigSnapshot;
   readonly sensors: readonly SensorAdapterDescriptor[];
   readonly judges: readonly JudgeDescriptor[];
 }
 
-/** The only stable asset extension boundary in the MVP. */
+/** 评测资产匹配接口；应用编排通过它生成冻结计划。 */
 export interface EvaluationAssetMatchingPort {
   buildPlan(
     context: OperationContext,

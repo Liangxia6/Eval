@@ -1,3 +1,7 @@
+/**
+ * 测试职责：验证 Bootstrap、配置、环境生命周期、Lease、报告提交和本地服务检查
+ * 在真实临时目录中的协作行为，以及失败时的原子性与路径边界。
+ */
 import assert from "node:assert/strict";
 import { access, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -125,21 +129,13 @@ test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", 
         readOnlyForTarget: true,
       },
       {
-        portablePath: "input/source.txt",
-        entryType: "FILE",
-        mode: "0444",
-        readOnlyForTarget: true,
-        content: "DSHEval MVP ready\n",
-        encoding: "utf8",
-      },
-      {
         portablePath: "output",
         entryType: "DIRECTORY",
         mode: "0755",
         readOnlyForTarget: false,
       },
     ]);
-    assert.equal(resources.length, 3);
+    assert.equal(resources.length, 2);
     const fixtureExecutable = path.join(
       process.cwd(),
       "tests/fixtures/agents/fake-dsh/fake-dsh.mjs",
@@ -147,24 +143,24 @@ test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", 
     let startReceipt = false;
     const result = await executeTarget({
       executablePath: fixtureExecutable,
-      profile: "fixture-filesystem",
-      task: "copy the public input",
+      profile: "fixture-attention",
+      task: "explain Attention and run the PyTorch example",
       cwd: prepared.workspacePath,
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-runtime-pass",
       deadlineMs: 5_000,
       maxOutputBytes: 64 * 1024,
-      fixtureBehavior: "copy",
+      fixtureBehavior: "attention-success",
       onStarted: () => {
         startReceipt = true;
       },
     });
     assert.equal(startReceipt, true);
     assert.equal(result.terminationKind, "EXITED");
-    assert.equal(
-      await readFile(path.join(prepared.workspacePath, "output/result.txt"), "utf8"),
-      "DSHEval MVP ready\n",
+    assert.match(
+      await readFile(path.join(prepared.workspacePath, "output/attention.py"), "utf8"),
+      /scaled_dot_product_attention/,
     );
     const probe = await readFile(prepared.probeOutputPath, "utf8");
     assert.match(probe, /"kind":"probe\/start"/);
@@ -196,20 +192,12 @@ test("MVP-FI-TARGET-001: timeout keeps a Probe prefix and never retries", async 
     });
     await seedEnvironment(prepared.workspacePath, [
       { portablePath: "input", entryType: "DIRECTORY", mode: "0555", readOnlyForTarget: true },
-      {
-        portablePath: "input/source.txt",
-        entryType: "FILE",
-        mode: "0444",
-        readOnlyForTarget: true,
-        content: "DSHEval MVP ready\n",
-        encoding: "utf8",
-      },
       { portablePath: "output", entryType: "DIRECTORY", mode: "0755", readOnlyForTarget: false },
     ]);
     const result = await executeTarget({
       executablePath: path.join(process.cwd(), "tests/fixtures/agents/fake-dsh/fake-dsh.mjs"),
-      profile: "fixture-filesystem",
-      task: "copy",
+      profile: "fixture-attention",
+      task: "explain Attention",
       cwd: prepared.workspacePath,
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
@@ -257,20 +245,12 @@ test("MVP-RUN-AC-006: a target that ignores SIGTERM is killed as one process gro
     });
     await seedEnvironment(prepared.workspacePath, [
       { portablePath: "input", entryType: "DIRECTORY", mode: "0555", readOnlyForTarget: true },
-      {
-        portablePath: "input/source.txt",
-        entryType: "FILE",
-        mode: "0444",
-        readOnlyForTarget: true,
-        content: "DSHEval MVP ready\n",
-        encoding: "utf8",
-      },
       { portablePath: "output", entryType: "DIRECTORY", mode: "0755", readOnlyForTarget: false },
     ]);
     const result = await executeTarget({
       executablePath: path.join(process.cwd(), "tests/fixtures/agents/fake-dsh/fake-dsh.mjs"),
-      profile: "fixture-filesystem",
-      task: "copy the public input",
+      profile: "fixture-attention",
+      task: "explain Attention",
       cwd: prepared.workspacePath,
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
@@ -321,15 +301,15 @@ test("MVP-RUN-AC-006: pre-cancelled execution never creates a child process", as
     let started = false;
     const result = await executeTarget({
       executablePath: path.join(process.cwd(), "tests/fixtures/agents/fake-dsh/fake-dsh.mjs"),
-      profile: "fixture-filesystem",
-      task: "copy the public input",
+      profile: "fixture-attention",
+      task: "explain Attention",
       cwd: prepared.workspacePath,
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-pre-cancel",
       deadlineMs: 1_000,
       maxOutputBytes: 1024,
-      fixtureBehavior: "copy",
+      fixtureBehavior: "attention-success",
       signal: controller.signal,
       onStarted: () => {
         started = true;
@@ -768,7 +748,7 @@ test("MVP-SEC-IDENTITY-002: fixture and production identity facts are never conf
 });
 
 test("MVP-SEC-TASK-001 and MVP-SEC-SECRET-001 reject hidden task and output material", () => {
-  assert.doesNotThrow(() => assertSafeAgentTask("copy input/source.txt", ["hidden-digest"]));
+  assert.doesNotThrow(() => assertSafeAgentTask("explain Attention and write output/attention.py", ["hidden-digest"]));
   assert.throws(
     () => assertSafeAgentTask("copy hidden-digest", ["hidden-digest"]),
     /hidden or sensitive/,

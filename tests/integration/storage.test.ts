@@ -1,3 +1,7 @@
+/**
+ * 测试职责：在真实文件系统中验证 Repository/ArtifactStore 的不可变写入、CAS、
+ * 幂等、摘要复核、跨 Scope 拒绝、故障恢复以及 Gate 单次提交约束。
+ */
 import assert from "node:assert/strict";
 import { chmod, mkdir, mkdtemp, readFile, symlink, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -99,7 +103,6 @@ function targetDescriptor(label = "original") {
     dshHome: "/fixture/home",
     profile: "default",
     targetIdentity: "dshagent",
-    requestedScope: "FILESYSTEM_MVP" as const,
   });
 }
 

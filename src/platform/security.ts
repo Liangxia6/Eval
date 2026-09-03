@@ -1,3 +1,16 @@
+/**
+ * 文件职责：在 Agent 启动前验证身份、目录、网络和任务边界，并签发只读观测授权。
+ *
+ * 核心流程：解析 Controller/Target OS 身份，实测 setpriv 降权和目录访问，探测冻结
+ * 网络策略，汇总 SecurityPreflight；随后为指定 Environment/SourceRequirement 生成
+ * 进程内 Observer Binding，并在发布前扫描任务或结果中的敏感内容。
+ *
+ * 与其他文件的交互：`app/workflow.ts` 调用本文件；setpriv 参数契约来自 core，
+ * Observation 消费 PreparedObserverBinding，Runtime 使用预检确认的 Target UID/GID。
+ *
+ * 公开接口：身份/预检/Binding 类型、runSecurityPreflight、issueObserverBinding、
+ * assertSafeAgentTask 和 findSecretLeaks。
+ */
 import { randomBytes, randomUUID } from "node:crypto";
 import { access, lstat, realpath } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -21,20 +34,24 @@ import {
   validateVersionedAssetId,
 } from "../core/models.js";
 
+/** Promise 版本的 execFile，仅用于固定路径的 OS 身份查询。 */
 const execFileAsync = promisify(execFile);
 
+/** 已解析的 POSIX 用户名及 UID/GID。 */
 export interface OsIdentity {
   name: string;
   uid: number;
   gid: number;
 }
 
+/** 一项可直接展示和持久化的安全检查结果。 */
 export interface SecurityCheck {
   name: string;
   status: "PASS" | "FAIL" | "FIXTURE_LIMITATION";
   detail: string;
 }
 
+/** 一次安全预检的聚合结果，Workflow 据此决定是否允许启动 Agent。 */
 export interface SecurityPreflightResult {
   status: "PASSED" | "FAILED" | "FIXTURE_ONLY";
   targetIdentity?: OsIdentity;
@@ -46,12 +63,14 @@ export interface SecurityPreflightResult {
   telemetryDisabled: boolean;
 }
 
+/** Observer 的公共授权记录与仅在进程内存在的宿主 workspace 路径。 */
 export interface PreparedObserverBindingRuntime {
   binding: PreparedObserverBinding;
   /** Host path is process-only and never part of the public Binding. */
   workspacePath: string;
 }
 
+/** 通过系统 id 命令把冻结用户名解析为数值身份。 */
 async function identityByName(name: string): Promise<OsIdentity> {
   if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(name)) throw new Error("invalid OS identity name");
   const [{ stdout: uidText }, { stdout: gidText }] = await Promise.all([
@@ -66,6 +85,7 @@ async function identityByName(name: string): Promise<OsIdentity> {
   return { name, uid, gid };
 }
 
+/** 读取当前 Controller 的真实 UID/GID 和可用用户名。 */
 async function currentIdentity(): Promise<OsIdentity> {
   const uid = process.getuid?.();
   const gid = process.getgid?.();
@@ -79,6 +99,7 @@ async function currentIdentity(): Promise<OsIdentity> {
   return { name, uid, gid };
 }
 
+/** 使用与正式 Target 相同的 setpriv 降权方式实测某身份的路径读写权限。 */
 async function accessAs(identity: OsIdentity, target: string, mode: "read" | "write"): Promise<boolean> {
   const flag = mode === "read" ? "-r" : "-w";
   return await new Promise<boolean>((resolve, reject) => {
@@ -96,6 +117,7 @@ async function accessAs(identity: OsIdentity, target: string, mode: "read" | "wr
   });
 }
 
+/** 启动最小 Node 探针，验证 UID/GID、附加组、能力集和 NoNewPrivs 均符合预期。 */
 async function verifyIdentityDrop(identity: OsIdentity): Promise<{
   ok: boolean;
   detail: string;
@@ -127,6 +149,7 @@ async function verifyIdentityDrop(identity: OsIdentity): Promise<{
   ]);
   return await new Promise((resolve) => {
     let settled = false;
+    /** 保证身份探针的 error/close/timeout 路径只结算一次。 */
     const settle = (result: { ok: boolean; detail: string }): void => {
       if (settled) return;
       settled = true;
@@ -162,6 +185,7 @@ async function verifyIdentityDrop(identity: OsIdentity): Promise<{
   });
 }
 
+/** 以 Target 身份尝试 TCP 连接，用于验证允许端点和默认拒绝样本。 */
 async function tcpConnectAs(
   identity: OsIdentity,
   host: string,
@@ -199,6 +223,9 @@ async function tcpConnectAs(
   });
 }
 
+/**
+ * 执行 Agent 启动门禁。Workflow 在 Environment/Run 创建后、Target 启动前调用。
+ */
 export async function runSecurityPreflight(input: {
   deniedRoots: readonly string[];
   allowedRoots: readonly string[];
@@ -379,6 +406,10 @@ export async function runSecurityPreflight(input: {
   };
 }
 
+/**
+ * 将冻结 SourceRequirement 与当前 Environment 绑定为短期只读能力；Workflow 在
+ * CASE_RUN 与 POST_RESET 两次观测前分别调用。
+ */
 export async function issueObserverBinding(input: {
   environmentInstanceId: string;
   resetGeneration: number;
@@ -441,6 +472,7 @@ export async function issueObserverBinding(input: {
   };
 }
 
+/** 扫描 AgentTask，拒绝隐藏答案术语、Secret 或管理目录路径进入被测输入。 */
 export function assertSafeAgentTask(
   task: string,
   forbiddenValues: readonly string[],
@@ -457,6 +489,7 @@ export function assertSafeAgentTask(
   }
 }
 
+/** 返回出现在字节流中的 Secret canary 值；Workflow 决定拒绝或受限隔离。 */
 export function findSecretLeaks(bytes: Uint8Array, canaries: readonly string[]): readonly string[] {
   const text = Buffer.from(bytes).toString("utf8");
   return canaries.filter((canary) => canary.length > 0 && text.includes(canary));

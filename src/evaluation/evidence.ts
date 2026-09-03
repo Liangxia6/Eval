@@ -1,3 +1,9 @@
+/**
+ * 文件职责：把密封观测会话中的原始观测、文件状态和已验证 Artifact 标准化为可审计 EvidenceBundle。
+ * 核心流程：校验会话及成员引用，验证 Artifact/文件派生关系，生成标准化与聚合事实，最后计算 Bundle 内容摘要和语义封印。
+ * 真实交互：上游接收 observation 模块与 ArtifactStore 产生的记录；下游由 closure.ts 验证封印并按 EvidenceContract 授权给 Judge。
+ * 公开接口：VerifiedArtifactInput、BuildEvidenceInput、EvidenceBuildIssue、EvidenceBuildResult、evidenceBundleSealDigest、verifyEvidenceBundleSeal、buildEvidenceBundle。
+ */
 import {
   ContractViolation,
   assertSameAttemptScope,
@@ -28,12 +34,14 @@ import {
 } from "../core/models.js";
 import type { FailureDraft, FailureRecord } from "../core/errors.js";
 
+/** ArtifactStore.readVerified 的验证结果与对应引用，防止未经读取校验的字节进入证据链。 */
 export interface VerifiedArtifactInput {
   readonly artifactRef: Ref<ArtifactRef>;
   /** Must be produced by ArtifactStore.readVerified, never by the Agent. */
   readonly verified: boolean;
 }
 
+/** 构建 EvidenceBundle 所需的完整观测图、可选文件派生记录及生成元数据。 */
 export interface BuildEvidenceInput {
   readonly bundleId: string;
   readonly scope: ScopeRef;
@@ -59,6 +67,7 @@ export interface BuildEvidenceInput {
   readonly makeEvidenceId?: (factType: string, ordinal: number) => string;
 }
 
+/** 证据构建期间发现的可审计完整性问题；问题会使 Bundle 以 INVALID 状态密封。 */
 export interface EvidenceBuildIssue {
   readonly code:
     | "SESSION_NOT_SEALED"
@@ -71,6 +80,7 @@ export interface EvidenceBuildIssue {
   readonly detail: string;
 }
 
+/** EvidenceBundle、其中的 EvidenceRecord，以及可选的持久化失败草稿。 */
 export interface EvidenceBuildResult {
   readonly bundle: EvidenceBundle;
   readonly evidence: readonly EvidenceRecord[];
@@ -78,9 +88,10 @@ export interface EvidenceBuildResult {
   readonly failureDraft?: FailureDraft;
 }
 
+/** 计算语义封印时包含的 Bundle 字段集合，排除两个自引用摘要字段。 */
 type EvidenceBundleSealFields = Omit<EvidenceBundle, "contentDigest" | "sealDigest">;
 
-/** Semantic seal independently binds every persisted EvidenceBundle field. */
+/** buildEvidenceBundle 用它独立绑定每个持久化字段；closure.ts 也用同一算法复验封印。 */
 export function evidenceBundleSealDigest(
   bundle: EvidenceBundleSealFields,
 ): ReturnType<typeof digestValue> {
@@ -101,6 +112,7 @@ export function evidenceBundleSealDigest(
   });
 }
 
+/** 供 closure.ts 和其他读取方同时复验 Bundle 内容摘要与语义封印。 */
 export function verifyEvidenceBundleSeal(bundle: EvidenceBundle): boolean {
   return (
     digestEquals(bundle.contentDigest, digestValue(bundle, ["contentDigest"])) &&
@@ -109,8 +121,7 @@ export function verifyEvidenceBundleSeal(bundle: EvidenceBundle): boolean {
 }
 
 /**
- * Converts immutable observations into standardized and derived facts. Raw
- * records are never edited, and every standardized fact keeps its raw refs.
+ * 应用编排层调用的证据构建入口：把不可变观测转换为标准化/派生事实，并保留每条事实的原始引用链。
  */
 export function buildEvidenceBundle(input: BuildEvidenceInput): EvidenceBuildResult {
   const scope = validateScope(input.scope);
@@ -129,13 +140,10 @@ export function buildEvidenceBundle(input: BuildEvidenceInput): EvidenceBuildRes
   validateSessionIntegrity(input, issues);
   const rawRefById = indexRawRefs(input.rawObservations, input.rawObservationRefs, scope, issues);
   const sourceById = new Map(input.sources.map((source) => [source.sourceId, source] as const));
-  if (
-    sourceById.size !== input.sources.length ||
-    input.sources.map((source) => source.sourceType).sort().join(",") !== "DSH_PROBE,FILESYSTEM"
-  ) {
+  if (input.sources.length === 0 || sourceById.size !== input.sources.length) {
     issues.push({
       code: "SOURCE_IDENTITY_MISMATCH",
-      detail: "MVP Evidence requires one distinct DSH_PROBE Source and one FILESYSTEM Source",
+      detail: "Evidence requires one or more uniquely identified Sources",
     });
   }
   for (const source of input.sources) {
@@ -252,6 +260,7 @@ export function buildEvidenceBundle(input: BuildEvidenceInput): EvidenceBuildRes
   };
 }
 
+/** 由 buildEvidenceBundle 调用，按稳定顺序生成单条观测事实、协议聚合事实和文件派生事实。 */
 function buildEvidenceRecords(
   input: BuildEvidenceInput,
   scope: ScopeRef,
@@ -449,6 +458,7 @@ function buildEvidenceRecords(
   return records;
 }
 
+/** appendProtocolAggregateEvidence 的内部上下文，复用记录数组、序号和观测索引。 */
 interface AppendProtocolInput {
   readonly input: BuildEvidenceInput;
   readonly scope: ScopeRef;
@@ -458,6 +468,7 @@ interface AppendProtocolInput {
   readonly statusBySource: ReadonlyMap<string, CollectionStatus>;
 }
 
+/** 从 DSH_PROBE 原始事件派生边界、序列、Scope 和生命周期事实，并返回下一个证据序号。 */
 function appendProtocolAggregateEvidence(options: AppendProtocolInput): number {
   let ordinal = options.ordinal;
   const source = options.input.sources.find((candidate) => candidate.sourceType === "DSH_PROBE");
@@ -561,6 +572,7 @@ function appendProtocolAggregateEvidence(options: AppendProtocolInput): number {
   return ordinal;
 }
 
+/** makeEvidenceRecord 接收的标准字段，集中约束所有 EvidenceRecord 的共同形状。 */
 interface EvidenceFields {
   readonly evidenceId: StableId<"EvidenceId">;
   readonly factType: string;
@@ -576,6 +588,7 @@ interface EvidenceFields {
   readonly trust: EvidenceRecord["trust"];
 }
 
+/** 被各事实构建分支调用，统一稳定化引用并补齐 Scope、时间和 contentDigest。 */
 function makeEvidenceRecord(
   input: BuildEvidenceInput,
   scope: ScopeRef,
@@ -602,6 +615,7 @@ function makeEvidenceRecord(
   });
 }
 
+/** 将单条 RawObservation 映射为标准事实类型与权威级别，供 buildEvidenceRecords 使用。 */
 function standardizeRawObservation(raw: RawObservation):
   | { readonly factType: string; readonly factValue: JsonValue; readonly authority: EvidenceAuthority }
   | undefined {
@@ -634,6 +648,7 @@ function standardizeRawObservation(raw: RawObservation):
   return { factType: "PROBE_EVENT_UNKNOWN", factValue: payload, authority: "DIAGNOSTIC" };
 }
 
+/** 校验 ObservationSession 的摘要、Ref 版本、Attempt Scope 和密封水位，并累积问题。 */
 function validateSessionIntegrity(input: BuildEvidenceInput, issues: EvidenceBuildIssue[]): void {
   if (
     !digestEquals(
@@ -663,6 +678,7 @@ function validateSessionIntegrity(input: BuildEvidenceInput, issues: EvidenceBui
   }
 }
 
+/** 核对密封会话声明的 Source/CollectionStatus 集合与本次输入是否完全一致。 */
 function validateSessionMembers(input: BuildEvidenceInput, issues: EvidenceBuildIssue[]): void {
   const sourceRefs = input.sources.map((source) => refForImmutable(source, source.sourceId));
   if (!sameRefSet(sourceRefs, input.observationSession.sourceRefs)) {
@@ -692,6 +708,7 @@ function validateSessionMembers(input: BuildEvidenceInput, issues: EvidenceBuild
   }
 }
 
+/** 验证 RawObservation 的唯一性、摘要、Scope 和 Ref 后建立按 observationId 查询的索引。 */
 function indexRawRefs(
   observations: readonly RawObservation[],
   refs: readonly Ref<RawObservation>[],
@@ -737,6 +754,7 @@ function indexRawRefs(
   return refsById;
 }
 
+/** 确认每条原始观测声明的 Artifact 都有唯一且成功的 ArtifactStore 验证结果。 */
 function validateArtifactCoverage(input: BuildEvidenceInput, issues: EvidenceBuildIssue[]): void {
   const verifiedByKey = new Map<string, VerifiedArtifactInput>();
   for (const artifact of input.verifiedArtifacts) {
@@ -770,6 +788,7 @@ function validateArtifactCoverage(input: BuildEvidenceInput, issues: EvidenceBui
   }
 }
 
+/** 验证快照、Diff、SeedManifest 及其 Ref/原始观测之间的确定性派生关系。 */
 function validateFileInputs(input: BuildEvidenceInput, issues: EvidenceBuildIssue[]): void {
   const pairs = [
     [input.beforeSnapshot, input.beforeSnapshotRef, "BEFORE"],
@@ -882,6 +901,7 @@ function validateFileInputs(input: BuildEvidenceInput, issues: EvidenceBuildIssu
   }
 }
 
+/** 通用不可变记录摘要校验；各输入验证器调用并把失败写入 issues。 */
 function validateImmutableDigest(
   record: { readonly contentDigest: ReturnType<typeof digestValue> },
   label: string,
@@ -892,6 +912,7 @@ function validateImmutableDigest(
   }
 }
 
+/** 从原始观测中选出指定 BEFORE/AFTER 文件快照事件。 */
 function rawForFilePhase(
   observations: readonly RawObservation[],
   phase: "BEFORE" | "AFTER",
@@ -904,10 +925,12 @@ function rawForFilePhase(
     );
 }
 
+/** 安全读取 captureMetadata 中的 Attempt 关联标记。 */
 function readAssociation(metadata: JsonObject): string | undefined {
   return typeof metadata.association === "string" ? metadata.association : undefined;
 }
 
+/** 把一组原始观测解析为去重且稳定排序的已提交 Ref。 */
 function refsForRaw(
   observations: readonly RawObservation[],
   refsById: ReadonlyMap<string, Ref<RawObservation>>,
@@ -919,6 +942,7 @@ function refsForRaw(
   );
 }
 
+/** 汇总观测的首尾墙钟时间与源序号范围，供聚合 EvidenceRecord 使用。 */
 function sourceTimeRange(observations: readonly RawObservation[]): EvidenceRecord["timeRange"] {
   const wallTimes = observations
     .map((observation) => observation.sourceTime.wallTime)
@@ -936,10 +960,12 @@ function sourceTimeRange(observations: readonly RawObservation[]): EvidenceRecor
   };
 }
 
+/** 在协议 Scope 派生时收窄内联 JSON 值为普通对象。 */
 function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** 使用可注入工厂或默认规则生成并校验稳定 EvidenceId。 */
 function evidenceId(
   input: BuildEvidenceInput,
   factType: string,
@@ -951,12 +977,14 @@ function evidenceId(
   );
 }
 
+/** 按源序号、再按 observationId 排序，保证证据生成可复现。 */
 function compareRawObservation(left: RawObservation, right: RawObservation): number {
   const leftSeq = left.sourceTime.sourceSeq ?? Number.MAX_SAFE_INTEGER;
   const rightSeq = right.sourceTime.sourceSeq ?? Number.MAX_SAFE_INTEGER;
   return leftSeq - rightSeq || String(left.observationId).localeCompare(String(right.observationId), "en");
 }
 
+/** 将 Ref 转成可嵌入 factValue 的 JSON 对象，避免携带非 JSON 结构。 */
 function refJson(ref: Ref | undefined): JsonObject {
   if (ref === undefined) return {};
   return {
@@ -971,6 +999,7 @@ function refJson(ref: Ref | undefined): JsonObject {
   };
 }
 
+/** 按 Ref 身份去重并稳定排序，供 EvidenceRecord 与 Bundle 生成确定性摘要。 */
 function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   const unique = new Map<string, T>();
   for (const ref of refs) {
@@ -984,6 +1013,7 @@ function stableRefs<T extends Ref>(refs: readonly T[]): readonly T[] {
   );
 }
 
+/** 读取 RawObservation 显式声明的 Artifact 引用，并拒绝非法或非 Artifact schema。 */
 function artifactRefsDeclaredByRaw(raw: RawObservation): readonly Ref<ArtifactRef>[] {
   if (raw.payloadArtifactRef !== undefined) return [raw.payloadArtifactRef];
   const candidate = raw.captureMetadata.rawArtifactRef;
@@ -996,6 +1026,7 @@ function artifactRefsDeclaredByRaw(raw: RawObservation): readonly Ref<ArtifactRe
   }
 }
 
+/** 校验 captureMetadata 指定字段是否精确引用预期记录。 */
 function metadataRefMatches(raw: RawObservation, field: string, expected: Ref): boolean {
   const candidate = raw.captureMetadata[field];
   if (candidate === undefined) return false;
@@ -1006,6 +1037,7 @@ function metadataRefMatches(raw: RawObservation, field: string, expected: Ref): 
   }
 }
 
+/** 仅保留已由 ArtifactStore 验证的单条观测 Artifact 引用。 */
 function artifactRefsForRaw(
   raw: RawObservation,
   verified: readonly VerifiedArtifactInput[],
@@ -1016,6 +1048,7 @@ function artifactRefsForRaw(
   return artifactRefsDeclaredByRaw(raw).filter((ref) => verifiedKeys.has(refKey(ref)));
 }
 
+/** 汇总多条观测的已验证 Artifact 引用，并稳定去重。 */
 function artifactRefsForRawSet(
   observations: readonly RawObservation[],
   verified: readonly VerifiedArtifactInput[],
@@ -1023,20 +1056,24 @@ function artifactRefsForRawSet(
   return stableRefs(observations.flatMap((raw) => artifactRefsForRaw(raw, verified)));
 }
 
+/** 编码 Ref 的 schema、ID、版本和摘要，作为严格集合比较键。 */
 function refKey(ref: Ref): string {
   return `${ref.schema}\u0000${ref.id}\u0000${ref.revision ?? ""}\u0000${ref.digest.value}\u0000${ref.digest.byteLength}`;
 }
 
+/** 比较两个 Ref 的完整身份；文件输入关联校验会调用。 */
 function sameRef(left: Ref, right: Ref): boolean {
   return refKey(left) === refKey(right);
 }
 
+/** 忽略输入顺序比较两个 Ref 集合，供会话成员一致性校验使用。 */
 function sameRefSet(left: readonly Ref[], right: readonly Ref[]): boolean {
   const leftKeys = left.map(refKey).sort();
   const rightKeys = right.map(refKey).sort();
   return leftKeys.length === rightKeys.length && leftKeys.every((key, index) => key === rightKeys[index]);
 }
 
+/** 从 BEFORE/AFTER FileEntry 重算规范化 Diff 摘要，用于验证外部提交的 FileDiff。 */
 function deriveFileDiffDigest(
   beforeEntries: readonly FileEntry[],
   afterEntries: readonly FileEntry[],
@@ -1069,6 +1106,7 @@ function deriveFileDiffDigest(
   return digestValue({ added, removed, modified, typeChanged, unchangedCount });
 }
 
+/** 比较同一路径前后条目，给 deriveFileDiffDigest 返回确定性的变化分类。 */
 function classifyFileChange(
   before: FileEntry,
   after: FileEntry,

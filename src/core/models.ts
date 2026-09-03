@@ -1,44 +1,87 @@
+/**
+ * 文件功能：定义 DSHEval 中会被传递和保存的全部数据结构。
+ *
+ * 这里相当于全系统的数据字典，例如 Agent 快照、评测计划、Case、Attempt、Evidence、
+ * CheckResult 和最终报告分别有哪些字段。它也提供公共校验：ID 和路径是否合法、
+ * 一条记录属于哪个 Run/Case/Attempt、状态是否按正确顺序变化，以及摘要是否匹配。
+ *
+ * 主要交互：planning 创建目标和计划数据；runtime、observation、evaluation 继续产生
+ * 执行、证据和判定数据；storage 使用这里的引用和摘要保存它们；contracts 使用这里的
+ * 类型规定模块接口。
+ *
+ * 阅读建议：不要从头到尾背类型。先从主流程找到一个对象，再回来查看它的字段定义。
+ */
 import { createHash } from "node:crypto";
 
 import type { FailureDraft, FailureRecord } from "./errors.js";
 
-/** Values accepted by DSHEval's canonical JSON boundary. */
+/** 可以直接写入 JSON 的基本值。 */
 export type JsonPrimitive = null | boolean | number | string;
+/** DSHEval 允许计算摘要的 JSON 值。 */
 export type JsonValue = JsonPrimitive | readonly JsonValue[] | JsonObject;
+/** 只包含合法 JSON 值的对象。 */
 export interface JsonObject {
   readonly [key: string]: JsonValue;
 }
 
+/** TypeScript 内部标记，用来防止把任意字符串误当成 DSHEval ID。 */
 declare const stableIdBrand: unique symbol;
+/** 普通对象 ID；类型参数用于区分 RunId、CaseId、AttemptId 等不同 ID。 */
 export type StableId<Tag extends string = string> = string & {
   readonly [stableIdBrand]: Tag;
 };
+/** TypeScript 内部标记，用来识别带版本的数据集、标签和指标 ID。 */
 declare const versionedAssetIdBrand: unique symbol;
-/** Catalog identity: a strict StableId base plus an explicit positive major. */
+/** 带版本的资源 ID，例如某个 Dataset、Label 或 Metric 的 `/v1` 版本。 */
 export type VersionedAssetId<Tag extends string = string> = string & {
   readonly [versionedAssetIdBrand]: Tag;
 };
+/** 计划无法生成时，用来指出受影响对象或资源的 ID。 */
 export type AssetIdentifier = StableId | VersionedAssetId;
+/** 经过格式检查的时间字符串。 */
 export type IsoDateTime = string;
+/** 相对于评测工作区的安全路径，不允许绝对路径或 `..`。 */
 export type PortablePath = string;
 
+/** 被评测目标的稳定标识。 */
 export type TargetId = StableId<"TargetId">;
+/** 一次冻结目标快照的稳定标识。 */
 export type TargetSnapshotId = StableId<"TargetSnapshotId">;
+/** 一次评测运行的稳定标识。 */
 export type RunId = StableId<"RunId">;
+/** 运行内单个 Case 的稳定标识。 */
 export type CaseId = StableId<"CaseId">;
+/** Case 内单次执行尝试的稳定标识。 */
 export type AttemptId = StableId<"AttemptId">;
+/** 一次观察会话的稳定标识。 */
 export type SessionId = StableId<"SessionId">;
+/** 外部采集源单次运行的稳定标识。 */
 export type SourceRunId = StableId<"SourceRunId">;
+/** 已提交产物的稳定标识。 */
 export type ArtifactId = StableId<"ArtifactId">;
+/** Catalog 中 Dataset 的版本化标识。 */
+export type DatasetId = VersionedAssetId<"DatasetId">;
+/** 固定标签词表中 Label 的版本化标识。 */
+export type LabelId = VersionedAssetId<"LabelId">;
+/** 与 Label 绑定的 Metric 版本化标识。 */
+export type MetricId = VersionedAssetId<"MetricId">;
+/** Dataset 绑定环境定义的版本化标识。 */
+export type EnvironmentDefinitionId = VersionedAssetId<"EnvironmentDefinitionId">;
 
+/** 普通稳定 ID 的格式校验规则。 */
 const STABLE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+/** 版本化 Catalog 资产 ID 的格式校验规则。 */
 const VERSIONED_ASSET_ID_PATTERN = /^([A-Za-z0-9][A-Za-z0-9._-]{0,127})\/v([1-9][0-9]*)$/u;
+/** 小写十六进制 SHA-256 值的格式校验规则。 */
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/u;
+/** V0.1 领域记录 schema 的格式校验规则。 */
 const SCHEMA_PATTERN = /^dsheval\.mvp\.[a-z0-9][a-z0-9-]*\/v1$/u;
 
+/** 数据不符合上述规则时抛出的错误；上层会把它转换成结构化失败记录。 */
 export class ContractViolation extends Error {
   public readonly code: string;
 
+  /** 保存稳定错误码并保留原始 cause，供上层做结构化归类。 */
   public constructor(code: string, message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "ContractViolation";
@@ -46,6 +89,7 @@ export class ContractViolation extends Error {
   }
 }
 
+/** 检查普通 ID 格式，并把它标记为具体的 RunId、CaseId 等类型。 */
 export function validateStableId<Tag extends string = string>(
   value: unknown,
   fieldName = "id",
@@ -59,7 +103,7 @@ export function validateStableId<Tag extends string = string>(
   return value as StableId<Tag>;
 }
 
-/** Versioned asset IDs are not valid Ref IDs or filesystem routing IDs. */
+/** 检查 Dataset、Label、Metric 等资源 ID 是否包含合法版本号。 */
 export function validateVersionedAssetId<Tag extends string = string>(
   value: unknown,
   fieldName = "assetId",
@@ -73,6 +117,7 @@ export function validateVersionedAssetId<Tag extends string = string>(
   return value as VersionedAssetId<Tag>;
 }
 
+/** 检查一条记录声明的数据格式版本是否合法。 */
 export function validateSchemaId(value: unknown, fieldName = "schema"): string {
   if (typeof value !== "string" || !SCHEMA_PATTERN.test(value)) {
     throw new ContractViolation(
@@ -83,6 +128,7 @@ export function validateSchemaId(value: unknown, fieldName = "schema"): string {
   return value;
 }
 
+/** 检查时间字段能否被正确解析。 */
 export function validateIsoDateTime(value: unknown, fieldName = "time"): IsoDateTime {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) {
     throw new ContractViolation("INVALID_TIME", `${fieldName} must be an ISO-8601 timestamp`);
@@ -90,6 +136,10 @@ export function validateIsoDateTime(value: unknown, fieldName = "time"): IsoDate
   return value;
 }
 
+/**
+ * 检查数据集提供的工作区路径是否安全。
+ * 绝对路径、`..`、通配符和变量表达式都不允许进入执行与观测流程。
+ */
 export function validatePortablePath(
   value: unknown,
   fieldName = "portablePath",
@@ -124,6 +174,7 @@ export function validatePortablePath(
   return value;
 }
 
+/** 检查字符串是否包含无法正确编码的 Unicode 字符。 */
 function assertValidUnicode(value: string, location: string): void {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
@@ -139,6 +190,7 @@ function assertValidUnicode(value: string, location: string): void {
   }
 }
 
+/** 递归生成字段顺序稳定的 JSON 字符串，供摘要计算使用。 */
 function canonicalizeValue(value: unknown, ancestors: Set<object>, location: string): string {
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -198,25 +250,24 @@ function canonicalizeValue(value: unknown, ancestors: Set<object>, location: str
   }
 }
 
-/** RFC 8785/JCS-compatible serialization for the JSON subset accepted by DSHEval. */
+/** 把同样的数据稳定地序列化成同样的字符串，避免字段顺序影响摘要。 */
 export function canonicalize(value: unknown): string {
   return canonicalizeValue(value, new Set<object>(), "$");
 }
 
+/** `canonicalize` 的同义入口，用在调用方需要明确表达“生成规范 JSON”时。 */
 export function canonicalJson(value: unknown): string {
   return canonicalize(value);
 }
 
-export function compareUtf8(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
-}
-
+/** SHA-256 值及其输入字节长度，所有不可变记录和产物用它绑定内容。 */
 export interface ContentDigest {
   readonly algorithm: "sha256";
   readonly value: string;
   readonly byteLength: number;
 }
 
+/** 校验外部摘要对象的算法、十六进制值和字节长度。 */
 export function validateContentDigest(value: unknown, fieldName = "digest"): ContentDigest {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new ContractViolation("INVALID_DIGEST", `${fieldName} must be an object`);
@@ -234,6 +285,7 @@ export function validateContentDigest(value: unknown, fieldName = "digest"): Con
   return digest as ContentDigest;
 }
 
+/** 对 UTF-8 字符串或原始字节计算带长度的 SHA-256 摘要。 */
 export function digestBytes(bytes: Uint8Array | string): ContentDigest {
   const buffer = typeof bytes === "string" ? Buffer.from(bytes, "utf8") : Buffer.from(bytes);
   return Object.freeze({
@@ -243,6 +295,7 @@ export function digestBytes(bytes: Uint8Array | string): ContentDigest {
   });
 }
 
+/** 规范序列化 JSON 值后计算摘要，可排除顶层存储型字段以验证自描述记录。 */
 export function digestValue(
   value: unknown,
   excludedTopLevelFields: readonly string[] = [],
@@ -262,6 +315,7 @@ export function digestValue(
   return digestBytes(canonicalize(digestInput));
 }
 
+/** 为尚无 contentDigest 的不可变对象计算摘要并冻结结果。 */
 export function withContentDigest<T extends object>(
   value: T,
 ): Readonly<T & { readonly contentDigest: ContentDigest }> {
@@ -274,6 +328,7 @@ export function withContentDigest<T extends object>(
   return Object.freeze({ ...value, contentDigest: digestValue(value) });
 }
 
+/** 比较两个摘要的算法、值与字节长度。 */
 export function digestEquals(left: ContentDigest, right: ContentDigest): boolean {
   return (
     left.algorithm === right.algorithm &&
@@ -282,6 +337,7 @@ export function digestEquals(left: ContentDigest, right: ContentDigest): boolean
   );
 }
 
+/** 验证两个摘要完全一致；存储、规划和观察层用它守住内容绑定。 */
 export function assertDigestEquals(
   actual: ContentDigest,
   expected: ContentDigest,
@@ -294,6 +350,7 @@ export function assertDigestEquals(
   }
 }
 
+/** 由目标逐层细化到观察会话的层级作用域引用。 */
 export interface ScopeRef {
   readonly targetId: TargetId;
   readonly targetSnapshotId?: TargetSnapshotId;
@@ -303,6 +360,7 @@ export interface ScopeRef {
   readonly sessionId?: SessionId;
 }
 
+/** ScopeRef 允许出现的字段注册表，validateScope 和作用域比较共用。 */
 const SCOPE_FIELDS = new Set([
   "targetId",
   "targetSnapshotId",
@@ -312,6 +370,7 @@ const SCOPE_FIELDS = new Set([
   "sessionId",
 ]);
 
+/** 校验作用域字段集合、各级 ID 及父子层级完整性。 */
 export function validateScope(value: unknown, fieldName = "scope"): Readonly<ScopeRef> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new ContractViolation("INVALID_SCOPE", `${fieldName} must be an object`);
@@ -356,6 +415,7 @@ export function validateScope(value: unknown, fieldName = "scope"): Readonly<Sco
   return Object.freeze(result);
 }
 
+/** 要求两个完整作用域逐字段相同；跨记录关联校验时调用。 */
 export function assertSameScope(left: ScopeRef, right: ScopeRef): void {
   const a = validateScope(left, "left scope");
   const b = validateScope(right, "right scope");
@@ -366,6 +426,7 @@ export function assertSameScope(left: ScopeRef, right: ScopeRef): void {
   }
 }
 
+/** 要求多个作用域均到达同一个 attempt 层级；Observation 与 Evaluation 组合证据时调用。 */
 export function assertSameAttemptScope(...scopes: readonly ScopeRef[]): void {
   if (scopes.length < 2) return;
   const validated = scopes.map((scope, index) => validateScope(scope, `scope[${index}]`));
@@ -389,15 +450,17 @@ export function assertSameAttemptScope(...scopes: readonly ScopeRef[]): void {
   }
 }
 
+/** 指向不可变记录或生命周期投影的摘要引用，泛型只表达被引用类型。 */
 export interface Ref<T = unknown> {
   readonly schema: string;
   readonly id: StableId;
   readonly digest: ContentDigest;
   readonly revision?: number;
-  // T is deliberately phantom: Ref JSON has only the four fields above.
+  // T 只参与静态类型标记，序列化后的 Ref 仍只有上面的实际字段。
   readonly __referent?: T;
 }
 
+/** 校验普通或生命周期 Ref 的字段白名单、ID、摘要及 revision 规则。 */
 export function validateRef<T>(
   value: unknown,
   options: { readonly lifecycle?: boolean; readonly fieldName?: string } = {},
@@ -434,6 +497,7 @@ export function validateRef<T>(
   return Object.freeze(ref);
 }
 
+/** 采集源的墙钟、单调时钟和序列位置，用于证据时间边界判断。 */
 export interface SourceTime {
   readonly wallTime?: IsoDateTime | undefined;
   readonly monotonicNs?: number | undefined;
@@ -442,13 +506,20 @@ export interface SourceTime {
   readonly clockDomain: string;
 }
 
+/** 单项检查的三态结论。 */
 export type CheckOutcome = "PASS" | "FAIL" | "UNEVALUABLE";
+/** Gate 最终结论，与 CheckOutcome 使用同一三态词表。 */
 export type GateVerdict = CheckOutcome;
+/** 运行基础设施的健康状态，与业务检查结论分开表达。 */
 export type OperationalHealth = "HEALTHY" | "DEGRADED" | "FAILED";
+/** 证据或采集结果是否完整。 */
 export type EvidenceCompleteness = "COMPLETE" | "PARTIAL";
+/** 证据是否通过结构与完整性校验。 */
 export type EvidenceValidity = "VALID" | "INVALID";
+/** 证据源相对目标的信任等级。 */
 export type SourceTrust = "INDEPENDENT" | "COOPERATIVE" | "UNVERIFIED";
 
+/** 所有内容寻址不可变领域记录共享的作用域、时间、版本和摘要字段。 */
 export interface ImmutableRecordBase {
   readonly schema: string;
   readonly scope: ScopeRef;
@@ -457,6 +528,7 @@ export interface ImmutableRecordBase {
   readonly contentDigest: ContentDigest;
 }
 
+/** ArtifactStore 提交成功后返回的不可变产物元数据引用。 */
 export interface ArtifactRef extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.artifact/v1";
   readonly artifactId: ArtifactId;
@@ -471,6 +543,7 @@ export interface ArtifactRef extends ImmutableRecordBase {
   readonly state: "COMMITTED";
 }
 
+/** ArtifactStore 校验读取的授权用途分类。 */
 export type ArtifactReadPurpose =
   | "TASK_INPUT"
   | "INSPECTION"
@@ -478,6 +551,7 @@ export type ArtifactReadPurpose =
   | "JUDGE_INPUT"
   | "REPORT_INPUT";
 
+/** 冻结目标时记录的 Headless Driver 能力、版本和执行语义指纹。 */
 export interface DriverFingerprint {
   readonly driverCapabilityId: StableId;
   readonly dshEntrypointDigest: ContentDigest;
@@ -493,6 +567,7 @@ export interface DriverFingerprint {
   readonly profileMutationSemantics: string;
 }
 
+/** 用户提供并带摘要的 FULL_AGENT 目标描述，`planning/target.ts` 负责校验和冻结。 */
 export interface TargetDescriptor {
   readonly schema: "dsheval.mvp.target-descriptor/v1";
   readonly targetId: TargetId;
@@ -502,10 +577,10 @@ export interface TargetDescriptor {
   readonly dshHome: string;
   readonly profile: string;
   readonly targetIdentity: string;
-  readonly requestedScope: "FILESYSTEM_MVP";
   readonly contentDigest: ContentDigest;
 }
 
+/** 目标源码、入口、配置和运行驱动被内容寻址冻结后的快照。 */
 export interface TargetSnapshot extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.target-snapshot/v1";
   readonly targetSnapshotId: TargetSnapshotId;
@@ -524,6 +599,7 @@ export interface TargetSnapshot extends ImmutableRecordBase {
   readonly secretRefNames: readonly string[];
 }
 
+/** Inspector 从 TargetSnapshot 已提交产物归一化出的规划事实。 */
 export interface InspectionSnapshot extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.inspection/v1";
   readonly inspectionId: StableId<"InspectionId">;
@@ -541,18 +617,86 @@ export interface InspectionSnapshot extends ImmutableRecordBase {
   readonly sourceArtifactRefs: readonly Ref<ArtifactRef>[];
 }
 
+/** Pack 中一项可执行检查及其 Judge 与证据模板绑定。 */
 export interface CheckDefinition {
   readonly checkId: StableId<"CheckId">;
-  readonly type: "PROTOCOL" | "FILE_STATE" | "PATH_SECURITY";
+  /** Judge 能力类型，由 Dataset 声明；Core 不枚举具体评测方法。 */
+  readonly type: string;
   readonly judgeId: VersionedAssetId<"JudgeId">;
   readonly evidenceContractTemplateId: VersionedAssetId<"EvidenceContractTemplateId">;
   readonly required: boolean;
   readonly hardGate: boolean;
 }
 
+/** 以 Label 为中心的评测请求；Dataset ID 用于在可用候选间消除歧义。 */
+export interface EvaluationRequest {
+  readonly schema: "dsheval.mvp.evaluation-request/v1";
+  readonly requestId: StableId<"EvaluationRequestId">;
+  readonly requestedLabelIds: readonly LabelId[];
+  readonly preferredDatasetIds: readonly DatasetId[];
+  readonly excludeCaseIds: readonly VersionedAssetId<"CatalogCaseId">[];
+}
+
+/** Dataset 对一个 Label、Metric、Check 和证据要求的原子绑定。 */
+export interface LabelBinding {
+  readonly labelId: LabelId;
+  readonly metricId: MetricId;
+  readonly checkId: StableId<"CheckId">;
+  readonly metricParameters: JsonObject;
+  readonly requiredEvidenceTypes: readonly string[];
+  readonly required: boolean;
+  readonly hardGate: boolean;
+}
+
+/** 参与 Label 选择的 Dataset Catalog 投影。 */
+export interface DatasetCatalogEntry {
+  readonly datasetId: DatasetId;
+  readonly labelBindings: readonly LabelBinding[];
+  readonly caseIds: readonly VersionedAssetId<"CatalogCaseId">[];
+  readonly environmentId: EnvironmentDefinitionId;
+  readonly environmentObserverSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly runtimeSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly judgeAssetId: VersionedAssetId<"JudgeAssetId">;
+}
+
+/** 参与 Dataset 引用完整性检查的 Case Catalog 投影。 */
+export interface CaseCatalogEntry {
+  readonly caseId: VersionedAssetId<"CatalogCaseId">;
+}
+
+/** 参与 Dataset 环境绑定检查的 Environment Catalog 投影。 */
+export interface EnvironmentCatalogEntry {
+  readonly environmentId: EnvironmentDefinitionId;
+  readonly observerSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+}
+
+/** 一项已选择 Case 的 Dataset、Label、环境、采集源和 Judge 执行绑定。 */
+export interface EvaluationUnitSelection {
+  readonly caseId: VersionedAssetId<"CatalogCaseId">;
+  readonly datasetId: DatasetId;
+  readonly labelBindings: readonly LabelBinding[];
+  readonly environmentId: EnvironmentDefinitionId;
+  readonly environmentObserverSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly runtimeSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly judgeAssetId: VersionedAssetId<"JudgeAssetId">;
+  readonly checkIds: readonly StableId<"CheckId">[];
+}
+
+/** Label 请求经 Catalog 确定性解析后的带摘要结果。 */
+export interface CatalogResolution {
+  readonly schema: "dsheval.mvp.catalog-resolution/v1";
+  readonly requestId: StableId<"EvaluationRequestId">;
+  readonly selectedLabelIds: readonly LabelId[];
+  readonly selectedDatasetIds: readonly DatasetId[];
+  readonly units: readonly EvaluationUnitSelection[];
+  readonly contentDigest: ContentDigest;
+}
+
+/** ObservationPlan 对单个 Sensor 实现、资源、信任与预算的要求。 */
 export interface SourceRequirement {
   readonly sourceRequirementId: VersionedAssetId<"SourceRequirementId">;
-  readonly sourceType: "DSH_PROBE" | "FILESYSTEM";
+  /** 观测源类型，例如 DSH_PROBE、FILESYSTEM、DATABASE；由 Observer 注册表解释。 */
+  readonly sourceType: string;
   readonly sensorImplementationId: StableId<"SensorImplementationId">;
   readonly sensorImplementationVersion: string;
   readonly sensorCapabilityDigest: ContentDigest;
@@ -565,10 +709,15 @@ export interface SourceRequirement {
   readonly watermarkDefinition: JsonValue;
 }
 
-export interface FilesystemPack {
-  readonly schema: "dsheval.mvp.filesystem-pack/v1";
+/** Catalog 校验后交给 Planner 的单 Dataset 原子执行包。 */
+export interface EvaluationPack {
+  readonly schema: "dsheval.mvp.evaluation-pack/v1";
   readonly packId: StableId<"PackId">;
   readonly version: string;
+  readonly request: EvaluationRequest;
+  readonly resolution: CatalogResolution;
+  readonly dataset: JsonObject;
+  readonly metricPool: JsonObject;
   readonly scenario: JsonObject;
   readonly checks: readonly CheckDefinition[];
   readonly judges: readonly JsonObject[];
@@ -577,6 +726,7 @@ export interface FilesystemPack {
   readonly contentDigest: ContentDigest;
 }
 
+/** 应用启动时冻结的路径、预算、安全级别和版本配置。 */
 export interface ConfigSnapshot {
   readonly schema: "dsheval.mvp.config/v1";
   readonly configId: StableId<"ConfigId">;
@@ -605,11 +755,17 @@ export interface ConfigSnapshot {
   readonly contentDigest: ContentDigest;
 }
 
+/** EvaluationPlan 内唯一 Case 的任务、环境、路径和检查执行参数。 */
 export interface CasePlan {
   readonly casePlanId: StableId<"CasePlanId">;
   readonly order: 1;
   readonly scenarioId: VersionedAssetId<"ScenarioId">;
+  readonly datasetId: DatasetId;
+  readonly labelBindings: readonly LabelBinding[];
   readonly environmentId: VersionedAssetId<"EnvironmentDefinitionId">;
+  readonly environmentObserverSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly runtimeSourceRequirementId: VersionedAssetId<"SourceRequirementId">;
+  readonly judgeAssetId: VersionedAssetId<"JudgeAssetId">;
   readonly agentTaskArtifactRef: Ref<ArtifactRef>;
   readonly visibleInputArtifactRefs: readonly Ref<ArtifactRef>[];
   readonly seedSpec: JsonObject;
@@ -621,21 +777,26 @@ export interface CasePlan {
   readonly checkIds: readonly StableId<"CheckId">[];
 }
 
+/** 单项 Check 对 Judge 和 EvidenceContract 的冻结引用。 */
 export interface CheckPlan {
   readonly checkId: StableId<"CheckId">;
-  readonly type: "PROTOCOL" | "FILE_STATE" | "PATH_SECURITY";
+  /** Judge 能力类型，原样冻结自 Dataset 的 CheckDefinition。 */
+  readonly type: string;
   readonly required: boolean;
   readonly hardGate: boolean;
   readonly judgeId: VersionedAssetId<"JudgeId">;
   readonly evidenceContractRef: Ref<EvidenceContract>;
 }
 
+/** Planner 输出的评测总计划，绑定目标、Catalog 解析、Case、Checks 与预算。 */
 export interface EvaluationPlan extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.evaluation-plan/v1";
   readonly evaluationPlanId: StableId<"EvaluationPlanId">;
   readonly targetSnapshotRef: Ref<TargetSnapshot>;
   readonly inspectionRef: Ref<InspectionSnapshot>;
-  readonly packRef: Ref<FilesystemPack>;
+  readonly packRef: Ref<EvaluationPack>;
+  readonly request: EvaluationRequest;
+  readonly catalogResolution: CatalogResolution;
   readonly casePlan: CasePlan;
   readonly checkPlans: readonly CheckPlan[];
   readonly budget: JsonValue;
@@ -645,6 +806,7 @@ export interface EvaluationPlan extends ImmutableRecordBase {
   readonly status: "FROZEN";
 }
 
+/** Observation Coordinator 执行的采集源、边界、稳定窗口与内容策略。 */
 export interface ObservationPlan extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.observation-plan/v1";
   readonly observationPlanId: StableId<"ObservationPlanId">;
@@ -657,12 +819,13 @@ export interface ObservationPlan extends ImmutableRecordBase {
   readonly semanticDigest: ContentDigest;
 }
 
+/** Judge 可消费证据的事实类型、来源、信任、时间边界和缺失语义契约。 */
 export interface EvidenceContract extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.evidence-contract/v1";
   readonly evidenceContractId: StableId<"EvidenceContractId">;
   readonly checkId: StableId<"CheckId">;
   readonly requiredFactTypes: readonly string[];
-  readonly allowedSourceTypes: readonly ("DSH_PROBE" | "FILESYSTEM")[];
+  readonly allowedSourceTypes: readonly string[];
   readonly minimumTrust: SourceTrust;
   readonly minimumCompleteness: EvidenceCompleteness;
   readonly validityRequired: boolean;
@@ -673,18 +836,20 @@ export interface EvidenceContract extends ImmutableRecordBase {
   readonly semanticDigest: ContentDigest;
 }
 
+/** 规划输入无法满足时返回的稳定、已脱敏诊断项。 */
 export interface PlanGap {
   readonly code: string;
   readonly messageRedacted: string;
   readonly affectedIds: readonly AssetIdentifier[];
 }
 
+/** Planner 的业务结果：完整冻结计划或一组不可满足缺口。 */
 export type PlanBuildResult =
   | {
       readonly status: "FROZEN";
       readonly evaluationPlan: EvaluationPlan;
       readonly observationPlan: ObservationPlan;
-      readonly evidenceContracts: readonly [EvidenceContract, EvidenceContract, EvidenceContract];
+      readonly evidenceContracts: readonly EvidenceContract[];
     }
   | {
       readonly status: "UNSATISFIABLE";
@@ -692,14 +857,16 @@ export type PlanBuildResult =
       readonly failureDrafts: readonly FailureDraft[];
     };
 
+/** Sensor 注册表条目；Planner 用三元版本与能力摘要匹配 SourceRequirement。 */
 export interface SensorAdapterDescriptor {
   readonly implementationId: StableId<"SensorImplementationId">;
   readonly implementationVersion: string;
   readonly capabilityDigest: ContentDigest;
-  readonly sourceType: "DSH_PROBE" | "FILESYSTEM";
+  readonly sourceType: string;
   readonly capabilities: readonly string[];
 }
 
+/** EvaluationRun 生命周期状态。 */
 export type RunState =
   | "CREATED"
   | "PREFLIGHTING"
@@ -708,7 +875,9 @@ export type RunState =
   | "FINISHED"
   | "FAILED"
   | "CANCELLED";
+/** EvaluationCase 生命周期状态。 */
 export type CaseState = "PENDING" | "RUNNING" | "EVALUATING" | "FINISHED" | "ERRORED" | "ABORTED";
+/** ExecutionAttempt 生命周期及目标、超时、环境和 Harness 终态。 */
 export type AttemptState =
   | "PENDING"
   | "RUNNING"
@@ -718,6 +887,7 @@ export type AttemptState =
   | "HARNESS_ERROR"
   | "ENVIRONMENT_ERROR"
   | "CANCELLED";
+/** EnvironmentInstance 从创建到清理或隔离的生命周期状态。 */
 export type EnvironmentState =
   | "CREATED"
   | "PREPARED"
@@ -728,6 +898,7 @@ export type EnvironmentState =
   | "CLEANED"
   | "QUARANTINED"
   | "CLEANUP_FAILED";
+/** ObservationSession 从计划到封存的生命周期状态。 */
 export type ObservationSessionState =
   | "PLANNED"
   | "BASELINING"
@@ -736,6 +907,7 @@ export type ObservationSessionState =
   | "DRAINING"
   | "SEALED"
   | "FAILED";
+/** 所有生命周期投影状态的联合。 */
 export type LifecycleState =
   | RunState
   | CaseState
@@ -743,6 +915,7 @@ export type LifecycleState =
   | EnvironmentState
   | ObservationSessionState;
 
+/** 受状态机约束的生命周期聚合 schema 联合。 */
 export type LifecycleAggregateSchema =
   | "dsheval.mvp.run/v1"
   | "dsheval.mvp.case/v1"
@@ -750,6 +923,7 @@ export type LifecycleAggregateSchema =
   | "dsheval.mvp.environment/v1"
   | "dsheval.mvp.observation-session/v1";
 
+/** 各生命周期聚合的合法后继状态注册表，由仓储提交状态迁移时校验。 */
 const LEGAL_TRANSITIONS: Readonly<Record<LifecycleAggregateSchema, Readonly<Record<string, readonly string[]>>>> = {
   "dsheval.mvp.run/v1": {
     CREATED: ["PREFLIGHTING", "FAILED", "CANCELLED"],
@@ -807,10 +981,12 @@ const LEGAL_TRANSITIONS: Readonly<Record<LifecycleAggregateSchema, Readonly<Reco
   },
 };
 
+/** 判断 schema 是否属于受控生命周期聚合；仓储验证外部投影时调用。 */
 export function isLifecycleSchema(schema: string): schema is LifecycleAggregateSchema {
   return Object.prototype.hasOwnProperty.call(LEGAL_TRANSITIONS, schema);
 }
 
+/** 根据 LEGAL_TRANSITIONS 拒绝非法状态迁移；RepositoryPort 实现提交 transition 前调用。 */
 export function assertLegalTransition(
   schema: LifecycleAggregateSchema,
   fromState: string,
@@ -825,6 +1001,7 @@ export function assertLegalTransition(
   }
 }
 
+/** 所有可变生命周期投影共享的聚合身份、状态、revision 和失败引用。 */
 export interface LifecycleProjectionBase<State extends LifecycleState = LifecycleState> {
   readonly schema: LifecycleAggregateSchema;
   readonly aggregateId: StableId;
@@ -837,6 +1014,7 @@ export interface LifecycleProjectionBase<State extends LifecycleState = Lifecycl
   readonly projectionDigest: ContentDigest;
 }
 
+/** 一次评测运行的顶层投影，串联计划、Case、Gate 与环境终态。 */
 export interface EvaluationRun extends LifecycleProjectionBase<RunState> {
   readonly schema: "dsheval.mvp.run/v1";
   readonly runId: RunId;
@@ -849,6 +1027,7 @@ export interface EvaluationRun extends LifecycleProjectionBase<RunState> {
   readonly environmentFinalState?: EnvironmentState;
 }
 
+/** 运行内唯一 Case 的生命周期投影及其 Attempt、CheckResult 关联。 */
 export interface EvaluationCase extends LifecycleProjectionBase<CaseState> {
   readonly schema: "dsheval.mvp.case/v1";
   readonly caseId: CaseId;
@@ -858,6 +1037,7 @@ export interface EvaluationCase extends LifecycleProjectionBase<CaseState> {
   readonly checkResultRefs: readonly Ref<CheckResult>[];
 }
 
+/** 目标进程一次执行尝试的生命周期、工作路径、采集运行 ID 和输出产物。 */
 export interface ExecutionAttempt extends LifecycleProjectionBase<AttemptState> {
   readonly schema: "dsheval.mvp.attempt/v1";
   readonly attemptId: AttemptId;
@@ -873,6 +1053,7 @@ export interface ExecutionAttempt extends LifecycleProjectionBase<AttemptState> 
   readonly stderrArtifactRef?: Ref<ArtifactRef>;
 }
 
+/** 每次 Attempt 对应的隔离环境实例、重置代次与快照引用。 */
 export interface EnvironmentInstance extends LifecycleProjectionBase<EnvironmentState> {
   readonly schema: "dsheval.mvp.environment/v1";
   readonly environmentInstanceId: StableId<"EnvironmentInstanceId">;
@@ -884,6 +1065,7 @@ export interface EnvironmentInstance extends LifecycleProjectionBase<Environment
   readonly baselineSnapshotRef?: Ref<FileSnapshot>;
 }
 
+/** 对目标或环境控制动作的不可变审计记录。 */
 export interface ControlEvent extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.control-event/v1";
   readonly controlEventId: StableId<"ControlEventId">;
@@ -900,6 +1082,7 @@ export interface ControlEvent extends ImmutableRecordBase {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** SeedManifest 中单个文件系统资源的路径、类型、摘要和目标权限。 */
 export interface ResourceEntry {
   readonly portablePath: PortablePath;
   readonly entryType: "FILE" | "DIRECTORY" | "SYMLINK" | "OTHER";
@@ -908,6 +1091,7 @@ export interface ResourceEntry {
   readonly readOnlyForTarget: boolean;
 }
 
+/** 环境播种完成后的资源清单，供执行与重置验证绑定初始状态。 */
 export interface SeedManifest extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.seed-manifest/v1";
   readonly seedManifestId: StableId<"SeedManifestId">;
@@ -917,6 +1101,7 @@ export interface SeedManifest extends ImmutableRecordBase {
   readonly completedAt: IsoDateTime;
 }
 
+/** Run 启动前身份、根目录、网络、遥测和 Probe 顺序的安全检查记录。 */
 export interface SecurityPreflight extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.security-preflight/v1";
   readonly preflightId: StableId<"SecurityPreflightId">;
@@ -933,6 +1118,7 @@ export interface SecurityPreflight extends ImmutableRecordBase {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** 环境重置后干净状态与采集完整性的验证记录。 */
 export interface ResetVerification extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.reset-verification/v1";
   readonly verificationId: StableId<"ResetVerificationId">;
@@ -945,6 +1131,7 @@ export interface ResetVerification extends ImmutableRecordBase {
   readonly differenceSummary: JsonValue;
 }
 
+/** VM 全局执行槽租约，运行时用它避免并发污染共享环境。 */
 export interface LeaseRecord extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.lease/v1";
   readonly leaseId: StableId<"LeaseId">;
@@ -957,10 +1144,11 @@ export interface LeaseRecord extends ImmutableRecordBase {
   readonly releasedAt?: IsoDateTime;
 }
 
+/** 已实例化采集源的实现、能力、信任、资源和已知盲区描述。 */
 export interface SourceDescriptor extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.source/v1";
   readonly sourceId: StableId<"SourceId">;
-  readonly sourceType: "DSH_PROBE" | "FILESYSTEM";
+  readonly sourceType: string;
   readonly externalSchema: string;
   readonly collectorName: string;
   readonly collectorVersion: string;
@@ -973,6 +1161,7 @@ export interface SourceDescriptor extends ImmutableRecordBase {
   readonly knownBlindSpots: readonly string[];
 }
 
+/** 采集序列中缺口或无法确认区间的结构化说明。 */
 export interface CollectionGap {
   readonly kind: string;
   readonly firstMissingSeq?: number;
@@ -981,6 +1170,7 @@ export interface CollectionGap {
   readonly detail?: JsonValue;
 }
 
+/** 单个 Source 关闭后的数量、水位、缺口、截断和健康汇总。 */
 export interface CollectionStatus extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.collection-status/v1";
   readonly collectionStatusId: StableId<"CollectionStatusId">;
@@ -998,6 +1188,7 @@ export interface CollectionStatus extends ImmutableRecordBase {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** Observation 封存前必须闭合的一项完成条件及其支持引用。 */
 export interface CompletionLedgerItem {
   readonly kind:
     | "TARGET_TERMINATION"
@@ -1012,6 +1203,7 @@ export interface CompletionLedgerItem {
   readonly supportingRefs: readonly Ref[];
 }
 
+/** 固定六项的 Observation 完成账本，Coordinator 据此决定能否封存证据。 */
 export type CompletionLedger = readonly [
   CompletionLedgerItem,
   CompletionLedgerItem,
@@ -1021,6 +1213,7 @@ export type CompletionLedger = readonly [
   CompletionLedgerItem,
 ];
 
+/** 观察会话生命周期投影，串联 Source、边界时间、采集状态与完成账本。 */
 export interface ObservationSession extends LifecycleProjectionBase<ObservationSessionState> {
   readonly schema: "dsheval.mvp.observation-session/v1";
   readonly observationSessionId: StableId<"ObservationSessionId">;
@@ -1037,6 +1230,7 @@ export interface ObservationSession extends LifecycleProjectionBase<ObservationS
   readonly completionLedger?: CompletionLedger;
 }
 
+/** RawObservation 两种载荷表示共享的来源、时间和原始摘要字段。 */
 interface RawObservationCommon extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.raw-observation/v1";
   readonly observationId: StableId<"ObservationId">;
@@ -1048,12 +1242,14 @@ interface RawObservationCommon extends ImmutableRecordBase {
   readonly rawDigest: ContentDigest;
 }
 
+/** Sensor 原始观察；小载荷内联，大载荷以 ArtifactRef 引用。 */
 export type RawObservation = RawObservationCommon &
   (
     | { readonly payloadInline: JsonValue; readonly payloadArtifactRef?: never }
     | { readonly payloadInline?: never; readonly payloadArtifactRef: Ref<ArtifactRef> }
   );
 
+/** 文件系统快照中的单个条目及读取、链接和根边界事实。 */
 export interface FileEntry {
   readonly portablePath: PortablePath;
   readonly entryType: "FILE" | "DIRECTORY" | "SYMLINK" | "OTHER";
@@ -1065,12 +1261,14 @@ export interface FileEntry {
   readonly readError?: string;
 }
 
+/** 扫描文件系统时单个路径的已脱敏读取错误。 */
 export interface FileReadError {
   readonly portablePath: PortablePath;
   readonly reasonCode: string;
   readonly messageRedacted: string;
 }
 
+/** 某个观察阶段的完整目录快照和独立 snapshotDigest。 */
 export interface FileSnapshot extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.file-snapshot/v1";
   readonly snapshotId: StableId<"FileSnapshotId">;
@@ -1085,6 +1283,7 @@ export interface FileSnapshot extends ImmutableRecordBase {
   readonly snapshotDigest: ContentDigest;
 }
 
+/** 前后文件快照间单个路径的变化类型和两侧条目。 */
 export interface FileEntryChange {
   readonly portablePath: PortablePath;
   readonly kind:
@@ -1099,6 +1298,7 @@ export interface FileEntryChange {
   readonly after?: FileEntry;
 }
 
+/** 比较两个 FileSnapshot 得到的分类差异记录。 */
 export interface FileDiff extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.file-diff/v1";
   readonly diffId: StableId<"FileDiffId">;
@@ -1112,18 +1312,10 @@ export interface FileDiff extends ImmutableRecordBase {
   readonly diffDigest: ContentDigest;
 }
 
-export interface DshProbeEvent {
-  readonly schema: "dsh-eval.probe/v1";
-  readonly runId: SourceRunId;
-  readonly probeSeq: number;
-  readonly at: string;
-  readonly monotonicNs: number;
-  readonly pid: number;
-  readonly kind: string;
-  readonly data: JsonObject;
-  readonly [unknownField: string]: JsonValue;
-}
-
+/**
+ * Environment Controller 为 Observation 准备的最小 Sensor 授权绑定；
+ * `readCapabilityToken` 仅在进程内交给适配器执行读取。
+ */
 export interface PreparedObserverBinding {
   readonly bindingId: StableId<"PreparedObserverBindingId">;
   readonly environmentInstanceId: StableId<"EnvironmentInstanceId">;
@@ -1135,11 +1327,12 @@ export interface PreparedObserverBinding {
   readonly sensorCapabilityDigest: ContentDigest;
   readonly allowedOperations: readonly ("READ" | "SNAPSHOT" | "DRAIN")[];
   readonly grantDigest: ContentDigest;
-  /** Process-only capability. It must never be serialized, logged, or digested. */
+  /** 仅供进程内调用的能力令牌，序列化、日志与摘要均不得包含它。 */
   readonly readCapabilityToken: string;
   readonly expiresAt: IsoDateTime;
 }
 
+/** Observation Coordinator 对正常 Case 采集或重置后验证的判别请求。 */
 export type ObservationExecutionRequest =
   | {
       readonly kind: "CASE_RUN";
@@ -1158,12 +1351,14 @@ export type ObservationExecutionRequest =
       readonly sensorRegistryDigest: ContentDigest;
     };
 
+/** 证据事实可支持的结论权限级别。 */
 export type EvidenceAuthority =
   | "COMMITTED"
   | "ATTEMPTED"
   | "ENVIRONMENT_STATE"
   | "DIAGNOSTIC";
 
+/** 证据覆盖的墙钟与来源序列区间。 */
 export interface EvidenceTimeRange {
   readonly startedAt?: IsoDateTime;
   readonly endedAt?: IsoDateTime;
@@ -1171,6 +1366,7 @@ export interface EvidenceTimeRange {
   readonly sourceSeqEnd?: number;
 }
 
+/** 从原始观察归一化出的可审计事实及其来源、权限和质量属性。 */
 export interface EvidenceRecord extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.evidence/v1";
   readonly evidenceId: StableId<"EvidenceId">;
@@ -1188,6 +1384,7 @@ export interface EvidenceRecord extends ImmutableRecordBase {
   readonly trust: SourceTrust;
 }
 
+/** Attempt 的已封存证据集合，并记录输入消费与失败状态。 */
 export interface EvidenceBundle extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.evidence-bundle/v1";
   readonly bundleId: StableId<"EvidenceBundleId">;
@@ -1202,6 +1399,7 @@ export interface EvidenceBundle extends ImmutableRecordBase {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** 按 EvidenceContract 对单项 Check 收敛出的授权证据与缺口。 */
 export interface EvidenceClosure extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.evidence-closure/v1";
   readonly closureId: StableId<"EvidenceClosureId">;
@@ -1216,6 +1414,7 @@ export interface EvidenceClosure extends ImmutableRecordBase {
   readonly authorizedEvidenceRefs: readonly Ref<EvidenceRecord>[];
 }
 
+/** Judge 产生的单条人类可读发现及其证据引用。 */
 export interface Finding extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.finding/v1";
   readonly findingId: StableId<"FindingId">;
@@ -1227,6 +1426,7 @@ export interface Finding extends ImmutableRecordBase {
   readonly hardGate: boolean;
 }
 
+/** Judge 对 EvidenceClosure 的完整执行记录、结论与 Findings。 */
 export interface JudgementRecord extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.judgement/v1";
   readonly judgementId: StableId<"JudgementId">;
@@ -1242,6 +1442,7 @@ export interface JudgementRecord extends ImmutableRecordBase {
   readonly failureRefs: readonly Ref<FailureRecord>[];
 }
 
+/** 单项 Check 的最终三态结果及硬门禁属性。 */
 export interface CheckResult extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.check-result/v1";
   readonly checkResultId: StableId<"CheckResultId">;
@@ -1253,6 +1454,7 @@ export interface CheckResult extends ImmutableRecordBase {
   readonly reasonCodes: readonly string[];
 }
 
+/** 聚合所有 CheckResult 后按固定规则产生的运行门禁决策。 */
 export interface GateDecision extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.gate/v1";
   readonly gateDecisionId: StableId<"GateDecisionId">;
@@ -1264,6 +1466,7 @@ export interface GateDecision extends ImmutableRecordBase {
   readonly ruleVersion: string;
 }
 
+/** 面向持久化与渲染的最终报告索引，串联运行全链路记录与产物。 */
 export interface EvaluationReport extends ImmutableRecordBase {
   readonly schema: "dsheval.mvp.report/v1";
   readonly reportId: StableId<"ReportId">;
@@ -1284,6 +1487,7 @@ export interface EvaluationReport extends ImmutableRecordBase {
   readonly artifactRefs: readonly Ref<ArtifactRef>[];
 }
 
+/** RepositoryPort.appendTransition 接受的乐观并发状态迁移命令。 */
 export interface StateTransition<Projection extends LifecycleProjectionBase = LifecycleProjectionBase> {
   readonly aggregateRef: Ref<Projection> & { readonly revision: number };
   readonly expectedRevision: number;
@@ -1296,6 +1500,7 @@ export interface StateTransition<Projection extends LifecycleProjectionBase = Li
   readonly nextProjection: Projection;
 }
 
+/** 每次成功状态迁移对应的不可变审计事件。 */
 export interface LifecycleEvent {
   readonly schema: "dsheval.mvp.lifecycle-event/v1";
   readonly eventId: StableId<"LifecycleEventId">;
@@ -1314,6 +1519,7 @@ export interface LifecycleEvent {
   readonly contentDigest: ContentDigest;
 }
 
+/** 为尚无 projectionDigest 的生命周期投影计算摘要并冻结。 */
 export function withProjectionDigest<T extends object>(
   value: T,
 ): Readonly<T & { readonly projectionDigest: ContentDigest }> {
@@ -1326,6 +1532,7 @@ export function withProjectionDigest<T extends object>(
   return Object.freeze({ ...value, projectionDigest: digestValue(value) });
 }
 
+/** 从不可变领域记录的 schema、稳定 ID 和内容摘要创建 Ref。 */
 export function refForImmutable<T extends { readonly schema: string; readonly contentDigest: ContentDigest }>(
   record: T,
   id: StableId,
@@ -1333,6 +1540,7 @@ export function refForImmutable<T extends { readonly schema: string; readonly co
   return Object.freeze({ schema: record.schema, id, digest: record.contentDigest });
 }
 
+/** 从生命周期投影创建带 revision 的 Ref，供仓储乐观并发使用。 */
 export function refForProjection<T extends LifecycleProjectionBase>(
   projection: T,
 ): Readonly<Ref<T> & { readonly revision: number }> {
@@ -1344,6 +1552,7 @@ export function refForProjection<T extends LifecycleProjectionBase>(
   });
 }
 
+/** 从已提交 ArtifactRef 创建轻量不可变 Ref。 */
 export function refForArtifact(
   artifact: ArtifactRef,
 ): Readonly<Ref<ArtifactRef>> {

@@ -1,3 +1,14 @@
+/**
+ * 文件职责：通过只读、仅回环 HTTP 服务展示运行中的 status.html 和最终 report.html。
+ *
+ * 核心流程：固定并验证记录/报告 Root，使用 O_NOFOLLOW 读取 HTML，核对文件身份和
+ * 字节上限，根据 WAITING/RUNNING/FINAL 状态返回页面，并为所有响应添加安全头。
+ *
+ * 与其他文件的交互：`app/viewer-cli.ts` 调用 startViewer/closeViewer；Workflow 原子
+ * 更新 status.html 并提交 report.html；Viewer 只读取这些已提交页面。
+ *
+ * 公开接口：ViewerHost、ViewerOptions、ViewerHandle、startViewer 和 closeViewer。
+ */
 import { constants as fsConstants, type Stats } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import {
@@ -10,12 +21,14 @@ import path from "node:path";
 
 import { validateStableId } from "../core/models.js";
 
+/** Viewer 的安全默认值、硬字节上限、刷新周期和允许监听的回环地址。 */
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 4173;
 const DEFAULT_MAX_HTML_BYTES = 8 * 1024 * 1024;
 const MAX_HTML_BYTES = 64 * 1024 * 1024;
 const REFRESH_SECONDS = 2;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1"]);
+/** API 入口允许出现的完整参数集合。 */
 const VIEWER_OPTION_KEYS = new Set([
   "runRoot",
   "reportRoot",
@@ -25,6 +38,7 @@ const VIEWER_OPTION_KEYS = new Set([
   "maxHtmlBytes",
 ]);
 
+/** 所有 Viewer 响应共用的无缓存、无脚本和同源安全头。 */
 const RESPONSE_HEADERS = Object.freeze({
   "Cache-Control": "no-store, max-age=0",
   "Content-Security-Policy":
@@ -38,8 +52,10 @@ const RESPONSE_HEADERS = Object.freeze({
   "X-Frame-Options": "SAMEORIGIN",
 });
 
+/** Viewer 唯一允许监听的 IPv4/IPv6 回环地址。 */
 export type ViewerHost = "127.0.0.1" | "::1";
 
+/** 启动 Viewer 所需的 Run 与文件边界配置。 */
 export interface ViewerOptions {
   readonly runRoot: string;
   readonly reportRoot: string;
@@ -50,14 +66,17 @@ export interface ViewerOptions {
   readonly maxHtmlBytes?: number;
 }
 
+/** 已监听 Viewer 的可观察地址和幂等关闭函数。 */
 export interface ViewerHandle {
   readonly host: ViewerHost;
   readonly port: number;
   readonly runId: string;
   readonly url: string;
+  /** 关闭底层 Server；重复调用保持幂等。 */
   close(): Promise<void>;
 }
 
+/** Root 初次固定时保存的绝对路径、realpath 和 inode 身份。 */
 interface RootBoundary {
   readonly absolutePath: string;
   readonly canonicalPath: string;
@@ -65,6 +84,7 @@ interface RootBoundary {
   readonly inode: number;
 }
 
+/** 每个 HTTP 请求共享的已验证只读上下文。 */
 interface ViewerContext {
   readonly runRoot: RootBoundary;
   readonly reportRoot: RootBoundary;
@@ -72,31 +92,39 @@ interface ViewerContext {
   readonly maxHtmlBytes: number;
 }
 
+/** Root、Run 或文件路径违反 Viewer 边界时使用的内部错误。 */
 class UnsafeViewerPathError extends Error {
+  /** 保存可转换为安全错误页的路径诊断。 */
   public constructor(message: string) {
     super(message);
     this.name = "UnsafeViewerPathError";
   }
 }
 
+/** 文件在读取期间更换 inode 或元数据时使用的内部错误。 */
 class ViewerFileChangedError extends Error {
+  /** 由固定大小读取的前后身份校验创建。 */
   public constructor() {
     super("viewer input changed while it was being read");
     this.name = "ViewerFileChangedError";
   }
 }
 
+/** HTML 超过配置上限时使用的内部错误。 */
 class ViewerFileTooLargeError extends Error {
+  /** 由读取前元数据或读取结果大小校验创建。 */
   public constructor() {
     super("viewer input exceeds the configured byte limit");
     this.name = "ViewerFileTooLargeError";
   }
 }
 
+/** 将未知 API 入参收窄为普通对象。 */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** 严格校验 ViewerOptions 对象字段，拒绝静默接受拼写错误。 */
 function assertOptions(value: unknown): asserts value is ViewerOptions {
   if (!isRecord(value)) throw new TypeError("viewer options must be an object");
   const unknown = Object.keys(value).filter((key) => !VIEWER_OPTION_KEYS.has(key));
@@ -105,6 +133,7 @@ function assertOptions(value: unknown): asserts value is ViewerOptions {
   }
 }
 
+/** 校验并返回规范化的非根绝对路径参数。 */
 function validateRootArgument(value: unknown, name: string): string {
   if (typeof value !== "string" || value.length === 0 || value.includes("\0")) {
     throw new TypeError(`${name} must be a non-empty absolute path`);
@@ -115,6 +144,7 @@ function validateRootArgument(value: unknown, name: string): string {
   return value;
 }
 
+/** 校验端口与字节上限等安全整数范围。 */
 function validateInteger(
   value: unknown,
   name: string,
@@ -127,6 +157,7 @@ function validateInteger(
   return Number(value);
 }
 
+/** 固定一个已存在目录的 canonical path 和 inode，供后续每次请求复核。 */
 async function establishRoot(value: unknown, name: string): Promise<RootBoundary> {
   const absolutePath = validateRootArgument(value, name);
   let metadata: Stats;
@@ -149,6 +180,7 @@ async function establishRoot(value: unknown, name: string): Promise<RootBoundary
   };
 }
 
+/** 每次读取前确认 Root 仍是启动时固定的同一真实目录。 */
 async function verifyRoot(root: RootBoundary): Promise<void> {
   let metadata: Stats;
   try {
@@ -167,10 +199,12 @@ async function verifyRoot(root: RootBoundary): Promise<void> {
   }
 }
 
+/** 判断未知文件系统错误是否表示路径尚未产生。 */
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";
 }
 
+/** 通过已打开句柄读取固定长度文件，并验证读取前后身份未变化。 */
 async function readFixedSizeFile(file: string, expected: Stats, maxBytes: number): Promise<Buffer> {
   if (expected.size > maxBytes) throw new ViewerFileTooLargeError();
   const handle = await open(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
@@ -212,6 +246,7 @@ async function readFixedSizeFile(file: string, expected: Stats, maxBytes: number
   }
 }
 
+/** 在指定 Root 内尝试安全读取一次 Run HTML；缺失时返回 undefined。 */
 async function readViewerHtmlOnce(
   root: RootBoundary,
   runId: string,
@@ -271,6 +306,7 @@ async function readViewerHtmlOnce(
   return bytes;
 }
 
+/** 读取 status 或 report 页面，并把并发原子替换转换为一次有界重试。 */
 async function readViewerHtml(
   root: RootBoundary,
   runId: string,
@@ -285,6 +321,7 @@ async function readViewerHtml(
   }
 }
 
+/** 转义 Viewer 自己生成页面中的动态文本。 */
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -294,6 +331,7 @@ function escapeHtml(value: string): string {
     .replaceAll("'", "&#39;");
 }
 
+/** 生成 WAITING/RUNNING 状态的紧凑自动刷新页面。 */
 function viewerShell(runId: string, state: "WAITING" | "RUNNING"): string {
   const running = state === "RUNNING";
   const label = running ? "LIVE RUN" : "WAITING FOR RUN";
@@ -309,10 +347,12 @@ function viewerShell(runId: string, state: "WAITING" | "RUNNING"): string {
 </style></head><body><header><span class="brand">D</span><strong>DSHEval Observatory</strong><span class="state">${label}</span><span class="meta"><code>${escapeHtml(runId)}</code><small>${detail}</small></span></header>${frame}</body></html>\n`;
 }
 
+/** 生成输入错误或读取故障页面，可选自动刷新。 */
 function messagePage(title: string, detail: string, refresh: boolean): string {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${refresh ? `<meta http-equiv="refresh" content="${REFRESH_SECONDS}">` : ""}<title>${escapeHtml(title)}</title><style>:root{color-scheme:light dark;font-family:ui-sans-serif,system-ui,sans-serif}body{display:grid;min-height:90vh;place-content:center;margin:0;padding:24px;background:#0b1120;color:#e5e7eb;text-align:center}p{color:#94a3b8}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(detail)}</p></main></body></html>\n`;
 }
 
+/** 用统一安全头和 UTF-8 Content-Length 发送一份 HTML 响应。 */
 function sendHtml(
   response: ServerResponse,
   statusCode: number,
@@ -328,10 +368,12 @@ function sendHtml(
   response.end(headOnly ? undefined : body);
 }
 
+/** 限制 Host Header 为本机回环名称和可选端口。 */
 function validHostHeader(value: string | undefined): boolean {
   return value !== undefined && /^(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?$/u.test(value);
 }
 
+/** 处理健康检查、最终报告、运行状态和安全错误页的单个 HTTP 请求。 */
 async function serveRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -410,6 +452,7 @@ async function serveRequest(
   }
 }
 
+/** 将 Node 回调式 server.close 转成可等待 Promise。 */
 function closeServer(server: Server): Promise<void> {
   if (!server.listening) return Promise.resolve();
   return new Promise((resolve, reject) => {
@@ -421,7 +464,7 @@ function closeServer(server: Server): Promise<void> {
   });
 }
 
-/** Starts a read-only loopback viewer intended to be reached through an SSH tunnel. */
+/** 校验配置、固定 Roots 并启动适合通过 SSH 隧道访问的回环 HTTP Server。 */
 export async function startViewer(options: ViewerOptions): Promise<ViewerHandle> {
   assertOptions(options);
   const host = options.host ?? DEFAULT_HOST;
@@ -449,10 +492,12 @@ export async function startViewer(options: ViewerOptions): Promise<ViewerHandle>
   });
   try {
     await new Promise<void>((resolve, reject) => {
+      /** listen 失败时移除对偶监听器并拒绝启动 Promise。 */
       const failed = (error: Error): void => {
         server.off("listening", listening);
         reject(error);
       };
+      /** listen 成功时移除错误监听器并完成启动 Promise。 */
       const listening = (): void => {
         server.off("error", failed);
         resolve();
@@ -473,6 +518,7 @@ export async function startViewer(options: ViewerOptions): Promise<ViewerHandle>
   const actualHost = host as ViewerHost;
   const urlHost = actualHost === "::1" ? "[::1]" : actualHost;
   let closed = false;
+  /** ViewerHandle 暴露的幂等关闭实现。 */
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
@@ -487,6 +533,7 @@ export async function startViewer(options: ViewerOptions): Promise<ViewerHandle>
   });
 }
 
+/** 对外关闭入口；Viewer CLI 和测试调用。 */
 export async function closeViewer(viewer: ViewerHandle): Promise<void> {
   await viewer.close();
 }

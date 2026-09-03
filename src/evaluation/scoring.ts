@@ -1,3 +1,9 @@
+/**
+ * 文件职责：依据 EvaluationPlan 声明的检查结果计算最终 Gate，并构造可持久化的 GateDecision。
+ * 核心流程：校验检查集合与已提交 Ref，按 FAIL > UNEVALUABLE > PASS 的优先级裁决，再汇总触发结论的引用。
+ * 真实交互：上游由应用编排层传入 judging.ts 产出的 CheckResult；下游交给 RepositoryPort 持久化并由 report.ts 展示。
+ * 公开接口：MVP_GATE_RULE_VERSION、CommittedCheckResult、BuildGateInput、calculateGateVerdict、buildGateDecision。
+ */
 import {
   ContractViolation,
   digestEquals,
@@ -12,23 +18,22 @@ import {
   type ScopeRef,
 } from "../core/models.js";
 
+/** MVP 固定 Gate 规则的版本标识，会写入 GateDecision 以便审计。 */
 export const MVP_GATE_RULE_VERSION = "gate.required-hard/v1";
 
-const REQUIRED_CHECK_IDS = [
-  "protocol.integrity",
-  "security.path-boundary",
-  "state.expected-file",
-] as const;
-
+/** 将检查记录与仓储返回的不可变 Ref 成对传入，证明它已被提交。 */
 export interface CommittedCheckResult {
   readonly record: CheckResult;
   readonly ref: Ref<CheckResult>;
 }
 
+/** 构造唯一 GateDecision 所需的运行范围、检查结果与终结状态。 */
 export interface BuildGateInput {
   readonly gateDecisionId: string;
   readonly runId: string;
   readonly scope: ScopeRef;
+  /** EvaluationPlan 中已经冻结的完整 Check ID 集合。 */
+  readonly expectedCheckIds: readonly string[];
   readonly committedCheckResults: readonly CommittedCheckResult[];
   /** App sets this only after Reset/Verification/Cleanup attempts are persisted. */
   readonly finalizationFactsCommitted: boolean;
@@ -39,9 +44,12 @@ export interface BuildGateInput {
   readonly ruleVersion?: string;
 }
 
-/** Pure three-valued precedence; it reads no environment or operational state. */
-export function calculateGateVerdict(checkResults: readonly CheckResult[]): GateVerdict {
-  validateMvpCheckSet(checkResults);
+/** 只按已保存的 CheckResult 计算三值结论，不读取环境或重新执行 Judge。 */
+export function calculateGateVerdict(
+  checkResults: readonly CheckResult[],
+  expectedCheckIds: readonly string[],
+): GateVerdict {
+  validateCheckSet(checkResults, expectedCheckIds);
   if (checkResults.some((result) => result.hardGate && result.outcome === "FAIL")) {
     return "FAIL";
   }
@@ -52,8 +60,7 @@ export function calculateGateVerdict(checkResults: readonly CheckResult[]): Gate
 }
 
 /**
- * Builds the one immutable Gate candidate. Repository uniqueness is the final
- * atomic guard; `existingGate` prevents an application-level second compute.
+ * 供应用编排层在终结事实落盘后调用，构造单个不可变 GateDecision；仓储仍负责最终的原子唯一性约束。
  */
 export function buildGateDecision(input: BuildGateInput): GateDecision {
   if (input.existingGate !== undefined) {
@@ -89,7 +96,7 @@ export function buildGateDecision(input: BuildGateInput): GateDecision {
     }
   }
   const records = sorted.map((item) => item.record);
-  const verdict = calculateGateVerdict(records);
+  const verdict = calculateGateVerdict(records, input.expectedCheckIds);
   const triggeredHardFailureRefs = sorted
     .filter((item) => item.record.hardGate && item.record.outcome === "FAIL")
     .map((item) => item.ref);
@@ -115,24 +122,26 @@ export function buildGateDecision(input: BuildGateInput): GateDecision {
   });
 }
 
-function validateMvpCheckSet(checkResults: readonly CheckResult[]): void {
-  if (checkResults.length !== REQUIRED_CHECK_IDS.length) {
-    throw new ContractViolation("INVALID_GATE_INPUT", "MVP Gate requires exactly three CheckResults");
+/** 确认 CheckResult 恰好覆盖 Plan 冻结的 Check ID，不允许缺失、重复或额外结果。 */
+function validateCheckSet(
+  checkResults: readonly CheckResult[],
+  expectedCheckIds: readonly string[],
+): void {
+  const expected = [...new Set(expectedCheckIds)].sort();
+  if (expected.length === 0 || expected.length !== expectedCheckIds.length) {
+    throw new ContractViolation("INVALID_GATE_INPUT", "EvaluationPlan Check IDs must be non-empty and unique");
+  }
+  if (checkResults.length !== expected.length) {
+    throw new ContractViolation("INVALID_GATE_INPUT", "Gate input does not cover every planned Check");
   }
   const byId = new Map(checkResults.map((result) => [String(result.checkId), result] as const));
-  for (const checkId of REQUIRED_CHECK_IDS) {
+  for (const checkId of expected) {
     const result = byId.get(checkId);
     if (result === undefined) {
       throw new ContractViolation("INVALID_GATE_INPUT", `Missing required CheckResult ${checkId}`);
     }
-    if (!result.required || !result.hardGate) {
-      throw new ContractViolation(
-        "INVALID_GATE_INPUT",
-        `MVP CheckResult ${checkId} must remain required and hardGate`,
-      );
-    }
   }
-  if (byId.size !== REQUIRED_CHECK_IDS.length) {
+  if (byId.size !== expected.length) {
     throw new ContractViolation("INVALID_GATE_INPUT", "Duplicate or unknown CheckResult ID");
   }
 }

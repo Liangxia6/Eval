@@ -1,3 +1,7 @@
+/**
+ * 测试职责：验证 Probe JSONL、File Snapshot/Diff、Sensor Binding、完成账本和
+ * Reset 独立观测，覆盖序号缺口、截断、读取失败与 symlink 逃逸。
+ */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
@@ -305,7 +309,7 @@ test("MVP-SEC-FILE-001 scanner hashes files with lstat and records root-escaping
   try {
     await mkdir(path.join(workspace, "input"), { recursive: true });
     await mkdir(path.join(workspace, "output"));
-    await writeFile(path.join(workspace, "input", "source.txt"), "DSHEval MVP ready\n");
+    await writeFile(path.join(workspace, "input", "context.txt"), "DSHEval MVP ready\n");
     await writeFile(neighbor, "must not be read through the link");
     await symlink(neighbor, path.join(workspace, "output", "escape"));
 
@@ -318,7 +322,7 @@ test("MVP-SEC-FILE-001 scanner hashes files with lstat and records root-escaping
       maxFileBytes: 1024,
       now: sequenceClock("2026-01-01T00:00:00.000Z", "2026-01-01T00:00:01.000Z"),
     });
-    const source = snapshot.entries.find((entry) => entry.portablePath === "input/source.txt");
+    const source = snapshot.entries.find((entry) => entry.portablePath === "input/context.txt");
     const escape = snapshot.entries.find((entry) => entry.portablePath === "output/escape");
 
     assert.equal(snapshot.completeness, "COMPLETE");
@@ -482,7 +486,7 @@ function completeProbe(runId: string): ProbeEnvelope[] {
   return [
     probe(runId, 0, "probe/start", { outputPath: "probe.jsonl", contentMode: "STRUCTURED", captureDispatch: true, captureLogs: true, node: "v22", cwd: "/workspace" }),
     probe(runId, 1, "session/event", { sessionId: "s", event: { seq: 0, type: "turn/start", data: { turn: 1 } } }),
-    probe(runId, 2, "session/event", { sessionId: "s", event: { seq: 1, type: "tool/call", data: { callId: "c", name: "filesystem.write" } } }),
+    probe(runId, 2, "session/event", { sessionId: "s", event: { seq: 1, type: "tool/call", data: { callId: "c", name: "python" } } }),
     probe(runId, 3, "session/event", { sessionId: "s", event: { seq: 2, type: "tool/result", data: { message: { source: { callId: "c" } } } } }),
     probe(runId, 4, "session/event", { sessionId: "s", event: { seq: 3, type: "turn/end", data: { turn: 1 } } }),
     probe(runId, 5, "probe/stop", {}),

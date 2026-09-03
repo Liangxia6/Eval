@@ -1,3 +1,7 @@
+/**
+ * 测试职责：守住八个源码模块的依赖方向，并拒绝重复 Core 实体、空壳和占位实现。
+ * 直接扫描 `src/`；覆盖生产代码整体结构，不依赖运行 Fixture。
+ */
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -77,7 +81,7 @@ test("MVP-CT-ARCH-001: seven business modules depend only on themselves/core and
   const concreteConstructors = [
     "FileRepository",
     "FileArtifactStore",
-    "FilesystemPlanner",
+    "EvaluationPlanner",
     "FileEnvironmentSensor",
   ];
   for (const constructorName of concreteConstructors) {
@@ -94,7 +98,7 @@ test("MVP-CT-ARCH-002: release gate rejects duplicate Core entities and empty or
     "TargetDescriptor",
     "TargetSnapshot",
     "InspectionSnapshot",
-    "FilesystemPack",
+    "EvaluationPack",
     "ConfigSnapshot",
     "EvaluationPlan",
     "ObservationPlan",

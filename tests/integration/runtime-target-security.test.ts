@@ -1,3 +1,7 @@
+/**
+ * 测试职责：以真实子进程验证 Target 启动 argv、环境白名单、进程组终止和
+ * setpriv 身份切换错误归因，并检查 Environment 与 TargetDriver 的接口契约。
+ */
 import assert from "node:assert/strict";
 import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -40,14 +44,6 @@ async function preparedTarget(root: string, id: string) {
       readOnlyForTarget: true,
     },
     {
-      portablePath: "input/source.txt",
-      entryType: "FILE",
-      mode: "0444",
-      readOnlyForTarget: true,
-      content: "DSHEval launch contract\n",
-      encoding: "utf8",
-    },
-    {
       portablePath: "output",
       entryType: "DIRECTORY",
       mode: "0755",
@@ -79,15 +75,15 @@ function baseRequest(
 ): TargetExecutionRequest {
   return {
     executablePath: FIXTURE_EXECUTABLE,
-    profile: "fixture-filesystem",
-    task: "copy the public input",
+    profile: "fixture-attention",
+    task: "explain Attention and run the PyTorch example",
     cwd: prepared.workspacePath,
     runtimeDshHomePath: prepared.runtimeDshHomePath,
     probeOutputPath: prepared.probeOutputPath,
     sourceRunId: `source-${id}`,
     deadlineMs: 5_000,
     maxOutputBytes: 64 * 1024,
-    fixtureBehavior: "copy",
+    fixtureBehavior: "attention-success",
   };
 }
 
@@ -114,13 +110,13 @@ test("MVP-SEC-RUN-001: Headless launch uses literal argv, the frozen cwd, and do
     await assert.rejects(access(shellMarker), /ENOENT/);
 
     const audit = JSON.parse(
-      await readFile(path.join(prepared.workspacePath, "output/result.txt"), "utf8"),
+      await readFile(path.join(prepared.workspacePath, "output/audit.json"), "utf8"),
     ) as {
       readonly argv: readonly string[];
       readonly cwd: string;
       readonly environmentNames: readonly string[];
     };
-    assert.deepEqual(audit.argv, ["--profile", "fixture-filesystem", task]);
+    assert.deepEqual(audit.argv, ["--profile", "fixture-attention", task]);
     assert.equal(audit.cwd, prepared.workspacePath);
     const constructedNames = [
       "DO_NOT_TRACK",
@@ -175,11 +171,11 @@ test("MVP-SEC-RUN-002: argv, cwd, and non-allowlisted environment injection are 
     };
 
     await assert.rejects(
-      executeTarget({ ...request, profile: "fixture-filesystem;touch-marker" }),
+      executeTarget({ ...request, profile: "fixture-attention;touch-marker" }),
       /profile must be a StableId-like argv value/,
     );
     await assert.rejects(
-      executeTarget({ ...request, task: "copy\0--profile=attacker" }),
+      executeTarget({ ...request, task: "Attention\0--profile=attacker" }),
       /task must be a non-empty NUL-free string/,
     );
     await assert.rejects(
@@ -254,7 +250,7 @@ test("MVP-SEC-IDENTITY-001: an unconfirmed formal setpriv or target exec failure
     prepared = await preparedTarget(root, "formal-launch-failure");
     const fixtureRequest = baseRequest(prepared, "formal-launch-failure");
     const { fixtureBehavior, executablePath, ...formalRequest } = fixtureRequest;
-    assert.equal(fixtureBehavior, "copy");
+    assert.equal(fixtureBehavior, "attention-success");
     assert.equal(executablePath, FIXTURE_EXECUTABLE);
     const result = await executeTarget({
       ...formalRequest,

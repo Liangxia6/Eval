@@ -13,27 +13,15 @@
     "captureDispatch": true,
     "captureLogs": true,
     "configured": true,
-    "contentModes": [
-      "STRUCTURED"
-    ],
+    "contentModes": ["STRUCTURED"],
     "oneShot": true,
     "order": "BEFORE_HEADLESS",
     "schema": "dsh-eval.probe/v1",
     "sourceRunIdEcho": true
   },
   "profile": {
-    "plugins": [
-      {
-        "id": "fixture.filesystem-tool",
-        "version": "1.0.0"
-      }
-    ]
+    "plugins": [{ "id": "fixture.python-tool", "version": "1.0.0" }]
   },
   "sandboxMode": "fixture-process",
-  "toolSchemas": [
-    {
-      "name": "filesystem.write",
-      "schema": "fixture.filesystem.write/v1"
-    }
-  ]
+  "toolSchemas": [{ "name": "python", "schema": "fixture.python/v1" }]
 }

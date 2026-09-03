@@ -4,5 +4,5 @@ dsh-eval-probe:
   order: before-headless
   captureDispatch: true
   captureLogs: true
-filesystem-tool:
+python-tool:
   permissions: workspace-only

@@ -1,21 +1,21 @@
-# DSHEval v0.1 MVP 公共契约
+# DSHEval 公共契约
 
-> 本文是简版 MVP 的独立实现依据。完整版契约仅作为[未来扩展参考](../../docs/development/CONTRACT_CATALOG.md)，不得把其中尚无 MVP 消费者的抽象提前带入本实现。
+> 本文只定义跨模块共享的数据与接口；架构和流程见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
 ## 1. MVP 范围
 
-MVP 只实现一条可重复运行的文件任务纵向闭环：
+MVP 只实现一条可重复运行的 Attention + PyTorch 任务纵向闭环：
 
 ```text
 FULL_AGENT
 → 冻结 DSH Headless Target
-→ 匹配 filesystem pack
+→ 按标签匹配 Dataset Pack
 → 单 Run / 单 Case / 单 Attempt
-→ Seed 文件环境
+→ Seed 工作区环境
 → Runtime Probe + File Sensor Before
-→ 执行确定性文件任务
+→ 执行论文讲解与代码任务
 → Drain Probe + File Sensor After
-→ Protocol / File State / Path Security Judge
+→ Artifact / Response / Tool Judge
 → Reset + File Sensor 独立验证
 → PASS / FAIL / UNEVALUABLE Gate
 → JSON 报告 + 静态 HTML
@@ -164,28 +164,32 @@ MVP 无自动 Retry，所有 FailureRecord 的 `retryable` 固定 false。
 
 ## 5. 公共记录
 
-TargetDescriptor、scope-less FilesystemPack 和调用级 ConfigSnapshot 都直接作为各自 Schema 的顶层记录保存，不包通用 `payload`。其他不可变记录都包含 `schema`、专属 ID、`scope`、`createdAt`、`producerVersion`、`contentDigest`。生命周期 Projection 使用 `state/revision/createdAt/updatedAt/failureRefs/projectionDigest`，不以 contentDigest 冒充当前 Revision 摘要。
+TargetDescriptor、scope-less EvaluationPack 和调用级 ConfigSnapshot 都直接作为各自 Schema 的顶层记录保存，不包通用 `payload`。其他不可变记录都包含 `schema`、专属 ID、`scope`、`createdAt`、`producerVersion`、`contentDigest`。生命周期 Projection 使用 `state/revision/createdAt/updatedAt/failureRefs/projectionDigest`，不以 contentDigest 冒充当前 Revision 摘要。
 
 ### 5.1 Planning 记录
 
 | 对象 / Schema | 精确业务字段 |
 |---|---|
-| `TargetDescriptor` / `dsheval.mvp.target-descriptor/v1` | `targetId/targetType='FULL_AGENT'/sourceRoot/dshExecutable/dshHome/profile/targetIdentity/requestedScope='FILESYSTEM_MVP'` |
+| `TargetDescriptor` / `dsheval.mvp.target-descriptor/v1` | `targetId/targetType='FULL_AGENT'/sourceRoot/dshExecutable/dshHome/profile/targetIdentity` |
 | `TargetSnapshot` / `dsheval.mvp.target-snapshot/v1` | `targetSnapshotId/targetId/sourceManifestRef/dshExecutablePath/dshPackageVersion?/dshEntrypointDigest/dshHomeManifestRef/profile/profileManifestRef/lockfileRef/effectiveConfigRef/driverFingerprint/platform/secretRefNames` |
 | `InspectionSnapshot` / `dsheval.mvp.inspection/v1` | `inspectionId/targetSnapshotRef/dshVersionStatus/profile/probeConfigured/probeSchema/probeOrderStatus/headlessDriverStatus/toolSchemas/permissionPreset/sandboxMode/limitations/sourceArtifactRefs` |
-| `FilesystemPack` / `dsheval.mvp.filesystem-pack/v1` | `packId/version/scenario/checks/judges/environment/sourceRequirements/contentDigest` |
+| `EvaluationRequest` / `dsheval.mvp.evaluation-request/v1` | `requestId/requestedLabelIds/preferredDatasetIds/excludeCaseIds`；LabelId 必须来自固定 Registry，Dataset ID 只能作为覆盖候选的消歧 Pin |
+| `CatalogResolution` / `dsheval.mvp.catalog-resolution/v1` | `requestId/selectedLabelIds/selectedDatasetIds/units/contentDigest`；Unit=`caseId/datasetId/labelBindings/environmentId/environmentObserverSourceRequirementId/runtimeSourceRequirementId/judgeAssetId/checkIds` |
+| `EvaluationPack` / `dsheval.mvp.evaluation-pack/v1` | `packId/version/request/resolution/dataset/metricPool/scenario/checks/judges/environment/sourceRequirements/contentDigest` |
 | `ConfigSnapshot` / `dsheval.mvp.config/v1` | `configId/invocationId/targetRoot/runRoot/artifactRoot/reportRoot/workspaceRoot/runtimeDshHomeRoot/runDeadlineMs/caseDeadlineMs/stableWindowMs/stableMaxWaitMs/maxArtifactBytes/contentMode/allowedModelEndpoints/minimumIsolationLevel/rendererVersion/fieldSources/platform/nodeVersion/dshevalVersion/secretRefNames/createdAt/contentDigest` |
-| `EvaluationPlan` / `dsheval.mvp.evaluation-plan/v1` | `evaluationPlanId/targetSnapshotRef/inspectionRef/packRef/casePlan/checkPlans/budget/gateRule/exclusions/semanticDigest/status='FROZEN'`；不可满足时不提交 Plan |
+| `EvaluationPlan` / `dsheval.mvp.evaluation-plan/v1` | `evaluationPlanId/targetSnapshotRef/inspectionRef/packRef/request/catalogResolution/casePlan/checkPlans/budget/gateRule/exclusions/semanticDigest/status='FROZEN'`；不可满足时不提交 Plan |
 | `ObservationPlan` / `dsheval.mvp.observation-plan/v1` | `observationPlanId/evaluationPlanRef/casePlanId/sourceRequirements/boundaryPolicy/stablePolicy/contentPolicy/semanticDigest` |
-| `EvidenceContract` / `dsheval.mvp.evidence-contract/v1` | `evidenceContractId/checkId/requiredFactTypes/allowedSourceTypes/minimumTrust/minimumCompleteness/validityRequired/timeBoundary/authorizedJudgeId/ruleParameters/missingOutcome='UNEVALUABLE'/semanticDigest`；ruleParameters 冻结 Protocol 约束、期望文件摘要或路径规则，永不进入 AgentTask |
+| `EvidenceContract` / `dsheval.mvp.evidence-contract/v1` | `evidenceContractId/checkId/requiredFactTypes/allowedSourceTypes/minimumTrust/minimumCompleteness/validityRequired/timeBoundary/authorizedJudgeId/ruleParameters/missingOutcome='UNEVALUABLE'/semanticDigest`；ruleParameters 来自 Dataset Pack，永不进入 AgentTask |
 
-`CasePlan` 精确字段：`casePlanId/order=1/scenarioId/environmentId/agentTaskArtifactRef/visibleInputArtifactRefs/seedSpec/allowedPaths/forbiddenPaths/deadlineMs/stableWindowMs/maxAttempts=1/checkIds`。
+`CasePlan` 精确字段：`casePlanId/order=1/scenarioId/datasetId/labelBindings/environmentId/environmentObserverSourceRequirementId/runtimeSourceRequirementId/judgeAssetId/agentTaskArtifactRef/visibleInputArtifactRefs/seedSpec/allowedPaths/forbiddenPaths/deadlineMs/stableWindowMs/maxAttempts=1/checkIds`。
 
-`CheckDefinition` 是 pack 内可版本化资产，精确字段：`checkId/type='PROTOCOL'|'FILE_STATE'|'PATH_SECURITY'/judgeId/evidenceContractTemplateId/required/hardGate`。MVP pack 必须且只能各包含一种，三项都冻结为 `required=true, hardGate=true`。
+`LabelBinding` 精确字段：`labelId/metricId/checkId/metricParameters/requiredEvidenceTypes/required/hardGate`。其中 `requiredEvidenceTypes` 由 Registry 复制并冻结；Dataset JSON 只声明 `labelId/metricId/checkId/metricParameters/required/hardGate`，不得自行声明或删减证据类型。
 
-`CheckPlan` 精确字段：`checkId/type='PROTOCOL'|'FILE_STATE'|'PATH_SECURITY'/required/hardGate/judgeId/evidenceContractRef`。
+Label Registry 固定 15 个版本化 Label，并保存唯一 `labelId/metricId/title/requiredEvidenceTypes`。Registry 中 LabelId 与 MetricId 都必须唯一。Metric Pool 只包含当前 Dataset 实际使用、已有 Judge 调用方的 Metric，实现字段为 `metricId/checkId/type/resultType='VERDICT'/judgeId/evidenceContractTemplateId`。Catalog 校验 Registry、Metric Pool 和 Dataset 三方一致后编译 `CheckDefinition`。Dataset 不能创建临时 Label、复用别的 MetricId 或修改评分算法。
 
-`SourceRequirement` 精确字段：`sourceRequirementId/sourceType='DSH_PROBE'|'FILESYSTEM'/sensorImplementationId/sensorImplementationVersion/sensorCapabilityDigest/resourceBinding/mandatory/minimumTrust/contentMode/maxBytes/timeoutMs/watermarkDefinition`。
+`CheckPlan` 精确字段：`checkId/type/required/hardGate/judgeId/evidenceContractRef`。`type` 由 Judge 注册表解释，Core 不枚举具体评测方法。
+
+`SourceRequirement` 精确字段：`sourceRequirementId/sourceType/sensorImplementationId/sensorImplementationVersion/sensorCapabilityDigest/resourceBinding/mandatory/minimumTrust/contentMode/maxBytes/timeoutMs/watermarkDefinition`。`sourceType` 由 Observer 注册表解释。
 
 `PlanBuildResult` 是进程内判别联合：`FROZEN={evaluationPlan,observationPlan,evidenceContracts}`；`UNSATISFIABLE={gaps,failureDrafts}`。UNSATISFIABLE 分支不得携带部分 Plan。
 
@@ -256,17 +260,17 @@ Artifact 一旦 COMMITTED 不可修改或覆盖；相同 ID/摘要重放返回�
 
 ### 6.1 Evaluation Asset Matching Port
 
-输入：TargetSnapshot、InspectionSnapshot、唯一 filesystem pack、ConfigSnapshot、注册的 Sensor/Judge 描述。输出：EvaluationPlan、ObservationPlan、三个 EvidenceContract，或 `PLAN_UNSATISFIABLE`。
+输入：TargetSnapshot、InspectionSnapshot、Label-centric EvaluationRequest、固定 Label Registry、Dataset Pack、ConfigSnapshot、注册的 Sensor/Judge 描述。Catalog 先产生 Case-centric CatalogResolution；Planner 为选中的 Check 输出 EvaluationPlan、ObservationPlan、EvidenceContract，或 `PLAN_UNSATISFIABLE`。
 
-固定匹配：
+当前 Attention Pack 的匹配：
 
 | Check | Scenario/Environment | Source | Judge |
 |---|---|---|---|
-| Protocol | deterministic file task | DSH_PROBE | ProtocolJudge |
-| File State | seeded workspace | FILESYSTEM Before/After | FileStateJudge |
-| Path Security | allowed/forbidden path spec | FILESYSTEM Before/After | PathSecurityJudge |
+| Artifact | Attention 代码产物 | FILESYSTEM Before/After | ArtifactPresentJudge |
+| Response | 论文讲解回答 | DSH_PROBE | ResponsePresentJudge |
+| Tool | Python/PyTorch 执行记录 | DSH_PROBE | ToolCompletedJudge |
 
-Catalog 只加载、校验并冻结 pack；Planner 决定是否可执行；Case Compiler 只机械生成单 Case，不重新匹配。Plan 必须冻结精确 Sensor ID/version/capabilityDigest。缺任一 mandatory Source、Judge、路径隔离能力或 Probe 顺序时 Plan=UNSATISFIABLE，不能先执行再让 Judge 猜测。
+LabelId 是 Planner 的选择轴和结果轴，只能来自固定 15 项 Registry。Dataset Pack 用 LabelBinding 引用唯一 `Label→Metric/Check`，并绑定 metricParameters、同质 Cases、Environment/Observer、Runtime Source、Judge/Gate。所有 required/hardGate Label 必须由 EvaluationRequest 显式选择，Planner 不隐式增加评分项。Metric Pool 只提供当前 Dataset 实际引用且已有实现的 Metric，不参与 Planner 自由选择。Environment 与其 Observer Requirement 必须精确一致。候选歧义未 Pin、标签集合需要多 Dataset、映射漂移或 V0.1 解析出多 Case 时 Plan=UNSATISFIABLE。Plan 必须冻结精确 Sensor ID/version/capabilityDigest。
 
 扩展约束：未来增加 Sensor 或 Check 只能注册新的 `SensorAdapterDescriptor` 或 `CheckDefinition` 并由新 pack 引用；App/Runtime/Observation/Evaluation 主流程保持不变。
 
@@ -302,127 +306,10 @@ Session 只有在 Target 已终止/超时/取消并完成 bounded drain 后才�
 
 超过 Deadline 仍未闭合：保存最后现场和未完成项，Session 仍可 SEALED，但 Ledger 非 COMPLETE、相关 Closure=INCOMPLETE、Check=UNEVALUABLE。只有 Collector 无法可靠保存事实或摘要失效时 Session/Bundle=FAILED/INVALID。
 
-Trace 解释过程，File Snapshot/Diff 是结果 Ground Truth。Runtime Probe 与 Target 同进程，Trust=`COOPERATIVE`；独立只读 File Sensor 的 Trust=`INDEPENDENT`。Protocol 只使用 Probe；File State 和 Path Security 以 File Sensor 独立事实为主。零事件/零变化只有 Source Coverage=COMPLETE 时才能形成负向事实。
+Trace 解释过程，File Snapshot/Diff 验证代码产物是否真实出现。Runtime Probe 与 Target 同进程，Trust=`COOPERATIVE`；独立只读 File Sensor 的 Trust=`INDEPENDENT`。Response/Tool 使用 Probe；Artifact 使用 File Sensor 独立事实。零事件或零变化只有 Source Coverage=COMPLETE 时才能形成负向事实。
 
 Judge 只能读取其 Closure 的 `authorizedEvidenceRefs`：
 
 - Closure CLOSED+VALID → Judge 执行并产生 PASS/FAIL。
 - Closure INCOMPLETE/INVALID → Judge BLOCKED，Check UNEVALUABLE。
 - Judge 自身异常 → status ERROR，Check UNEVALUABLE，不伪造 Agent FAIL。
-
-## 8. 最小 Port 目录
-
-| Port | 输入 → 输出 | Context / 幂等与前置 |
-|---|---|---|
-| `TargetRegistry.freeze` | TargetDescriptor+ConfigSnapshot → TargetSnapshot 或 Target Failure | O；descriptor+文件摘要；源根只读 |
-| `TargetRegistry.verifyIntegrity` | TargetSnapshot → VALID/INVALID | D；Snapshot Digest；Run 前必调 |
-| `Inspector.inspect` | Snapshot+授权 Target Artifact → InspectionSnapshot | O；Snapshot+Artifact Digest |
-| `Catalog.loadFilesystemPack` | pack root → FilesystemPack | O；pack bytes digest；只读允许路径 |
-| `Planner.buildPlan` | Target+Inspection+Pack+Registry+ConfigSnapshot → PlanBuildResult | D；全部语义摘要；FROZEN 分支输出唯一 Case |
-| `Repository.putImmutable` | 公共不可变记录 → Ref | O；Schema+ID+Digest |
-| `Repository.createProjection` | Revision 0 Lifecycle Projection → Revision 0 Ref | O；Schema+aggregateId+projectionDigest；仅空槽可写 |
-| `Repository.appendTransition` | StateTransition → 新 Revision Ref | O；aggregate+expectedRevision+transition digest，CAS |
-| `Repository.get` | Ref → 摘要验证后的对象 | O；完整 Ref |
-| `ArtifactStore.commit` | Artifact bytes+metadata → ArtifactRef | O；Artifact ID+字节摘要；原子 rename |
-| `ArtifactStore.readVerified` | ArtifactRef+Scope+ArtifactReadPurpose → bytes | O；Ref+Purpose；长度/摘要复验 |
-| `Lease.acquire/release` | 全局 VM slot+Run ID → Lease fact | O；MVP 同时最多一个活动 Run |
-| `Security.preflight` | Run+Target+Plan+Config → SecurityPreflight | O；Target/Plan Digest；Target/Observer/Judge 身份分离 |
-| `Security.issueObserverBindings` | ObservationPlan+Environment+Sensor Registry → read-only Bindings | O；Plan+Environment+Generation+Registry Digest |
-| `EnvironmentController.prepare` | CasePlan → Environment PREPARED | O；CasePlan Digest |
-| `EnvironmentController.seed` | PREPARED Environment+SeedSpec+Visible Inputs → SeedManifest/Failure | O；Environment Revision+Seed Digest |
-| `EnvironmentController.reset` | IN_USE Environment+clean spec → Reset ControlEvent | O；Environment Revision+clean spec digest |
-| `EnvironmentController.cleanup` | VERIFIED Environment → CLEANED/CLEANUP_FAILED；QUARANTINED 仅做保留证据的隔离收尾且状态不变 | O；Environment Revision |
-| `TargetDriver.start` | Attempt+ACTIVE Session+Task Artifact → Target process fact | O；Attempt+Session+Task Digest |
-| `TargetDriver.awaitTermination` | RUNNING Attempt+Deadline → termination fact | O；Attempt Revision+Deadline |
-| `Observation.openAndBaseline` | CASE_RUN Request → Sources+BEFORE Snapshot+ACTIVE-ready fact | O；Request Digest；必须先于 Target start |
-| `Observation.drainAndSeal` | Session+termination fact → RawObservation/AFTER/Status/Ledger | O；Session Revision+termination+Request Digest |
-| `Observation.verifyReset` | POST_RESET Request → Snapshot+ResetVerification | O；Environment+Generation+expected digest |
-| `EvidenceBuilder.build` | SEALED Session+Plan → Bundle+三个 Closure | D；Session seal+Contract Digests |
-| `JudgeRegistry.evaluate` | CheckPlan+Closure+EvidenceContract+authorized Evidence+Judge ID → Judgement+Finding+CheckResult | D；Plan+Closure+Contract+Evidence+Judge Version |
-| `Scorer.buildGate` | 三个 CheckResult → GateDecision | D；结果 Ref 集+Gate Rule Version |
-| `Reporter.buildJson` | 终态 Run 图 → EvaluationReport | D；Run Graph Digest |
-| `Reporter.renderHtml` | 已提交 EvaluationReport → HTML Artifact | D；Report Digest+Renderer Version |
-
-`O=OperationContext`，`D=DeterministicContext`。有副作用 Port 必须先提交进入态，再执行、提交事实、最后提交完成/失败态。App 只编排，不重算领域结论。
-
-## 9. 完整执行与失败门禁
-
-```text
-1. Freeze Target + Integrity Check
-2. Inspect DSH / Probe / Driver
-3. Load filesystem pack + Build frozen plans
-4. Validate frozen CasePlan + acquire Lease + create Run/Case/Attempt once + Security preflight
-5. Prepare + Seed + read-only bindings + BEFORE/BASELINED
-6. Session ACTIVE → Target execute/observe → termination
-7. Drain + AFTER + SEALED + CompletionLedger → Evidence Bundle/Closure
-8. Three Judges → CheckResults
-9. Reset → independent POST_RESET verification → Cleanup facts
-10. Build Gate once → finalize Run → Report JSON/static HTML → release Lease
-```
-
-每步门禁失败即停止当前阶段并分类；不得带错误继续评分。
-
-| 失败点 | 处理 |
-|---|---|
-| Target/Pack/Plan 非法 | 不创建 Run，返回输入或 UNSATISFIABLE |
-| Preflight/Prepare/Seed 失败 | Run FAILED；不创建伪 Session/Check/Gate；仍 Reset/Cleanup 可见环境 |
-| Target 非零退出/超时 | 保存 termination，继续 Drain；证据可信时 Judge 可 FAIL |
-| Probe/File Sensor 部分缺失 | Session SEALED+PARTIAL；受影响 Check UNEVALUABLE |
-| Judge ERROR | 该 Check UNEVALUABLE；其他 Check 保留 |
-| Reset MISMATCH/UNAVAILABLE | 不改已提交 CheckResults；仍按其生成单次 Gate，Run Operational=FAILED，Environment QUARANTINED |
-| Cleanup 失败 | 不改已提交 CheckResults；仍按其生成单次 Gate，Run 另记操作失败 |
-| Report/HTML 失败 | 不改已提交 Gate；Run/Delivery 另记操作失败 |
-| 用户取消 | 停 Target、Drain 能取得的事实、Reset/Cleanup；不伪造缺失结果 |
-
-MVP 不自动重试任何阶段。重新执行必须创建新 Run ID，并保留原 Run。
-
-## 10. 存储、权限与恢复
-
-本地目录至少分为：`records/`（JSON）、`events/`（JSONL）、`artifacts/`、`reports/`、`workspaces/`。Target 只访问本 Attempt Workspace/Runtime DSH Home；Observer 只有 Probe 暂存与 Workspace 只读能力；Judge 只读授权 Evidence；Reporter 只读已提交记录。
-
-| Actor/Purpose | 允许读取 | 必需 Anchor |
-|---|---|---|
-| Target / TASK_INPUT | AgentTask、Visible Input | FROZEN Plan+CasePlan；不得命中隐藏期望 |
-| Planning / INSPECTION | Target Source/Home/Profile/Lock/EffectiveConfig Artifact | TargetSnapshot；Artifact 必须是 Snapshot 成员 |
-| Observation / EVIDENCE_CAPTURE | Probe 暂存、Workspace 文件状态 | ObservationPlan+EnvironmentInstance+只读 PreparedBinding |
-| Judge / JUDGE_INPUT | Closure 授权 EvidenceRecord 与 EvidenceContract.ruleParameters | CheckPlan+EvidenceContract；不得扩展查询 |
-| Reporter / REPORT_INPUT | 终态 Run 图和已提交 ArtifactRef | 终态 Run；不得读取 Secret/隐藏原始字节 |
-
-ArtifactStore 每次读取复验 Actor/Purpose、Scope、Anchor、字节数与双摘要；未列组合默认拒绝。
-
-安全规则：
-
-- Visible Input 可复制到 Workspace；隐藏期望和 Judge 规则不得进入 Task、Workspace、Target Home 或日志。
-- Reporter 只展示 EvidenceContract ID/摘要和 Judge 结论，不渲染 ruleParameters 原值。
-- File Sensor 不跟随根外符号链接；每个 FileEntry 保存 `resolvedWithinRoot`。任何实际根逃逸由独立证据形成 PATH_SECURITY FAIL。
-- Artifact 写入采用暂存文件→计算摘要→原子提交；不完整写入隔离，不能生成 ArtifactRef。
-- Repository 启动时扫描未终态 Run、未完成 Artifact 和占用 Lease；只依据已提交记录恢复为 FAILED/诊断状态，不从临时内存猜测成功。
-- Secret Value、完整环境变量和 Observer Token 必须脱敏或排除。可信本地 ConfigSnapshot/TargetSnapshot/Attempt 可保存运行所必需的解析后绝对路径，但 ArtifactRef、普通 Report、HTML 和 Export 只能使用逻辑名、Ref 或 PortablePath，不能暴露宿主绝对路径。
-
-## 11. MVP 终态规则
-
-| 情形 | Gate | Run / Environment | 报告 |
-|---|---|---|---|
-| 三 Check 全 PASS，Reset MATCH，Cleanup 成功 | PASS | FINISHED / CLEANED | 标准报告 |
-| 任一可信 hard FAIL，环境收尾成功 | FAIL | FINISHED / CLEANED | 标准报告 |
-| 无 hard FAIL，但 required Check 证据不足或 Judge ERROR | UNEVALUABLE | FINISHED / CLEANED | 标准报告并显示缺口 |
-| Target 失败但 File/Probe 足够证明错误 | FAIL | FINISHED / CLEANED | 同时显示 Target failure |
-| Preflight/Seed/Harness/关键持久化失败 | 无 Gate | FAILED / CLEANED 或 QUARANTINED | 诊断报告 |
-| Reset/独立验证/Cleanup 失败，且 CheckResults 已形成 | 之后仍按 CheckResults 生成单次 Gate | FAILED / QUARANTINED 或 CLEANUP_FAILED | 诊断报告；操作失败不改 Verdict |
-| Report/HTML 失败 | 原 Gate | Run 原终态 | 记录 REPORT_FAILURE |
-| 用户取消且安全收尾 | 无 Gate或已提交原 Gate | CANCELLED / CLEANED | 诊断报告 |
-
-CLI 建议：PASS=0、FAIL=1、Plan UNSATISFIABLE=2、UNEVALUABLE=3、操作/报告失败=4、取消=130。操作失败码优先，但输出必须同时展示已存在的 Gate。
-
-## 12. MVP 验收
-
-| ID | 完成条件 |
-|---|---|
-| `MVP-CONTRACT-AC-001` | 同一 Target/Pack/Config 重放得到相同 Plan 与摘要 |
-| `MVP-CONTRACT-AC-002` | 完整端到端文件 Case 能产生 Probe、Before/After、三个 Check、ResetVerification、Gate、JSON/HTML |
-| `MVP-CONTRACT-AC-003` | Probe 或 File Sensor 缺失时不得强行 PASS，相关 Check 为 UNEVALUABLE |
-| `MVP-CONTRACT-AC-004` | Agent FAIL、Collector ERROR、Judge ERROR、Reset ERROR、Report ERROR 可区分 |
-| `MVP-CONTRACT-AC-005` | Observer 无写权限，Target 无法读取隐藏期望、证据和报告目录 |
-| `MVP-CONTRACT-AC-006` | Controller 自报 Reset 成功但 POST_RESET 不匹配时 Environment 被隔离 |
-| `MVP-CONTRACT-AC-007` | Artifact/Ref/Scope/Revision/摘要篡改被拒绝 |
-| `MVP-CONTRACT-AC-008` | 注册一个兼容 File Sensor 或新 Check Fixture 时无需修改 App 主流程 |

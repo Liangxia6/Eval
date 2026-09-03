@@ -1,66 +1,95 @@
-# DSHEval MVP 文档
+# DSHEval 开发总览
 
-本目录是一套**可以独立指导实现的 MVP 规格**。它不是 `docs/` 的逐段摘要，也不要求先实现完整版再做删减。
+## 项目概述
 
-两套文档服务于不同目标：
+### 是什么
 
-- `docs/`：完整产品架构，面向后续扩展和完整实现。
-- `docs-simple/`：最小可信纵向闭环，面向一套干净、可运行、可测试的 MVP。
+DSHEval 是一套面向完整 DSH Agent 的评测系统。它根据 Agent 的能力选择评测内容，让 Agent 在真实环境中自主执行任务，同时采集 Agent 行为和环境变化，再依据证据给出结果。
 
-同一次实现只能选择其中一套作为需求基线。开发 MVP 时，以本目录为准；完整版中超出本目录的能力一律视为 `DEFERRED`，不能顺手加入 MVP。
+一次评测需要回答四个问题：Agent 是什么、接到了什么任务、执行和环境实际发生了什么、最终结论依据什么。
 
-MVP 应在独立分支或 worktree 中从干净的文档基线开始，不能直接覆盖或继续扩写由完整版 `docs/` 生成的 `src/`。已有完整实现只能作为对照；任何复用代码都必须逐组件通过本目录的契约和测试后再进入 MVP。
+### 解决什么问题
 
-## MVP 一句话定义
+- 不只相信 Agent 的最终回答，而是验证真实执行结果；
+- 用统一标签衡量不同 Agent 和数据集；
+- 区分 Agent 失败、证据不足、Judge 失败和基础设施故障；
+- 保存可复查、可校验、可离线重判的证据与报告。
 
-在单台 Appliance VM 中，对一个完整 DSH Agent 执行一个确定性文件任务，同时采集 DSH Runtime Probe 与文件系统 Before/After；依据闭合证据形成 CheckResult，完成独立复位验证后输出 `PASS`、`FAIL` 或 `UNEVALUABLE`，并生成 JSON、JSONL、Artifact 和静态 HTML。
+### 当前范围
 
-## 固定范围
+MVP 保持一个活动 Run、一个 Dataset、一个 Case、一个 Attempt。当前 Attention + PyTorch Dataset Pack 和 Fixture 已用于回归完整链路；真实 DSH 的 VM 验收仍需单独执行。
 
-| 项目 | MVP 选择 |
-|---|---|
-| Target | `FULL_AGENT` |
-| DSH 基线 | `0.1.1-rc.2`，Headless + Runtime Probe |
-| 部署 | 单台 Appliance VM 内的模块化单体 |
-| 并发 | 一个活动 Run |
-| 执行规模 | 一个 Run、一个 Case、一个 Attempt，`maxAttempts=1` |
-| 场景 | 一个确定性文件复制/写入场景 |
-| 观测 | Runtime Probe + File Sensor Before/After |
-| Judge | Protocol、File State、基础 Path Security |
-| Verdict | `PASS` / `FAIL` / `UNEVALUABLE` |
-| 存储 | 本地 JSON、JSONL、Artifact |
-| 展示 | `status.html`、`report.html` |
-| 收尾 | Reset 后独立 File Verification |
+多数据集调度、自动重试、复杂加权总分和自动修改 Agent 不进入 MVP。
 
-## 文档结构
+## 核心概念（接口）
 
-| 文档 | 回答的问题 |
-|---|---|
-| [PRODUCT.md](./PRODUCT.md) | MVP 为谁解决什么问题，交付什么，不做什么 |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | 一次评测如何流转，两大接口如何分工 |
-| [LAYERS.md](./LAYERS.md) | 七个逻辑层的职责、依赖和边界 |
-| [COMPONENTS.md](./COMPONENTS.md) | 8 个源码模块、28 个 MVP 组件分别负责什么 |
-| [REPOSITORY_STRUCTURE.md](./REPOSITORY_STRUCTURE.md) | 代码、资产、数据、测试和文档放在哪里 |
-| [DECISIONS.md](./DECISIONS.md) | 已冻结的关键取舍及原因 |
-| [development/README.md](./development/README.md) | AI/开发者的实现规则、顺序与全局验收 |
-| [development/V0.1_VERTICAL_SLICE.md](./development/V0.1_VERTICAL_SLICE.md) | 唯一纵向场景的事实、步骤、判定和 E2E 验收 |
+```text
+Agent + 目标 Label
+→ Planner 选择 Dataset
+→ Dataset 提供 Case、环境和 Metric 参数
+→ Observer 采集执行事实
+→ Metric/Judge 消费密封 Evidence
+→ 每个 Label 产生一个结果
+```
 
-`development/` 中其余文件保持相同层级，分别细化公共契约、测试、可视化和八个源码模块。它们必须服从本页的固定范围。
+### 被测 Agent
 
-## 推荐阅读顺序
+进入 DSHEval 的完整 DSH Agent。评测前冻结插件树、工具能力、运行配置和安全身份。Agent 的 Label 表示待评测范围，不表示已经通过。
 
-1. `PRODUCT.md`
-2. `ARCHITECTURE.md`
-3. `development/README.md`
-4. `development/V0.1_VERTICAL_SLICE.md`
-5. `development/core.md` 与 `development/CONTRACT_CATALOG.md`
-6. 当前准备实现的模块文档
-7. `development/TESTING.md` 与 `development/VISUALIZATION.md`
+### Dataset
 
-## 维护规则
+Dataset 包含任务、Case、输入材料、Label、Metric 参数、环境和观测要求。一个 Dataset 可以有多个 Label，同一 Label 可以被多个 Dataset 复用。
 
-1. 本目录只描述 MVP 当前必须实现的能力；未来能力只能列在 `DEFERRED`，不能设计伪实现。
-2. 全局要求统一使用 `MVP-DEV-REQ-*`，验收统一使用 `MVP-DEV-AC-*`；不复制完整版的要求编号。
-3. 一个概念只有一个权威定义；其他文档引用它，不重复扩写第二套语义。
-4. 任何范围、状态、接口或 Verdict 变化，必须同步检查架构、公共契约、纵向切片和测试。
-5. 文档只描述行为与契约，不包含具体实现代码。
+### Label
+
+Label 是稳定的 Agent 能力维度，例如记忆、Loop、工具（代码）、工具（文档/PDF）。Agent 和 Dataset 都可以拥有多个 Label。
+
+### Metric
+
+每个 Label 唯一对应一个 Metric。Metric 定义所需证据、判定方法和输出；Dataset 只能提供题目参数，不能替换评分方法。
+
+```text
+一个 Label → 一个 Metric → 一个 LabelResult
+```
+
+### Environment 与 Observer
+
+Environment 是 Agent 实际操作的文件、进程、数据库或浏览器资源。Agent 自主决定如何操作；Observer 与环境绑定，按访问、变更或进程事件独立采集事实，不替 Agent 编排任务。
+
+## 核心组件
+
+| 组件 | 职责 | 输出 |
+|---|---|---|
+| Agent 静态能力获取 | 获取插件树、工具、配置并验证身份与权限 | 冻结 Agent 快照 |
+| Planner | 选择 Label、Dataset 和观测要求，并通过确定性校验冻结 | EvaluationPlan、ObservationPlan |
+| Runtime Probe | 采集生命周期、工具调用、错误和最终回答 | Runtime Trace |
+| Environment Observer | 独立采集文件、进程或外部状态变化 | Environment Observations |
+| Evidence Builder | 区分原始、标准化和推断事实并密封 | Evidence Closure |
+| Judge | 按 Label 对应 Metric 读取密封证据 | PASS / FAIL / UNEVALUABLE |
+| Gate | 只根据已保存结果计算一次总体结论 | GateDecision |
+| Reset Verifier | Reset 后使用独立观测确认环境状态 | CLEANED / QUARANTINED |
+| Storage / Viewer | 保存 JSON、JSONL、Artifact 并生成页面 | status.html、report.html |
+
+## 主链路
+
+```text
+Agent 进入
+→ 获取静态能力与安全认证
+→ Planner 选择 Label、Dataset 和 Observer
+→ Agent 自主执行 Case
+→ 同步采集 Runtime Trace 和环境变化
+→ 整理并密封 Evidence
+→ Judge 按 Label 评测
+→ Gate 汇总结果
+→ Reset 并独立验证
+→ 保存证据和生成报告
+```
+
+判定规则：证据充分且满足标准为 `PASS`；证据充分且明确不满足为 `FAIL`；证据缺失、损坏或不可信为 `UNEVALUABLE`。Reset 失败单独报告，不修改已经形成的 Agent 结果。
+
+## 文档入口
+
+- [ARCHITECTURE.md](./ARCHITECTURE.md)：模块、组件、边界和主链路；
+- [CODE_GUIDE.md](./CODE_GUIDE.md)：按主链路阅读每个源码文件并核对真实完成度；
+- [CONTRACTS.md](./CONTRACTS.md)：公共记录、接口和失败语义；
+- [TESTING.md](./TESTING.md)：自动化验收和真实 VM 验证。

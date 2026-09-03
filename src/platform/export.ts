@@ -1,3 +1,14 @@
+/**
+ * 文件职责：安全提交、读取并导出最终评测报告文件。
+ *
+ * 核心流程：建立受约束的 Run 报告目录，以 staging+rename 原子提交 report.json/html，
+ * 读取时复核文件身份和字节上限，导出时生成仅含两份报告及其 SHA-256 的 Manifest。
+ *
+ * 与其他文件的交互：`app/workflow.ts` 调用提交、读取与 exportReport；
+ * `evaluation/report.ts` 负责报告语义和渲染，本文件只负责文件交付完整性。
+ *
+ * 公开接口：DeliveryManifestEntry、DeliveryManifest、报告读写函数和 exportReport。
+ */
 import { createHash, randomUUID } from "node:crypto";
 import {
   chmod,
@@ -22,12 +33,14 @@ import {
   validateContentDigest,
 } from "../core/models.js";
 
+/** 导出目录内一个固定报告文件的长度和摘要。 */
 export interface DeliveryManifestEntry {
   portablePath: "report.json" | "report.html";
   byteLength: number;
   sha256: string;
 }
 
+/** 一次可搬运报告导出的完整 Manifest。 */
 export interface DeliveryManifest {
   schema: "dsheval.mvp.delivery-manifest/v1";
   runId: string;
@@ -36,16 +49,19 @@ export interface DeliveryManifest {
   manifestDigest: string;
 }
 
+/** 校验 Run/Export ID，供所有路径拼接前调用。 */
 function validateId(value: string, label: string): void {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value)) {
     throw new Error(`${label} must be a StableId`);
   }
 }
 
+/** 计算报告原始字节的 SHA-256 十六进制值。 */
 function digest(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+/** 从未知文件系统异常中提取 Node errno code。 */
 function errorCode(error: unknown): string | undefined {
   if (error !== null && typeof error === "object" && "code" in error) {
     const value = (error as { readonly code?: unknown }).code;
@@ -54,17 +70,20 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** 校验所有报告读取和写入共用的正字节上限。 */
 function assertMaxBytes(maxBytes: number): void {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
     throw new Error("maxBytes must be a positive safe integer");
   }
 }
 
+/** 判断解析后的路径是否仍位于指定根目录内。 */
 function isWithin(root: string, candidate: string): boolean {
   const relative = path.relative(root, candidate);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
+/** 建立或验证 `<reportRoot>/<runId>`，并返回经过 realpath 的目录边界。 */
 async function reportRunDirectory(
   reportRootInput: string,
   runId: string,
@@ -112,6 +131,7 @@ async function reportRunDirectory(
   return canonicalRun;
 }
 
+/** fsync 目录元数据，确保 rename/link 的提交在崩溃后可见。 */
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await open(directory, "r");
   try {
@@ -121,6 +141,7 @@ async function syncDirectory(directory: string): Promise<void> {
   }
 }
 
+/** 以 staging 文件、fsync 和原子 rename 提交一份不可覆盖的报告文件。 */
 async function commitImmutableFile(
   directory: string,
   name: "report.json" | "report.html",
@@ -166,6 +187,7 @@ async function commitImmutableFile(
   return { path: target, digest: digest(bytes), byteLength: bytes.byteLength };
 }
 
+/** 解析并验证 report.json 的顶层摘要、Schema、字段和关键视图结构。 */
 function parseAndVerifyReportJson(bytes: Uint8Array): Readonly<Record<string, unknown>> {
   let text: string;
   let parsed: unknown;
@@ -231,6 +253,7 @@ function parseAndVerifyReportJson(bytes: Uint8Array): Readonly<Record<string, un
   return Object.freeze(document);
 }
 
+/** Workflow 调用：验证 JSON 后原子提交唯一 report.json。 */
 export async function commitReportJson(input: {
   reportRoot: string;
   runId: string;
@@ -245,6 +268,7 @@ export async function commitReportJson(input: {
   return commitImmutableFile(directory, "report.json", bytes, input.maxBytes);
 }
 
+/** Workflow/report 命令调用：读取并验证已提交的 report.json。 */
 export async function readCommittedReportJson(input: {
   reportRoot: string;
   runId: string;
@@ -257,6 +281,7 @@ export async function readCommittedReportJson(input: {
   return Buffer.from(bytes);
 }
 
+/** Workflow 调用：校验静态 HTML 安全属性后原子提交唯一 report.html。 */
 export async function commitReportHtml(input: {
   reportRoot: string;
   runId: string;
@@ -280,6 +305,7 @@ export async function commitReportHtml(input: {
   return commitImmutableFile(directory, "report.html", bytes, input.maxBytes);
 }
 
+/** Workflow/report 命令调用：读取已提交且满足静态安全约束的 report.html。 */
 export async function readCommittedReportHtml(input: {
   reportRoot: string;
   runId: string;
@@ -296,6 +322,7 @@ export async function readCommittedReportHtml(input: {
   return Buffer.from(bytes);
 }
 
+/** 以 O_NOFOLLOW 固定读取单个报告文件，并核对读取前后的文件身份。 */
 async function readCommittedFile(file: string, maxBytes: number): Promise<Buffer> {
   assertMaxBytes(maxBytes);
   const before = await lstat(file);
@@ -319,6 +346,9 @@ async function readCommittedFile(file: string, maxBytes: number): Promise<Buffer
   return bytes;
 }
 
+/**
+ * 将已验证 report.json/html 硬链接到不可变导出目录并提交摘要 Manifest。
+ */
 export async function exportReport(input: {
   reportRoot: string;
   runId: string;

@@ -1,3 +1,9 @@
+/**
+ * 文件职责：构造一次评测运行所需的四个运行时投影，并统一生成受状态机约束的投影迁移。
+ * 核心流程：校验冻结标识与作用域，创建 Run、Case、Attempt、Environment 初始投影，再以修订号和摘要封装后续迁移。
+ * 与其他文件的真实交互：读取 core/models.ts 的领域模型、校验器和摘要工具；由 app/workflow.ts 编排创建、持久化这些投影。
+ * 公开接口：RuntimeProjectionIds、RuntimeProjectionGraph、createRuntimeProjectionGraph、transitionRuntimeProjection。
+ */
 import {
   assertLegalTransition,
   type AttemptState,
@@ -24,6 +30,7 @@ import {
 } from "../core/models.js";
 import type { FailureRecord } from "../core/errors.js";
 
+/** 工作流为同一次运行预先分配的聚合标识集合。 */
 export interface RuntimeProjectionIds {
   runId: string;
   caseId: string;
@@ -32,6 +39,7 @@ export interface RuntimeProjectionIds {
   sourceRunId: string;
 }
 
+/** 四个运行时聚合及其共享 Attempt 作用域组成的初始投影图。 */
 export interface RuntimeProjectionGraph {
   run: EvaluationRun;
   evaluationCase: EvaluationCase;
@@ -40,6 +48,9 @@ export interface RuntimeProjectionGraph {
   scope: ScopeRef;
 }
 
+/**
+ * 创建相互引用且摘要完整的初始投影图；由 app/workflow.ts 在准备环境前调用，内部依赖 core/models.ts 完成标识、作用域和版本化资产校验。
+ */
 export function createRuntimeProjectionGraph(input: {
   ids: RuntimeProjectionIds;
   targetId: string;
@@ -147,8 +158,10 @@ export function createRuntimeProjectionGraph(input: {
   return { run, evaluationCase, attempt, environment, scope };
 }
 
+/** 本模块允许通过统一入口迁移的四类运行时投影。 */
 type RuntimeProjection = EvaluationRun | EvaluationCase | ExecutionAttempt | EnvironmentInstance;
 
+/** 根据投影具体类型收窄其合法目标状态。 */
 type RuntimeStateFor<Projection extends RuntimeProjection> = Projection extends EvaluationRun
   ? RunState
   : Projection extends EvaluationCase
@@ -157,7 +170,9 @@ type RuntimeStateFor<Projection extends RuntimeProjection> = Projection extends 
       ? AttemptState
       : EnvironmentState;
 
-/** Runtime owns validation and construction of its four lifecycle transitions. */
+/**
+ * 校验并构造单个运行时投影的下一次状态迁移；由 app/workflow.ts 的各阶段调用，并委托 core/models.ts 校验状态机、重算投影摘要与引用。
+ */
 export function transitionRuntimeProjection<Projection extends RuntimeProjection>(input: {
   projection: Projection;
   toState: RuntimeStateFor<Projection>;

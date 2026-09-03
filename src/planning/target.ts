@@ -1,3 +1,13 @@
+/**
+ * 文件功能：获取被测 Agent 的静态信息，并保证执行前后使用的是同一个 Agent。
+ *
+ * 本文件先冻结源码、DSH Home、Profile、锁文件和有效配置，生成 TargetSnapshot；再从这些
+ * 冻结材料中提取 DSH、Probe、工具和权限能力，生成 InspectionSnapshot；执行前还会重新检查
+ * 关键文件是否被修改。
+ *
+ * 主要交互：`app/workflow.ts` 依次调用冻结、能力检查和完整性复核；`planning/planner.ts`
+ * 使用 TargetSnapshot 与 InspectionSnapshot 生成计划；产物通过应用层提供的存储接口保存。
+ */
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, readFile, readdir, readlink, realpath } from "node:fs/promises";
@@ -17,6 +27,7 @@ import {
   validateContentDigest,
   validateIsoDateTime,
   validatePortablePath,
+  validateRef,
   validateStableId,
 } from "../core/models.js";
 import type {
@@ -24,6 +35,7 @@ import type {
   ConfigSnapshot,
   ContentDigest,
   DriverFingerprint,
+  InspectionSnapshot,
   IsoDateTime,
   JsonObject,
   JsonValue,
@@ -33,6 +45,7 @@ import type {
   TargetSnapshot,
 } from "../core/models.js";
 
+/** TargetDescriptor 允许的精确字段注册表，由 assertDescriptor 拒绝未知输入。 */
 const DESCRIPTOR_FIELDS = new Set([
   "schema",
   "targetId",
@@ -42,10 +55,10 @@ const DESCRIPTOR_FIELDS = new Set([
   "dshHome",
   "profile",
   "targetIdentity",
-  "requestedScope",
   "contentDigest",
 ]);
 
+/** 目标根目录中需要纳入依赖冻结的支持锁文件名注册表。 */
 const LOCKFILE_NAMES = [
   "bun.lock",
   "bun.lockb",
@@ -54,6 +67,7 @@ const LOCKFILE_NAMES = [
   "yarn.lock",
 ] as const;
 
+/** 递归目录清单中的单个文件系统条目。 */
 interface ManifestFileEntry {
   readonly portablePath: string;
   readonly entryType: "FILE" | "DIRECTORY" | "SYMLINK" | "OTHER";
@@ -64,12 +78,14 @@ interface ManifestFileEntry {
   readonly resolvedWithinRoot?: boolean;
 }
 
+/** 提交为规划产物的确定性目录清单结构。 */
 interface DirectoryManifest {
   readonly schema: "dsheval.mvp.target-directory-manifest/v1";
   readonly rootPath: string;
   readonly entries: readonly ManifestFileEntry[];
 }
 
+/** freezeTarget 请求提交一份规划 JSON 产物时传给应用层的完整元数据。 */
 export interface PlanningArtifactCommitRequest {
   readonly artifactId: string;
   readonly scope: ScopeRef;
@@ -83,12 +99,15 @@ export interface PlanningArtifactCommitRequest {
   readonly producerVersion: string;
 }
 
+/** 规划目标冻结所需的产物提交回调，由应用层用 ArtifactStorePort 适配。 */
 export type PlanningArtifactCommit = (
   request: PlanningArtifactCommitRequest,
 ) => Promise<ArtifactRef>;
 
+/** Inspector 与完整性验证所需的授权产物读取回调。 */
 export type PlanningArtifactRead = (ref: Ref<ArtifactRef>) => Promise<Uint8Array>;
 
+/** freezeTarget 的记录时间、版本、产物写入能力与已脱敏配置。 */
 export interface FreezeTargetOptions {
   readonly createdAt: string;
   readonly producerVersion: string;
@@ -99,28 +118,34 @@ export interface FreezeTargetOptions {
   readonly headlessBundleVersion?: string;
 }
 
+/** 运行前完整性验证的稳定结论与已去重原因码。 */
 export interface TargetIntegrityResult {
   readonly status: "VALID" | "INVALID";
   readonly reasonCodes: readonly string[];
 }
 
+/** 完整性复核使用的产物读取能力和当前有效配置。 */
 export interface VerifyTargetIntegrityOptions {
   readonly readArtifact: PlanningArtifactRead;
   readonly effectiveConfig: JsonObject;
 }
 
+/** 目标描述、路径、清单或持久化回调违反冻结契约时的带码异常。 */
 export class TargetFreezeError extends ContractViolation {
+  /** 初始化冻结错误并保留 cause，供 Result 边界映射拒绝或失败。 */
   public constructor(code: string, message: string, options?: ErrorOptions) {
     super(code, message, options);
     this.name = "TargetFreezeError";
   }
 }
 
+/** 判断规范化候选路径是否位于给定根目录内，供所有 realpath 边界检查复用。 */
 function isInside(root: string, candidate: string): boolean {
   const fromRoot = relative(root, candidate);
   return fromRoot === "" || (fromRoot !== ".." && !fromRoot.startsWith(`..${sep}`));
 }
 
+/** 校验普通 JSON 对象并运行规范化检查，供有效配置和已提交清单解码复用。 */
 function assertPlainJsonObject(value: unknown, fieldName: string): JsonObject {
   if (
     value === null ||
@@ -134,6 +159,7 @@ function assertPlainJsonObject(value: unknown, fieldName: string): JsonObject {
   return value as JsonObject;
 }
 
+/** 递归检查有效配置中的敏感字段已脱敏或改用引用名。 */
 function assertRedacted(value: JsonValue, path = "effectiveConfig"): void {
   if (Array.isArray(value)) {
     value.forEach((item, index) => assertRedacted(item, `${path}[${index}]`));
@@ -153,6 +179,7 @@ function assertRedacted(value: JsonValue, path = "effectiveConfig"): void {
   }
 }
 
+/** 校验 TargetDescriptor 的字段白名单、MVP 类型/范围、路径字符串、ID 与摘要。 */
 function assertDescriptor(descriptor: TargetDescriptor): void {
   const raw = descriptor as unknown as Record<string, unknown>;
   const unknownFields = Object.keys(raw).filter((field) => !DESCRIPTOR_FIELDS.has(field)).sort();
@@ -169,12 +196,6 @@ function assertDescriptor(descriptor: TargetDescriptor): void {
     throw new TargetFreezeError(
       "UNSUPPORTED_TARGET_KIND",
       `MVP supports only FULL_AGENT targets`,
-    );
-  }
-  if (raw.requestedScope !== "FILESYSTEM_MVP") {
-    throw new TargetFreezeError(
-      "UNSUPPORTED_SCOPE",
-      `MVP supports only FILESYSTEM_MVP scope`,
     );
   }
   validateStableId<"TargetId">(raw.targetId, "TargetDescriptor.targetId");
@@ -201,10 +222,12 @@ function assertDescriptor(descriptor: TargetDescriptor): void {
   );
 }
 
+/** 流式计算文件摘要和字节长度，供目录清单、入口与锁文件冻结复用。 */
 async function digestFile(filePath: string): Promise<ContentDigest> {
   const hash = createHash("sha256");
   let byteLength = 0;
   const sink = new Transform({
+    /** 将每个文件流分块累加到摘要和总字节数。 */
     transform(chunk: Buffer, _encoding, callback) {
       hash.update(chunk);
       byteLength += chunk.byteLength;
@@ -219,8 +242,10 @@ async function digestFile(filePath: string): Promise<ContentDigest> {
   });
 }
 
+/** 递归扫描目录，稳定排序并记录类型、权限、摘要及符号链接边界。 */
 async function scanDirectory(rootPath: string): Promise<DirectoryManifest> {
   const entries: ManifestFileEntry[] = [];
+  /** 深度优先遍历当前子目录，并把条目追加到外层稳定清单。 */
   const visit = async (directory: string, prefix: string): Promise<void> => {
     const children = await readdir(directory, { withFileTypes: true });
     children.sort((left, right) => Buffer.from(left.name).compare(Buffer.from(right.name)));
@@ -274,10 +299,12 @@ async function scanDirectory(rootPath: string): Promise<DirectoryManifest> {
   });
 }
 
+/** 从语义输入摘要派生确定性规划产物 ID。 */
 function artifactId(prefix: string, semanticInput: unknown): string {
   return `${prefix}.${digestValue(semanticInput).value.slice(0, 24)}`;
 }
 
+/** 将完整 ArtifactRef 收窄为领域关系中使用的轻量 Ref。 */
 function toArtifactRef(artifact: ArtifactRef): Ref<ArtifactRef> {
   return Object.freeze({
     schema: artifact.schema,
@@ -286,6 +313,10 @@ function toArtifactRef(artifact: ArtifactRef): Ref<ArtifactRef> {
   });
 }
 
+/**
+ * 规范序列化并提交一类目标清单，随后核验 ArtifactStore 返回值与字节摘要；
+ * freezeTarget 并行调用它保存五项冻结输入。
+ */
 async function commitJsonArtifact(
   options: FreezeTargetOptions,
   scope: ScopeRef,
@@ -332,6 +363,7 @@ async function commitJsonArtifact(
   return toArtifactRef(artifact);
 }
 
+/** 将描述符中的绝对或相对路径解析为 sourceRoot 内的规范真实路径。 */
 async function resolveTargetPath(
   sourceRoot: string,
   configuredPath: string,
@@ -348,6 +380,7 @@ async function resolveTargetPath(
   return canonical;
 }
 
+/** 从 DSH 入口向上查找其 package.json，提取包身份、版本和清单摘要。 */
 async function resolvePackage(
   executablePath: string,
   sourceRoot: string,
@@ -388,6 +421,7 @@ async function resolvePackage(
   return {};
 }
 
+/** 在 DSH Home 支持的候选位置冻结指定 Profile 的文件或目录清单。 */
 async function profileManifest(dshHome: string, profile: string): Promise<unknown> {
   const candidates = [`profiles/${profile}`, `profile/${profile}`, profile];
   for (const portableCandidate of candidates) {
@@ -428,6 +462,7 @@ async function profileManifest(dshHome: string, profile: string): Promise<unknow
   });
 }
 
+/** 扫描目标根目录中的支持锁文件并生成依赖清单。 */
 async function lockfileManifest(sourceRoot: string): Promise<unknown> {
   const entries: object[] = [];
   for (const name of LOCKFILE_NAMES) {
@@ -456,6 +491,7 @@ async function lockfileManifest(sourceRoot: string): Promise<unknown> {
   });
 }
 
+/** 由入口摘要、包版本与 Headless bundle 版本构造运行驱动指纹。 */
 function buildDriverFingerprint(
   entrypointDigest: ContentDigest,
   dshPackageVersion: string | undefined,
@@ -478,7 +514,10 @@ function buildDriverFingerprint(
   });
 }
 
-/** Freeze a FULL_AGENT using only committed artifact references. */
+/**
+ * 冻结 FULL_AGENT 的关键文件与配置并返回仅引用已提交产物的 TargetSnapshot；
+ * 由 freezeTargetResult 和聚焦单元测试调用。
+ */
 export async function freezeTarget(
   descriptor: TargetDescriptor,
   config: ConfigSnapshot,
@@ -614,6 +653,7 @@ export async function freezeTarget(
   });
 }
 
+/** 解码完整性验证读取的 JSON 清单，并统一转换解析异常。 */
 function decodeManifest(bytes: Uint8Array, label: string): JsonObject {
   try {
     return assertPlainJsonObject(JSON.parse(Buffer.from(bytes).toString("utf8")), label);
@@ -623,11 +663,15 @@ function decodeManifest(bytes: Uint8Array, label: string): JsonObject {
   }
 }
 
+/** 比较当前清单规范内容与已保存产物字节的 SHA-256。 */
 async function manifestsEqual(current: unknown, savedBytes: Uint8Array): Promise<boolean> {
   return digestBytes(canonicalize(current)).value === digestBytes(savedBytes).value;
 }
 
-/** Re-reads every frozen critical input immediately before Run creation. */
+/**
+ * 在创建 Run 前重新读取所有冻结关键输入，返回去重排序后的变更或读取失败原因；
+ * 应用编排通过 verifyTargetIntegrityResult 调用。
+ */
 export async function verifyTargetIntegrity(
   snapshot: TargetSnapshot,
   options: VerifyTargetIntegrityOptions,
@@ -699,6 +743,7 @@ export async function verifyTargetIntegrity(
   });
 }
 
+/** 将目标冻结或完整性异常转换为规划阶段 FailureDraft。 */
 function targetFailureDraft(
   scope: ScopeRef,
   occurredAt: IsoDateTime,
@@ -723,7 +768,10 @@ function targetFailureDraft(
   });
 }
 
-/** PortResult boundary used by the workflow; the direct function remains useful for focused tests. */
+/**
+ * 目标冻结的工作流边界：先安全提取 ID/时间并处理取消，再把直接函数异常映射为 PortResult；
+ * 应用启动流程调用它，成功 Snapshot 随后交给 Inspector。
+ */
 export async function freezeTargetResult(
   context: OperationContext,
   descriptor: TargetDescriptor,
@@ -815,6 +863,7 @@ export async function freezeTargetResult(
   }
 }
 
+/** 运行前完整性验证的 PortResult 边界，处理取消并返回直接复核结果。 */
 export async function verifyTargetIntegrityResult(
   context: OperationContext,
   snapshot: TargetSnapshot,
@@ -838,9 +887,451 @@ export async function verifyTargetIntegrityResult(
   return succeeded(await verifyTargetIntegrity(snapshot, options));
 }
 
+/** 从 TargetSnapshot 构造冻结与验证失败使用的规划层级作用域。 */
 function planningScopeFromSnapshot(snapshot: TargetSnapshot): ScopeRef {
   return Object.freeze({
     targetId: snapshot.targetId,
     targetSnapshotId: snapshot.targetSnapshotId,
   });
+}
+/** Inspector 的时间、生产者版本和授权产物读取依赖。 */
+export interface InspectTargetOptions {
+  readonly createdAt: string;
+  readonly producerVersion: string;
+  readonly readArtifact: PlanningArtifactRead;
+}
+
+/** 目标检查输入或冻结产物无法解析时抛出的带码契约异常。 */
+export class InspectionError extends ContractViolation {
+  /** 初始化检查错误并保留 cause，供 PortResult 边界分类。 */
+  public constructor(code: string, message: string, options?: ErrorOptions) {
+    super(code, message, options);
+    this.name = "InspectionError";
+  }
+}
+
+/** 将未知值窄化为 JSON 对象；各事实提取 helper 共同调用。 */
+function asObject(value: unknown): Record<string, JsonValue> | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as Record<string, JsonValue>;
+}
+
+/** 解码并规范校验已读取 JSON 产物，失败时转换为 InspectionError。 */
+function decodeObject(bytes: Uint8Array, label: string): Record<string, JsonValue> {
+  try {
+    const parsed = JSON.parse(Buffer.from(bytes).toString("utf8")) as unknown;
+    const result = asObject(parsed);
+    if (result === undefined) throw new Error("not an object");
+    canonicalize(result);
+    return result;
+  } catch (error) {
+    throw new InspectionError("INSPECTION_ARTIFACT_INVALID", `${label} is not valid JSON`, {
+      cause: error,
+    });
+  }
+}
+
+/** 汇总并稳定排序 Snapshot 的五项来源产物引用，写入 InspectionSnapshot。 */
+function artifactRefs(snapshot: TargetSnapshot): readonly Ref<ArtifactRef>[] {
+  return Object.freeze([
+    snapshot.dshHomeManifestRef,
+    snapshot.effectiveConfigRef,
+    snapshot.lockfileRef,
+    snapshot.profileManifestRef,
+    snapshot.sourceManifestRef,
+  ].sort((left, right) => left.id.localeCompare(right.id, "en")));
+}
+
+/** 将可选 JSON 数组按规范序列化结果排序并冻结，消除声明顺序差异。 */
+function normalizeJsonArray(value: JsonValue | undefined): readonly JsonValue[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return Object.freeze(
+    [...value].sort((left, right) => canonicalize(left).localeCompare(canonicalize(right), "en")),
+  );
+}
+
+/** 合并 Snapshot Profile 名称、有效配置插件列表与 Profile 清单状态。 */
+function normalizedProfile(
+  snapshot: TargetSnapshot,
+  config: Record<string, JsonValue>,
+  profileArtifact: Record<string, JsonValue> | undefined,
+): JsonObject {
+  const declaredProfile = asObject(config.profile);
+  const declaredPlugins = normalizeJsonArray(declaredProfile?.plugins);
+  const manifestStatus =
+    profileArtifact === undefined || profileArtifact.status === "UNKNOWN" ? "UNKNOWN" : "KNOWN";
+  return Object.freeze({
+    name: snapshot.profile,
+    manifestStatus,
+    plugins:
+      declaredPlugins === undefined
+        ? Object.freeze({ status: "UNKNOWN", values: Object.freeze([]) })
+        : Object.freeze({ status: "KNOWN", values: declaredPlugins }),
+  });
+}
+
+/** 提取 Probe 配置、schema、启动顺序和必要能力，并同时生成限制项。 */
+function probeFacts(config: Record<string, JsonValue>): {
+  readonly configured: boolean | "UNKNOWN";
+  readonly schema: string;
+  readonly orderStatus: string;
+  readonly limitations: JsonObject[];
+} {
+  const probe = asObject(config.probe);
+  const limitations: JsonObject[] = [];
+  const configured =
+    typeof probe?.configured === "boolean" ? probe.configured : ("UNKNOWN" as const);
+  if (configured === "UNKNOWN") {
+    limitations.push(
+      Object.freeze({
+        code: "PROBE_CONFIGURATION_UNKNOWN",
+        status: "UNKNOWN",
+        messageRedacted: "Probe configuration was not declared by a frozen source",
+      }),
+    );
+  }
+  const schema = typeof probe?.schema === "string" ? probe.schema : "UNKNOWN";
+  if (schema === "UNKNOWN") {
+    limitations.push(
+      Object.freeze({
+        code: "PROBE_SCHEMA_UNKNOWN",
+        status: "UNKNOWN",
+        messageRedacted: "Probe schema could not be established",
+      }),
+    );
+  }
+  let orderStatus = "UNKNOWN";
+  if (probe?.order === "BEFORE_HEADLESS") orderStatus = "VALID";
+  else if (probe?.order === "AFTER_HEADLESS") orderStatus = "INVALID";
+  if (orderStatus === "UNKNOWN") {
+    limitations.push(
+      Object.freeze({
+        code: "PROBE_ORDER_UNKNOWN",
+        status: "UNKNOWN",
+        messageRedacted: "Probe ordering relative to Headless was not declared",
+      }),
+    );
+  }
+  /** Planner 要求 Inspector 明确确认的 Probe 能力字段。 */
+  const requiredFlags = [
+    "captureDispatch",
+    "captureLogs",
+    "oneShot",
+    "sourceRunIdEcho",
+  ] as const;
+  for (const flag of requiredFlags) {
+    if (probe?.[flag] !== true) {
+      limitations.push(
+        Object.freeze({
+          code: `PROBE_${flag.replaceAll(/([A-Z])/gu, "_$1").toUpperCase()}_UNKNOWN_OR_MISSING`,
+          status: probe?.[flag] === false ? "ABSENT" : "UNKNOWN",
+          messageRedacted: `Required Probe capability ${flag} is not confirmed`,
+        }),
+      );
+    }
+  }
+  const contentModes = normalizeJsonArray(probe?.contentModes);
+  if (contentModes === undefined || !contentModes.includes("STRUCTURED")) {
+    limitations.push(
+      Object.freeze({
+        code: "PROBE_CONTENT_MODE_UNKNOWN_OR_MISSING",
+        status: contentModes === undefined ? "UNKNOWN" : "ABSENT",
+        messageRedacted: "Probe STRUCTURED content mode is not confirmed",
+      }),
+    );
+  }
+  return Object.freeze({ configured, schema, orderStatus, limitations });
+}
+
+/** 比较包清单版本和有效配置版本，产出 KNOWN、UNKNOWN 或 CONFLICT 事实。 */
+function versionStatus(snapshot: TargetSnapshot, config: Record<string, JsonValue>): JsonObject {
+  const configuredVersion =
+    typeof config.dshVersion === "string" ? config.dshVersion : undefined;
+  if (snapshot.dshPackageVersion === undefined) {
+    return Object.freeze({
+      status: "UNKNOWN",
+      configuredVersion: configuredVersion ?? "UNKNOWN",
+      source: "TARGET_PACKAGE_MANIFEST",
+    });
+  }
+  if (configuredVersion !== undefined && configuredVersion !== snapshot.dshPackageVersion) {
+    return Object.freeze({
+      status: "CONFLICT",
+      packageVersion: snapshot.dshPackageVersion,
+      configuredVersion,
+      source: "TARGET_PACKAGE_AND_EFFECTIVE_CONFIG",
+    });
+  }
+  return Object.freeze({
+    status: "KNOWN",
+    version: snapshot.dshPackageVersion,
+    source: "TARGET_PACKAGE_MANIFEST",
+  });
+}
+
+/** 用入口摘要和 CLI grammar 判断冻结 Headless Driver 是否兼容。 */
+function headlessStatus(snapshot: TargetSnapshot): string {
+  try {
+    assertDigestEquals(
+      snapshot.driverFingerprint.dshEntrypointDigest,
+      snapshot.dshEntrypointDigest,
+      "DRIVER_ENTRYPOINT_MISMATCH",
+    );
+  } catch {
+    return "INCOMPATIBLE";
+  }
+  return snapshot.driverFingerprint.cliGrammarId === "dsh.headless.profile-task.v1"
+    ? "COMPATIBLE"
+    : "INCOMPATIBLE";
+}
+
+/** 为 InspectionSnapshot 构造所依赖 TargetSnapshot 的轻量引用。 */
+function targetSnapshotRef(snapshot: TargetSnapshot): Ref<TargetSnapshot> {
+  return Object.freeze({
+    schema: snapshot.schema,
+    id: snapshot.targetSnapshotId,
+    digest: snapshot.contentDigest,
+  });
+}
+
+/**
+ * 从 TargetSnapshot 的已提交产物生成确定性的 InspectionSnapshot。
+ * 调用方是应用规划编排；内部调用解码与事实归一化 helper，并将缺失声明表示为 UNKNOWN 和限制项。
+ */
+export async function inspectTarget(
+  snapshot: TargetSnapshot,
+  options: InspectTargetOptions,
+): Promise<InspectionSnapshot> {
+  if (snapshot.schema !== "dsheval.mvp.target-snapshot/v1") {
+    throw new InspectionError("INVALID_TARGET_SNAPSHOT", `unsupported TargetSnapshot schema`);
+  }
+  validateRef(snapshot.effectiveConfigRef, { fieldName: "effectiveConfigRef" });
+  validateRef(snapshot.profileManifestRef, { fieldName: "profileManifestRef" });
+  const createdAt: IsoDateTime = validateIsoDateTime(options.createdAt, "InspectTargetOptions.createdAt");
+  if (options.producerVersion.length === 0) {
+    throw new InspectionError("INVALID_INPUT", `producerVersion must not be empty`);
+  }
+
+  const limitations: JsonObject[] = [];
+  let frozenConfig: Record<string, JsonValue> = {};
+  try {
+    const envelope = decodeObject(
+      await options.readArtifact(snapshot.effectiveConfigRef),
+      "effective config artifact",
+    );
+    const extracted = asObject(envelope.config);
+    if (extracted === undefined) {
+      limitations.push(
+        Object.freeze({
+          code: "EFFECTIVE_CONFIG_UNKNOWN",
+          status: "UNKNOWN",
+          messageRedacted: "Effective config artifact contains no normalized config facts",
+        }),
+      );
+    } else {
+      frozenConfig = extracted;
+    }
+  } catch {
+    limitations.push(
+      Object.freeze({
+        code: "EFFECTIVE_CONFIG_READ_FAILED",
+        status: "UNKNOWN",
+        messageRedacted: "Effective config could not be read through the authorized artifact source",
+      }),
+    );
+  }
+
+  let frozenProfile: Record<string, JsonValue> | undefined;
+  try {
+    frozenProfile = decodeObject(
+      await options.readArtifact(snapshot.profileManifestRef),
+      "profile manifest artifact",
+    );
+  } catch {
+    limitations.push(
+      Object.freeze({
+        code: "PROFILE_MANIFEST_READ_FAILED",
+        status: "UNKNOWN",
+        messageRedacted: "Profile manifest could not be read through the authorized artifact source",
+      }),
+    );
+  }
+
+  const probe = probeFacts(frozenConfig);
+  limitations.push(...probe.limitations);
+  if (snapshot.dshPackageVersion === undefined) {
+    limitations.push(
+      Object.freeze({
+        code: "DSH_VERSION_UNKNOWN",
+        status: "UNKNOWN",
+        messageRedacted: "The DSH entrypoint could not be bound to a package version",
+      }),
+    );
+  }
+  const toolSchemas = normalizeJsonArray(frozenConfig.toolSchemas) ??
+    Object.freeze([
+      Object.freeze({
+        status: "UNKNOWN",
+        reasonCode: "TOOL_SCHEMAS_NOT_DECLARED",
+      }),
+    ]);
+  if (frozenConfig.fixture === true) {
+    limitations.push(
+      Object.freeze({
+        code: "FIXTURE_TARGET",
+        status: "DECLARED",
+        messageRedacted: "This inspection describes a test fixture, not a real DSH acceptance run",
+      }),
+    );
+  }
+  const declaredLimitations = normalizeJsonArray(frozenConfig.limitations);
+  if (declaredLimitations !== undefined) {
+    for (const limitation of declaredLimitations) {
+      const object = asObject(limitation);
+      limitations.push(
+        object === undefined
+          ? Object.freeze({
+              code: "DECLARED_LIMITATION",
+              status: "DECLARED",
+              messageRedacted: String(limitation),
+            })
+          : Object.freeze({ ...object }),
+      );
+    }
+  }
+  limitations.sort((left, right) => canonicalize(left).localeCompare(canonicalize(right), "en"));
+
+  const normalized = {
+    targetSnapshotRef: targetSnapshotRef(snapshot),
+    dshVersionStatus: versionStatus(snapshot, frozenConfig),
+    profile: normalizedProfile(snapshot, frozenConfig, frozenProfile),
+    probeConfigured: probe.configured,
+    probeSchema: probe.schema,
+    probeOrderStatus: probe.orderStatus,
+    headlessDriverStatus: headlessStatus(snapshot),
+    toolSchemas,
+    permissionPreset:
+      typeof frozenConfig.permissionPreset === "string"
+        ? frozenConfig.permissionPreset
+        : "UNKNOWN",
+    sandboxMode:
+      typeof frozenConfig.sandboxMode === "string" ? frozenConfig.sandboxMode : "UNKNOWN",
+    limitations: Object.freeze(limitations),
+    sourceArtifactRefs: artifactRefs(snapshot),
+  };
+  const semanticFacts = {
+    targetSnapshotId: snapshot.targetSnapshotId,
+    dshVersionStatus: normalized.dshVersionStatus,
+    profile: normalized.profile,
+    probeConfigured: normalized.probeConfigured,
+    probeSchema: normalized.probeSchema,
+    probeOrderStatus: normalized.probeOrderStatus,
+    headlessDriverStatus: normalized.headlessDriverStatus,
+    toolSchemas: normalized.toolSchemas,
+    permissionPreset: normalized.permissionPreset,
+    sandboxMode: normalized.sandboxMode,
+    limitations: normalized.limitations,
+    sourceArtifactIds: normalized.sourceArtifactRefs.map((ref) => String(ref.id)).sort(),
+  };
+  const inspectionId = validateStableId<"InspectionId">(
+    `inspection.${digestValue(semanticFacts).value.slice(0, 24)}`,
+    "inspectionId",
+  );
+  const withoutDigest = {
+    schema: "dsheval.mvp.inspection/v1" as const,
+    inspectionId,
+    scope: Object.freeze({
+      targetId: snapshot.targetId,
+      targetSnapshotId: snapshot.targetSnapshotId,
+    }),
+    createdAt,
+    producerVersion: options.producerVersion,
+    ...normalized,
+  };
+  return Object.freeze({
+    ...withoutDigest,
+    contentDigest: digestValue(withoutDigest),
+  });
+}
+
+/** 把 Inspector 异常映射为规划阶段 FailureDraft，供 inspectTargetResult 的各失败分支复用。 */
+function inspectionFailureDraft(
+  scope: ScopeRef,
+  occurredAt: IsoDateTime,
+  category: FailureDraft["category"],
+  reasonCode: string,
+  messageRedacted: string,
+): FailureDraft {
+  return Object.freeze({
+    scope,
+    category,
+    origin: category === "INTERNAL_INVARIANT" ? "DSHEVAL" as const : "TARGET" as const,
+    actor: "PLANNING" as const,
+    phase: "INSPECTION",
+    severity: "ERROR" as const,
+    retryable: false as const,
+    messageRedacted,
+    reasonCode,
+    evidenceRefs: Object.freeze([]),
+    artifactRefs: Object.freeze([]),
+    occurredAt,
+  });
+}
+
+/**
+ * Inspector 的工作流边界：处理时间校验与取消，并将直接函数的异常转换为 PortResult；
+ * `app/bootstrap.ts` 在冻结目标后调用，成功值随后交给 Planner。
+ */
+export async function inspectTargetResult(
+  context: OperationContext,
+  snapshot: TargetSnapshot,
+  options: InspectTargetOptions,
+): Promise<PortResult<InspectionSnapshot>> {
+  const scope = Object.freeze({
+    targetId: snapshot.targetId,
+    targetSnapshotId: snapshot.targetSnapshotId,
+  });
+  let occurredAt: IsoDateTime;
+  try {
+    occurredAt = validateIsoDateTime(options.createdAt, "inspection occurredAt");
+  } catch {
+    return rejected("INVALID_INPUT", [], [
+      Object.freeze({
+        code: "INSPECTION_TIME_INVALID",
+        messageRedacted: "Inspection timestamp is invalid",
+      }),
+    ]);
+  }
+  if (context.cancellationToken.isCancellationRequested) {
+    return cancelled(
+      Object.freeze({
+        ...inspectionFailureDraft(
+          scope,
+          occurredAt,
+          "CANCELLED",
+          "INSPECTION_CANCELLED",
+          "Target inspection was cancelled",
+        ),
+        origin: "USER" as const,
+      }),
+    );
+  }
+  try {
+    return succeeded(await inspectTarget(snapshot, options));
+  } catch (error) {
+    const reasonCode = error instanceof ContractViolation
+      ? error.code
+      : "INSPECTION_INTERNAL_ERROR";
+    const draft = inspectionFailureDraft(
+      scope,
+      occurredAt,
+      reasonCode === "INSPECTION_INTERNAL_ERROR" ? "INTERNAL_INVARIANT" : "TARGET_INTEGRITY",
+      reasonCode,
+      reasonCode === "INSPECTION_INTERNAL_ERROR"
+        ? "DSHEval could not complete target inspection"
+        : "Frozen target facts are invalid for inspection",
+    );
+    if (error instanceof ContractViolation) return rejected("INVALID_INPUT", [draft]);
+    return failed(draft);
+  }
 }

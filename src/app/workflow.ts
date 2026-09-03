@@ -1,3 +1,17 @@
+/**
+ * 文件职责：驱动 DSHEval 唯一的端到端评测状态机。
+ *
+ * 核心流程：依次完成 Target 冻结与检查、计划生成、安全预检、环境准备、Agent
+ * 执行、双通道观测、Evidence 闭合、Judge、Reset 独立验证、单次 Gate 和报告交付。
+ * 每一步都先持久化事实再推进状态，异常路径复用同一套安全收尾流程。
+ *
+ * 与其他文件的交互：从 bootstrap 取得全部服务；顺序调用 planning、runtime、
+ * observation、evaluation、platform 与 storage 的公开接口；CLI 只调用本文件的
+ * runEvaluationWorkflow 或 rebuildCommittedReportHtml。
+ *
+ * 公开接口：FixtureHooks、RunWorkflowInput、WorkflowSummary、ReportWorkflowSummary、
+ * rebuildCommittedReportHtml 和 runEvaluationWorkflow。
+ */
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -103,10 +117,9 @@ import {
   verifyResetSnapshot,
   type FileSnapshotDraft,
 } from "../observation/sensors/file.js";
-import { loadFilesystemPackResult } from "../planning/catalog.js";
-import { inspectTargetResult } from "../planning/inspector.js";
 import {
   freezeTargetResult,
+  inspectTargetResult,
   verifyTargetIntegrityResult,
   type PlanningArtifactCommitRequest,
 } from "../planning/target.js";
@@ -141,25 +154,27 @@ import {
   createRunId,
   DSHEVAL_VERSION,
   failureDraftsFrom,
-  judgeRegistry,
+  registeredJudgeDescriptors,
   requireSucceeded,
   type ApplicationServices,
 } from "./bootstrap.js";
 import type { MvpConfigValues } from "../platform/config.js";
 
+/** 报告和 status.html 共用的十步稳定流程名称。 */
 const STEP_LABELS = [
   "Freeze Target / Config / Assets",
   "Inspect DSH / Probe / Driver",
-  "Build frozen filesystem plan",
+  "Build frozen evaluation plan",
   "Compile / Lease / Run objects / Preflight",
   "Prepare / Seed / File Before / Probe armed",
   "Execute one DSH Headless Attempt",
   "Drain / File After / Evidence Closure",
-  "Persist three deterministic CheckResults",
+  "Persist planned CheckResults",
   "Reset / independent verification / Cleanup",
   "Single Gate / terminal Run / Report / Export",
 ] as const;
 
+/** 测试 Fixture 可注入的明确故障点或行为；E2E 用它覆盖收尾分支。 */
 export interface FixtureHooks {
   readonly behavior?: string;
   readonly onTargetStarted?: () => Promise<void> | void;
@@ -169,6 +184,7 @@ export interface FixtureHooks {
   readonly beforeReportHtml?: () => Promise<void>;
 }
 
+/** CLI 交给主 Workflow 的完整输入。stopAfter 复用前两段流程实现 inspect/plan。 */
 export interface RunWorkflowInput {
   readonly cwd: string;
   readonly descriptor: TargetDescriptor;
@@ -183,6 +199,7 @@ export interface RunWorkflowInput {
   readonly stopAfter?: "INSPECT" | "PLAN";
 }
 
+/** inspect、plan、run 最终写到 CLI stdout 的统一摘要。 */
 export interface WorkflowSummary {
   readonly schema: "dsheval.mvp.cli-summary/v1";
   readonly command: "run" | "inspect" | "plan";
@@ -206,6 +223,7 @@ export interface WorkflowSummary {
   readonly exitCode: 0 | 1 | 2 | 3 | 4 | 130;
 }
 
+/** report 子命令重建或验证 HTML 后返回的摘要。 */
 export interface ReportWorkflowSummary {
   readonly schema: "dsheval.mvp.cli-summary/v1";
   readonly command: "report";
@@ -220,7 +238,10 @@ export interface ReportWorkflowSummary {
   readonly exitCode: 0;
 }
 
-/** Re-renders only the already committed, digest-verified report document. */
+/**
+ * 从已提交且摘要验证通过的 report.json 重建 HTML；由 CLI report 命令调用。
+ * 已存在 HTML 时只做确定性比对，缺失时才提交新文件。
+ */
 export async function rebuildCommittedReportHtml(input: {
   readonly reportRoot: string;
   readonly runId: string;
@@ -270,6 +291,7 @@ export async function rebuildCommittedReportHtml(input: {
   };
 }
 
+/** Workflow 运行期间的内存索引；每项都对应已提交或即将提交的领域事实。 */
 interface MutableWorkflowFacts {
   readonly fixture: boolean;
   run?: EvaluationRun;
@@ -299,10 +321,12 @@ interface MutableWorkflowFacts {
   readonly timeline: WorkflowStepView[];
 }
 
+/** 主链路的受控停止信号，携带 CLI 状态和退出码进入统一 catch/finally。 */
 class WorkflowStop extends Error {
   public readonly exitCode: WorkflowSummary["exitCode"];
   public readonly status: WorkflowSummary["status"];
 
+  /** 由规划失败、取消或阶段门禁创建；runEvaluationWorkflow 捕获并收尾。 */
   public constructor(
     message: string,
     exitCode: WorkflowSummary["exitCode"],
@@ -315,6 +339,10 @@ class WorkflowStop extends Error {
   }
 }
 
+/**
+ * 执行一次完整评测。CLI 的 inspect/plan/run 都调用本函数；内部通过阶段门禁保证
+ * 单 Case、单 Attempt、先证据后 Judge、先 CheckResult 后 Gate、Reset 结果独立。
+ */
 export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<WorkflowSummary> {
   const runId = validateStableId<"RunId">(input.runId ?? createRunId(), "runId");
   const createdAt = new Date().toISOString();
@@ -372,6 +400,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     markStep(facts, 1, "RUNNING");
     await save.immutable(services.config, services.config.configId);
     await save.immutable(input.descriptor, input.descriptor.targetId);
+    // 将 Target 冻结阶段产生的输入和清单提交为 Artifact，并建立本次 Run 的内存索引。
     const planningArtifactCommit = async (
       request: PlanningArtifactCommitRequest,
     ): Promise<ArtifactRef> => {
@@ -417,6 +446,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     );
     facts.target = target;
     const targetRef = await save.immutable(target, target.targetSnapshotId);
+    // Inspector 和完整性校验通过 Ref 读取已经验证的规划 Artifact，不能直接读 Target 路径。
     const readPlanningArtifact = async (ref: Ref<ArtifactRef>): Promise<Uint8Array> => {
       const artifact = requireFullArtifact(artifactById, ref);
       return requireSucceeded(
@@ -467,7 +497,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
 
     markStep(facts, 3, "RUNNING");
     const packRoot = path.resolve(input.packRoot ?? path.join(input.cwd, "packs"));
-    const packResult = await loadFilesystemPackResult(
+    const packResult = await services.catalog.load(
       services.operation("PLANNING", "load-pack"),
       packRoot,
       target.scope,
@@ -486,9 +516,10 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         input.stopAfter === "PLAN" ? "plan" : "run",
       );
     }
-    const pack = requireSucceeded("load filesystem pack", packResult);
+    const pack = requireSucceeded("load evaluation pack", packResult);
     const packRef = await save.immutable(pack, pack.packId);
     const planner = services.planner;
+    // 把 Planner 的 Artifact Port 绑定到本 Run 的真实 ArtifactStore，并同步维护事实索引。
     const planningArtifacts = {
       commit: async (
         _context: Parameters<typeof services.artifacts.commit>[0],
@@ -515,10 +546,10 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         {
           targetSnapshot: target,
           inspectionSnapshot: inspection,
-          filesystemPack: pack,
+          evaluationPack: pack,
           configSnapshot: services.config,
           sensors: services.sensors,
-          judges: judgeRegistry(pack),
+          judges: registeredJudgeDescriptors(services.judges),
         },
         planningArtifacts,
       ),
@@ -952,6 +983,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     if (stagedExecutablePath === undefined) {
       throw new Error("staged target executable is unavailable");
     }
+    // 将 Target 启动异常统一收敛为 TargetExecutionResult，后续仍可 Drain 并形成证据。
     const targetResult = await (async (): Promise<TargetExecutionResult> => {
       const modelEnvironment: Record<string, string> = Object.create(null) as Record<string, string>;
       for (const name of services.config.secretRefNames) {
@@ -1171,10 +1203,10 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       const closure = facts.closures.find((item) => item.checkId === checkPlan.checkId)!;
       const closureRef = refForImmutable(closure, closure.closureId);
       const authorized = closure.authorizedEvidenceRefs.map((ref) => facts.evidence.find((item) => item.evidenceId === ref.id)!).filter(Boolean);
-      let judged = evaluateCheck({ scope: graph.scope, checkPlan, closure, closureRef, evidenceContract: contract, authorizedEvidence: authorized, judgementId: `judgement.${checkPlan.checkId}.${ids.attemptId}`, checkResultId: `check-result.${checkPlan.checkId}.${ids.attemptId}`, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
+      let judged = await evaluateCheck({ scope: graph.scope, checkPlan, closure, closureRef, evidenceContract: contract, authorizedEvidence: authorized, judgementId: `judgement.${checkPlan.checkId}.${ids.attemptId}`, checkResultId: `check-result.${checkPlan.checkId}.${ids.attemptId}`, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION }, services.judges);
       if (judged.failureDraft !== undefined) {
         const judgeFailureRef = await save.failure(judged.failureDraft);
-        judged = evaluateCheck({ scope: graph.scope, checkPlan, closure, closureRef, evidenceContract: contract, authorizedEvidence: authorized, judgementId: `judgement.${checkPlan.checkId}.${ids.attemptId}`, checkResultId: `check-result.${checkPlan.checkId}.${ids.attemptId}`, createdAt: judged.judgement.createdAt, producerVersion: DSHEVAL_VERSION, judgeFailureRef });
+        judged = await evaluateCheck({ scope: graph.scope, checkPlan, closure, closureRef, evidenceContract: contract, authorizedEvidence: authorized, judgementId: `judgement.${checkPlan.checkId}.${ids.attemptId}`, checkResultId: `check-result.${checkPlan.checkId}.${ids.attemptId}`, createdAt: judged.judgement.createdAt, producerVersion: DSHEVAL_VERSION, judgeFailureRef }, services.judges);
       }
       for (const finding of judged.findings) await save.immutable(finding, finding.findingId);
       const judgementRef = await save.immutable(judged.judgement, judged.judgement.judgementId);
@@ -1336,7 +1368,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     for (const ref of checkResultRefs) {
       committedChecks.push({ record: requireSucceeded(`reread CheckResult ${ref.id}`, await services.repository.get(services.operation("APP", `reread-${ref.id}`), ref)) as CheckResult, ref });
     }
-    const gate = buildGateDecision({ gateDecisionId: `gate.${runId}`, runId, scope: graph.run.scope, committedCheckResults: committedChecks, finalizationFactsCommitted: true, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
+    const gate = buildGateDecision({ gateDecisionId: `gate.${runId}`, runId, scope: graph.run.scope, expectedCheckIds: planBuild.evaluationPlan.casePlan.checkIds, committedCheckResults: committedChecks, finalizationFactsCommitted: true, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
     const gateRef = await save.immutable(gate, gate.gateDecisionId);
     facts.gate = gate;
     const userCancelled = targetResult.terminationKind === "CANCELLED";
@@ -1519,14 +1551,17 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
   }
 }
 
+/** 报告交付进度，用于异常路径判断最后一个已完成的不可变事实。 */
 type ReportPhase = "NOT_STARTED" | "JSON" | "HTML" | "EXPORT";
 
+/** 报告 JSON、HTML 与导出目录全部成功提交后的路径集合。 */
 interface DeliveredReport {
   readonly reportJson: string;
   readonly reportHtml: string;
   readonly delivery: string;
 }
 
+/** 判断异常收尾时是否已有足够领域对象构造一份诊断报告。 */
 function hasReportGraph(facts: MutableWorkflowFacts): boolean {
   return facts.run !== undefined &&
     facts.evaluationCase !== undefined &&
@@ -1536,6 +1571,9 @@ function hasReportGraph(facts: MutableWorkflowFacts): boolean {
     facts.observationPlan !== undefined;
 }
 
+/**
+ * 按 JSON→验证→HTML→Export 的顺序交付最终报告；正常和异常收尾共同调用。
+ */
 async function persistAndDeliverReport(input: {
   readonly services: ApplicationServices;
   readonly facts: MutableWorkflowFacts;
@@ -1592,6 +1630,10 @@ async function persistAndDeliverReport(input: {
   };
 }
 
+/**
+ * 主流程失败后的环境恢复入口：根据最后状态 Reset、独立复查、Cleanup 或隔离。
+ * runEvaluationWorkflow 的 catch 路径调用，已形成的 Agent Gate 不在这里修改。
+ */
 async function recoverEnvironmentAfterFailure(input: {
   readonly services: ApplicationServices;
   readonly facts: MutableWorkflowFacts;
@@ -1611,6 +1653,7 @@ async function recoverEnvironmentAfterFailure(input: {
   const runId = String(scope.runId);
   const caseId = String(scope.caseId);
   const attemptId = String(scope.attemptId);
+  // 保存 Cleanup Failure，并把仍可变的 Environment 推进到 QUARANTINED。
   const quarantine = async (reasonCode: string, message: string): Promise<void> => {
     const failureRef = await save.failure(makeFailure(
       scope,
@@ -1958,21 +2001,29 @@ async function recoverEnvironmentAfterFailure(input: {
   }
 }
 
+/**
+ * 为 Workflow 创建一组绑定 Repository/ArtifactStore 的持久化函数。
+ * 所有写入先做 Secret canary 检查，并同步更新 MutableWorkflowFacts。
+ */
 function createPersistence(services: ApplicationServices, facts: MutableWorkflowFacts) {
   let failureCounter = 0;
+  /** 提交不可变领域记录并返回 Ref。 */
   const immutable = async <T extends object>(record: T, id: string): Promise<Ref<T>> => {
       assertSecretFreeValue(record, services.config, "immutable record");
       return requireSucceeded(`persist ${String((record as { schema?: string }).schema ?? "record")}`, await services.repository.putImmutable(services.operation("STORAGE", `put-${id}`), record)) as Ref<T>;
     };
+  /** 创建生命周期对象的 revision 0 Projection。 */
   const projection = async <T extends EvaluationRun | EvaluationCase | ExecutionAttempt | EnvironmentInstance | ObservationSession>(record: T): Promise<Ref<T> & { revision: 0 }> => {
       assertSecretFreeValue(record, services.config, "lifecycle projection");
       return requireSucceeded(`create ${record.schema}`, await services.repository.createProjection(services.operation("STORAGE", `create-${record.aggregateId}`), record)) as Ref<T> & { revision: 0 };
     };
+  /** 追加生命周期事件并返回调用方已经构造、现已提交的下一版 Projection。 */
   const transition = async <T extends EvaluationRun | EvaluationCase | ExecutionAttempt | EnvironmentInstance | ObservationSession>(transitionValue: Parameters<ApplicationServices["repository"]["appendTransition"]>[1]): Promise<T> => {
       assertSecretFreeValue(transitionValue, services.config, "lifecycle transition");
       requireSucceeded("append lifecycle transition", await services.repository.appendTransition(services.operation("STORAGE", `transition-${transitionValue.nextProjection.aggregateId}-${transitionValue.nextProjection.revision}`), transitionValue));
       return transitionValue.nextProjection as T;
     };
+  /** 把 FailureDraft 提交为 FailureRecord，并加入 Workflow 事实集合。 */
   const failure = async (draft: FailureDraft): Promise<Ref<FailureRecord>> => {
       failureCounter += 1;
       const record = commitFailureDraft(draft, `failure.${String(facts.run?.runId ?? "planning")}.${failureCounter}`, DSHEVAL_VERSION);
@@ -1981,11 +2032,13 @@ function createPersistence(services: ApplicationServices, facts: MutableWorkflow
       facts.failures.push(record);
       return ref;
     };
+  /** 按顺序提交一组 FailureDraft，保留对应 Ref 顺序。 */
   const failures = async (drafts: readonly FailureDraft[]): Promise<readonly Ref<FailureRecord>[]> => {
       const refs: Ref<FailureRecord>[] = [];
       for (const draft of drafts) refs.push(await failure(draft));
       return refs;
     };
+  /** 提交一般 Artifact；命中 Secret canary 时只允许明确的受限隔离记录。 */
   const artifact = async (
     bytes: Uint8Array | string,
     scope: ScopeRef,
@@ -2013,6 +2066,7 @@ function createPersistence(services: ApplicationServices, facts: MutableWorkflow
       facts.artifacts.push(committed);
       return committed;
     };
+  /** 提交 Target stdout/stderr，并把 Secret 泄漏同时记录为 Target 安全故障。 */
   const outputArtifact = async (bytes: Uint8Array, scope: ScopeRef, artifactId: string, logicalName: string, config: ConfigSnapshot): Promise<ArtifactRef> => {
       const canaries = config.secretRefNames.map((name) => process.env[name]).filter((value): value is string => value !== undefined);
       const leaks = findSecretLeaks(bytes, canaries);
@@ -2042,6 +2096,7 @@ function createPersistence(services: ApplicationServices, facts: MutableWorkflow
       }
       return committed;
     };
+  /** 提交一次环境或 Target 控制操作的时间、结果和 FailureRef。 */
   const control = async (
     scope: ScopeRef,
     operation: ControlEvent["operation"],
@@ -2061,6 +2116,7 @@ function createPersistence(services: ApplicationServices, facts: MutableWorkflow
       assertSecretFreeValue(event, services.config, "ControlEvent");
       return requireSucceeded("persist ControlEvent", await services.repository.putImmutable(services.operation("STORAGE", `control-${event.controlEventId}`), event)) as Ref<ControlEvent>;
     };
+  /** 将平台文件锁事实转换为领域 LeaseRecord。 */
   const lease = async (leaseFact: LeaseFact, scope: ScopeRef, state: "ACTIVE" | "RELEASED"): Promise<void> => {
       const record = withContentDigest({ schema: "dsheval.mvp.lease/v1" as const, leaseId: validateStableId<"LeaseId">(`lease.${String(scope.runId)}.${state.toLowerCase()}`), scope, runId: scope.runId!, slotId: "vm-global" as const, state, ownerPid: leaseFact.ownerPid, ownerProcessStartToken: leaseFact.ownerProcessStartToken, acquiredAt: leaseFact.acquiredAt, ...(leaseFact.releasedAt === undefined ? {} : { releasedAt: leaseFact.releasedAt }), createdAt: state === "ACTIVE" ? leaseFact.acquiredAt : leaseFact.releasedAt!, producerVersion: DSHEVAL_VERSION });
       assertSecretFreeValue(record, services.config, "LeaseRecord");
@@ -2079,6 +2135,7 @@ function createPersistence(services: ApplicationServices, facts: MutableWorkflow
   };
 }
 
+/** 把冻结 Plan 的 JSON seedSpec 转成 Runtime Environment 接受的强类型条目。 */
 function seedSpecs(plan: EvaluationPlan): readonly SeedEntrySpec[] {
   const seed = plan.casePlan.seedSpec as Record<string, unknown>;
   if (!Array.isArray(seed.entries)) throw new Error("frozen seedSpec.entries is missing");
@@ -2096,10 +2153,12 @@ function seedSpecs(plan: EvaluationPlan): readonly SeedEntrySpec[] {
   });
 }
 
+/** 为本次即时构造的不可变记录补齐统一 scope、时间和生产者版本。 */
 function recordMetadata(scope: ScopeRef): { scope: ScopeRef; createdAt: string; producerVersion: string } {
   return { scope, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION };
 }
 
+/** 重复采集 File After，直到两个连续摘要相同或达到稳定等待上限。 */
 async function captureStableAfter(
   sensor: EnvironmentSensor,
   input: Omit<Parameters<EnvironmentSensor["captureAfter"]>[0], "snapshotId"> & {
@@ -2120,39 +2179,47 @@ async function captureStableAfter(
   return { snapshot: { ...prior, snapshotId: `snapshot.after.${input.attemptId}` }, stable: false };
 }
 
+/** 将 TargetDriver 终止原因映射为 ExecutionAttempt 的终态。 */
 function attemptTerminalState(result: TargetExecutionResult): "SUCCEEDED" | "TARGET_FAILED" | "TIMED_OUT" | "HARNESS_ERROR" | "CANCELLED" {
   if (result.terminationKind === "EXITED") return "SUCCEEDED";
   return result.terminationKind;
 }
 
+/** 把非成功 TargetExecutionResult 转成保持 Agent/Harness/取消归因的 FailureDraft。 */
 function targetFailure(result: TargetExecutionResult, scope: ScopeRef): FailureDraft {
   return makeFailure(scope, result.terminationKind === "TIMED_OUT" ? "TIMEOUT" : result.terminationKind === "CANCELLED" ? "CANCELLED" : "TARGET_EXECUTION", result.terminationKind === "HARNESS_ERROR" ? "DSHEVAL" : result.terminationKind === "CANCELLED" ? "USER" : "TARGET", result.terminationKind === "HARNESS_ERROR" ? "RUNTIME" : result.terminationKind === "CANCELLED" ? "USER" : "TARGET", "TARGET_EXECUTION", `TARGET_${result.terminationKind}`, "Target execution ended without a successful process exit");
 }
 
+/** 构造 Workflow 内部统一格式的 FailureDraft；save.failure 负责最终提交。 */
 function makeFailure(scope: ScopeRef, category: FailureDraft["category"], origin: FailureDraft["origin"], actor: FailureDraft["actor"], phase: string, reasonCode: string, messageRedacted: string): FailureDraft {
   return { scope, category, origin, actor, phase, severity: category === "TARGET_SECURITY_VIOLATION" ? "CRITICAL" : "ERROR", retryable: false, messageRedacted, reasonCode, evidenceRefs: [], artifactRefs: [], occurredAt: new Date().toISOString() as IsoDateTime };
 }
 
+/** 用 Ref 的 ID 与摘要从内存索引解析完整 Artifact 元数据。 */
 function requireFullArtifact(index: ReadonlyMap<string, ArtifactRef>, ref: Ref<ArtifactRef>): ArtifactRef {
   const artifact = index.get(String(ref.id));
   if (artifact === undefined || artifact.contentDigest.value !== ref.digest.value) throw new Error("committed ArtifactRef metadata is unavailable or mismatched");
   return artifact;
 }
 
+/** 更新一个十步流程节点的状态、时间、对象引用和当前失败分组。 */
 function markStep(facts: MutableWorkflowFacts, number: WorkflowStepView["number"], status: WorkflowStepView["status"], refs: readonly Ref[] = []): void {
   const current = facts.timeline[number - 1]!;
   replaceStep(facts, number, { status, ...(status === "RUNNING" ? { startedAt: new Date().toISOString() } : { startedAt: current.startedAt ?? new Date().toISOString(), endedAt: new Date().toISOString() }), objectRefs: refs.map((ref) => `${ref.schema}:${ref.id}${ref.revision === undefined ? "" : `@${ref.revision}`}`), failureGroups: uniqueGroups(facts.failures) });
 }
 
+/** 对指定流程节点做不可变式局部替换；markStep 和故障收尾调用。 */
 function replaceStep(facts: MutableWorkflowFacts, number: WorkflowStepView["number"], patch: Partial<WorkflowStepView>): void {
   const index = number - 1;
   facts.timeline[index] = { ...facts.timeline[index]!, ...patch };
 }
 
+/** 将 FailureRecord 映射为稳定、去重的五类用户可读故障分组。 */
 function uniqueGroups(failures: readonly FailureRecord[]): readonly string[] {
   return [...new Set(failures.map(failureDisplayGroup))].sort();
 }
 
+/** 尝试原子替换非权威 status.html；失败只追加 REPORT_FAILURE，不覆盖已有事实。 */
 async function updateStatus(
   services: ApplicationServices,
   facts: MutableWorkflowFacts,
@@ -2184,10 +2251,12 @@ async function updateStatus(
   }
 }
 
+/** 序列化结构化值后执行统一 Secret canary 扫描。 */
 function assertSecretFreeValue(value: unknown, config: ConfigSnapshot, label: string): void {
   assertSecretFreeBytes(Buffer.from(JSON.stringify(value), "utf8"), config, label);
 }
 
+/** 检查待发布字节是否包含配置引用的 Secret 值，命中即拒绝发布。 */
 function assertSecretFreeBytes(
   bytes: Uint8Array | string,
   config: ConfigSnapshot,
@@ -2201,6 +2270,7 @@ function assertSecretFreeBytes(
   }
 }
 
+/** 从已提交的内存事实投影当前 Viewer/Report 共用的只读视图。 */
 function buildView(facts: MutableWorkflowFacts, phase: string): ReportViewModel {
   const sourceStatuses = facts.sources.flatMap((source) => {
     const status = [...facts.collectionStatuses]
@@ -2215,6 +2285,7 @@ function buildView(facts: MutableWorkflowFacts, phase: string): ReportViewModel 
   return buildReportViewModel({ run: facts.run!, target: facts.target!, attempt: facts.attempt!, ...(facts.evaluationPlan === undefined ? {} : { evaluationPlan: facts.evaluationPlan }), fixture: facts.fixture, securityIsolation: facts.securityIsolation ?? "NOT_VERIFIED", sources: facts.sources, collectionStatuses: sourceStatuses, closures: facts.closures, judgements: facts.judgements, checkResults: facts.checkResults, evidence: facts.evidence, rawObservations: facts.rawObservations, fileSnapshots: facts.fileSnapshots, fileDiffs: facts.fileDiffs, findings: facts.findings, ...(facts.gate === undefined ? { gateAbsenceReason: gateAbsenceReason(facts) } : { gate: facts.gate }), ...(facts.resetVerification === undefined ? {} : { resetVerification: facts.resetVerification }), environmentState: facts.environment?.state ?? "NOT_CREATED", failures: facts.failures, artifacts: facts.artifacts, timeline: facts.timeline, currentPhase: phase });
 }
 
+/** 在 Gate 尚未形成时选择最接近根因的稳定解释码。 */
 function gateAbsenceReason(facts: MutableWorkflowFacts): string {
   if (facts.checkResults.length === 3) return "GATE_FINALIZATION_NOT_COMMITTED";
   const causalFailure = facts.failures.find(
@@ -2223,10 +2294,12 @@ function gateAbsenceReason(facts: MutableWorkflowFacts): string {
   return causalFailure?.reasonCode ?? facts.failures.at(-1)?.reasonCode ?? "CHECK_RESULTS_NOT_COMMITTED";
 }
 
+/** 将最终事实图转换为带 Ref 的 EvaluationReport 领域记录。 */
 function buildFinalReport(facts: MutableWorkflowFacts): EvaluationReport {
   return buildEvaluationReport({ reportId: `report.${String(facts.run!.runId)}`, scope: facts.run!.scope, runRef: refForProjection(facts.run!), targetSnapshotRef: refForImmutable(facts.target!, facts.target!.targetSnapshotId), planRefs: [refForImmutable(facts.evaluationPlan!, facts.evaluationPlan!.evaluationPlanId), refForImmutable(facts.observationPlan!, facts.observationPlan!.observationPlanId)], caseRef: refForProjection(facts.evaluationCase!), attemptRef: refForProjection(facts.attempt!), sourceRefs: facts.sources.map((source) => refForImmutable(source, source.sourceId)), collectionStatusRefs: facts.collectionStatuses.map((status) => refForImmutable(status, status.collectionStatusId)), closureRefs: facts.closures.map((closure) => refForImmutable(closure, closure.closureId)), judgementRefs: facts.judgements.map((judgement) => refForImmutable(judgement, judgement.judgementId)), checkResultRefs: facts.checkResults.map((result) => refForImmutable(result, result.checkResultId)), ...(facts.gate === undefined ? {} : { gateDecisionRef: refForImmutable(facts.gate, facts.gate.gateDecisionId) }), ...(facts.resetVerification === undefined ? {} : { resetVerificationRef: refForImmutable(facts.resetVerification, facts.resetVerification.verificationId) }), failureRefs: facts.failures.map((failure) => refForImmutable(failure, failure.failureId)), operationalHealth: facts.run!.operationalHealth, artifactRefs: facts.artifacts.map(refForArtifact), createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
 }
 
+/** 构造 CLI 最终摘要；所有提前结束、异常和正常完成路径共同调用。 */
 function summary(
   facts: MutableWorkflowFacts,
   runId: string,

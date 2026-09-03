@@ -1,3 +1,9 @@
+/**
+ * 文件职责：实现 RepositoryPort，并提供受路径约束的原子文件写入原语，用于持久化不可变记录和生命周期投影。
+ * 核心流程：按 Run/Schema/ID 定位记录；写前校验摘要、Scope、Ref 与状态迁移；以不可变 revision 加 current 投影保存生命周期，并扫描未完成写入或断裂历史。
+ * 真实交互：应用 bootstrap 以 FileRepository 注入 core/contracts.ts 的 RepositoryPort；artifacts.ts 复用本文件的安全目录、原子创建/替换和 JSONL 追加函数。
+ * 公开接口：FileRepositoryOptions、RecoveryIssue、四个文件安全辅助函数，以及 FileRepository。
+ */
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import {
@@ -52,6 +58,7 @@ import {
   withContentDigest,
 } from "../core/models.js";
 
+/** 创建按 Run 分区的文件仓储所需的根目录、分区 ID、Scope 锚点和生产者版本。 */
 export interface FileRepositoryOptions {
   readonly runRoot: string;
   /** Preallocated partition key; the EvaluationRun itself is still created only at step 4. */
@@ -61,6 +68,7 @@ export interface FileRepositoryOptions {
   readonly producerVersion: string;
 }
 
+/** 仓储恢复扫描发现的临时文件、JSONL 或生命周期 revision 异常。 */
 export interface RecoveryIssue {
   readonly code:
     | "STALE_TEMP_FILE"
@@ -71,19 +79,22 @@ export interface RecoveryIssue {
   readonly detail: string;
 }
 
+/** 从磁盘解析、尚未收窄到具体领域模型的只读 JSON 对象。 */
 type UnknownRecord = Readonly<Record<string, unknown>>;
 
+/** 可跨 Run 保存、因此不要求 record.scope 的少量配置类 schema。 */
 const SCOPELESS_SCHEMAS = new Set([
   "dsheval.mvp.target-descriptor/v1",
-  "dsheval.mvp.filesystem-pack/v1",
+  "dsheval.mvp.evaluation-pack/v1",
   "dsheval.mvp.config/v1",
 ]);
 
+/** 不可变 schema 到其主键字段的白名单，也是 Repository 支持的 schema 目录。 */
 const ID_FIELDS: Readonly<Record<string, string>> = {
   "dsheval.mvp.target-descriptor/v1": "targetId",
   "dsheval.mvp.target-snapshot/v1": "targetSnapshotId",
   "dsheval.mvp.inspection/v1": "inspectionId",
-  "dsheval.mvp.filesystem-pack/v1": "packId",
+  "dsheval.mvp.evaluation-pack/v1": "packId",
   "dsheval.mvp.config/v1": "configId",
   "dsheval.mvp.evaluation-plan/v1": "evaluationPlanId",
   "dsheval.mvp.observation-plan/v1": "observationPlanId",
@@ -111,6 +122,7 @@ const ID_FIELDS: Readonly<Record<string, string>> = {
   "dsheval.mvp.lifecycle-event/v1": "eventId",
 };
 
+/** 生命周期聚合 schema 到主键字段的映射，供投影身份和路径校验使用。 */
 const PROJECTION_ID_FIELDS: Readonly<Record<LifecycleAggregateSchema, string>> = {
   "dsheval.mvp.run/v1": "runId",
   "dsheval.mvp.case/v1": "caseId",
@@ -119,11 +131,13 @@ const PROJECTION_ID_FIELDS: Readonly<Record<LifecycleAggregateSchema, string>> =
   "dsheval.mvp.observation-session/v1": "observationSessionId",
 };
 
+/** 需要额外写入 append-only 事件日志的不可变 schema 与文件名映射。 */
 const EVENT_FILES: Readonly<Record<string, string>> = {
   "dsheval.mvp.failure/v1": "failures.jsonl",
   "dsheval.mvp.raw-observation/v1": "raw-observations.jsonl",
 };
 
+/** 从 Node 文件系统异常中安全提取 code，供 ENOENT 等分支判断。 */
 function errorCode(error: unknown): string | undefined {
   if (error !== null && typeof error === "object" && "code" in error) {
     const value = (error as { readonly code?: unknown }).code;
@@ -132,11 +146,13 @@ function errorCode(error: unknown): string | undefined {
   return undefined;
 }
 
+/** 判断候选路径是否仍位于指定根目录内，安全目录和原子写函数共同使用。 */
 function isWithin(root: string, candidate: string): boolean {
   const pathFromRoot = relative(root, candidate);
   return pathFromRoot === "" || (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== "..");
 }
 
+/** 拒绝相对路径、文件系统根和含空字节路径；FileRepository 与 ArtifactStore 构造时调用。 */
 export function assertAbsoluteStorageRoot(root: string, fieldName: string): void {
   if (!isAbsolute(root) || root === parse(root).root || root.includes("\0")) {
     throw new ContractViolation(
@@ -146,6 +162,7 @@ export function assertAbsoluteStorageRoot(root: string, fieldName: string): void
   }
 }
 
+/** 读取路径元数据并把 ENOENT 转为空值，其余 I/O 错误保持抛出。 */
 async function existingLstat(path: string): Promise<Awaited<ReturnType<typeof lstat>> | undefined> {
   try {
     return await lstat(path);
@@ -155,6 +172,7 @@ async function existingLstat(path: string): Promise<Awaited<ReturnType<typeof ls
   }
 }
 
+/** 逐段创建并复验无符号链接的安全目录，返回解析后的目录路径。 */
 export async function ensureSafeDirectory(root: string, segments: readonly string[]): Promise<string> {
   assertAbsoluteStorageRoot(root, "storage root");
   await mkdir(root, { recursive: true, mode: 0o700 });
@@ -188,6 +206,7 @@ export async function ensureSafeDirectory(root: string, segments: readonly strin
   return current;
 }
 
+/** 在支持目录 fsync 的平台刷新目录项；原子写原语用它提高崩溃一致性。 */
 async function syncDirectory(path: string): Promise<void> {
   const directory = await open(path, "r");
   try {
@@ -197,6 +216,7 @@ async function syncDirectory(path: string): Promise<void> {
   }
 }
 
+/** 通过同目录临时文件和硬链接原子创建不可覆盖文件，供记录 revision 与 Artifact 对象提交。 */
 export async function atomicCreateImmutable(path: string, bytes: Uint8Array | string): Promise<void> {
   const parent = dirname(path);
   const parentReal = await realpath(parent);
@@ -242,6 +262,7 @@ export async function atomicCreateImmutable(path: string, bytes: Uint8Array | st
   }
 }
 
+/** 通过同目录临时文件加 rename 原子替换可变指针文件，如 current 投影和 status.html。 */
 export async function atomicReplace(path: string, bytes: Uint8Array | string): Promise<void> {
   const parent = dirname(path);
   const parentReal = await realpath(parent);
@@ -282,6 +303,7 @@ export async function atomicReplace(path: string, bytes: Uint8Array | string): P
   }
 }
 
+/** 以单次 append 写入规范 JSON 行并 fsync，供事件日志和 Artifact 索引使用。 */
 export async function appendCanonicalJsonLine(path: string, value: unknown): Promise<void> {
   const line = Buffer.from(`${canonicalJson(value)}\n`, "utf8");
   const parent = await realpath(dirname(path));
@@ -310,6 +332,7 @@ export async function appendCanonicalJsonLine(path: string, value: unknown): Pro
   await syncDirectory(parent);
 }
 
+/** 递归冻结从仓储返回的对象，避免调用方误改已验证记录。 */
 function deepFreeze<T>(value: T): Readonly<T> {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
@@ -318,6 +341,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
   return value as Readonly<T>;
 }
 
+/** 将版本化 schema 转成稳定目录名，并先校验 schema 格式。 */
 function schemaKind(schema: string): string {
   validateSchemaId(schema);
   const match = /^dsheval\.mvp\.([a-z0-9-]+)\/v1$/u.exec(schema);
@@ -327,6 +351,7 @@ function schemaKind(schema: string): string {
   return match[1];
 }
 
+/** 按 ID_FIELDS 从未知记录提取并校验不可变 schema/主键。 */
 function immutableIdentity(record: UnknownRecord): { readonly schema: string; readonly id: StableId } {
   const schema = validateSchemaId(record.schema);
   if (isLifecycleSchema(schema)) {
@@ -339,6 +364,7 @@ function immutableIdentity(record: UnknownRecord): { readonly schema: string; re
   return { schema, id: validateStableId(record[idField], idField) };
 }
 
+/** 按 PROJECTION_ID_FIELDS 提取并核对生命周期投影的 schema、aggregateId 和业务主键。 */
 function projectionIdentity(
   projection: LifecycleProjectionBase,
 ): { readonly schema: LifecycleAggregateSchema; readonly id: StableId } {
@@ -355,6 +381,7 @@ function projectionIdentity(
   return { schema: projection.schema, id: aggregateId };
 }
 
+/** 复算不可变记录 contentDigest；写入和读取路径都必须通过。 */
 function verifyImmutableDigest(record: UnknownRecord): ContentDigest {
   const declared = validateContentDigest(record.contentDigest, "contentDigest");
   const actual = digestValue(record, ["contentDigest"]);
@@ -362,6 +389,7 @@ function verifyImmutableDigest(record: UnknownRecord): ContentDigest {
   return declared;
 }
 
+/** 复算生命周期投影 projectionDigest；创建、迁移和恢复扫描共同使用。 */
 function verifyProjectionDigest(projection: LifecycleProjectionBase): ContentDigest {
   const declared = validateContentDigest(projection.projectionDigest, "projectionDigest");
   const actual = digestValue(projection, ["projectionDigest"]);
@@ -369,6 +397,7 @@ function verifyProjectionDigest(projection: LifecycleProjectionBase): ContentDig
   return declared;
 }
 
+/** 要求被引用记录在 owner 已声明的每一级 Scope 上保持一致。 */
 function assertScopeCompatible(owner: ScopeRef, referenced: ScopeRef): void {
   const current = validateScope(owner, "record scope");
   const dependency = validateScope(referenced, "referenced scope");
@@ -380,6 +409,7 @@ function assertScopeCompatible(owner: ScopeRef, referenced: ScopeRef): void {
   }
 }
 
+/** 递归收集记录图中形似 Ref 的对象，供提交前逐一验证存在性和 Scope。 */
 function collectRefs(value: unknown, refs: Ref[], visited = new Set<object>()): void {
   if (value === null || typeof value !== "object") return;
   if (visited.has(value)) return;
@@ -396,6 +426,7 @@ function collectRefs(value: unknown, refs: Ref[], visited = new Set<object>()): 
   for (const nested of Object.values(record)) collectRefs(nested, refs, visited);
 }
 
+/** core/contracts.ts 的文件系统 RepositoryPort 适配器，由应用 bootstrap 为单个 Run 创建。 */
 export class FileRepository implements RepositoryPort {
   readonly #runRoot: string;
   readonly #scope: Readonly<ScopeRef>;
@@ -404,6 +435,7 @@ export class FileRepository implements RepositoryPort {
   #writeQueue: Promise<void> = Promise.resolve();
   #initialization: Promise<void> | undefined;
 
+  /** 固定并校验存储根、Run 分区和 Scope 锚点；目录及恢复状态延迟到首次操作。 */
   public constructor(options: FileRepositoryOptions) {
     assertAbsoluteStorageRoot(options.runRoot, "runRoot");
     const scope = validateScope(options.scope, "repository scope");
@@ -416,6 +448,7 @@ export class FileRepository implements RepositoryPort {
     this.#runId = runId;
   }
 
+  /** Port 入口：幂等且串行地提交不可变记录，并返回内容寻址 Ref。 */
   public async putImmutable<T extends object>(
     context: OperationContext,
     record: T,
@@ -432,6 +465,7 @@ export class FileRepository implements RepositoryPort {
     });
   }
 
+  /** Port 入口：为生命周期聚合创建 revision 0 与 current 投影。 */
   public async createProjection<T extends LifecycleProjectionBase>(
     context: OperationContext,
     initialProjection: T,
@@ -454,6 +488,7 @@ export class FileRepository implements RepositoryPort {
     });
   }
 
+  /** Port 入口：以乐观 revision 校验追加合法状态迁移，并更新 current 投影。 */
   public async appendTransition<T extends LifecycleProjectionBase>(
     context: OperationContext,
     transition: StateTransition<T>,
@@ -476,6 +511,7 @@ export class FileRepository implements RepositoryPort {
     });
   }
 
+  /** Port 入口：按 Ref 读取并完整校验记录，返回递归冻结的对象。 */
   public async get<T>(context: OperationContext, ref: Ref<T>): Promise<PortResult<Readonly<T>>> {
     return this.#idempotent("get", context, ref, async () => {
       const cancelledResult = this.#cancelledIfRequested<T>(context);
@@ -489,11 +525,13 @@ export class FileRepository implements RepositoryPort {
     });
   }
 
+  /** 供启动检查或运维诊断调用，扫描当前 Run 分区但不修改磁盘状态。 */
   public async inspectRecoveryState(): Promise<readonly RecoveryIssue[]> {
     const partition = await this.#partitionDirectory();
     return this.#scanRecoveryIssues(partition);
   }
 
+  /** putImmutable 的核心实现：验证身份/摘要/引用，处理安全重放并原子落盘。 */
   async #putImmutable<T extends object>(record: T): Promise<Readonly<Ref<T>>> {
     await this.#ensureInitialized();
     const raw = record as UnknownRecord;
@@ -529,6 +567,7 @@ export class FileRepository implements RepositoryPort {
     return Object.freeze({ schema, id, digest });
   }
 
+  /** createProjection 的核心实现：校验 revision 0 后同时建立不可变历史和 current 文件。 */
   async #createProjection<T extends LifecycleProjectionBase>(
     projection: T,
   ): Promise<Readonly<Ref<T> & { readonly revision: 0 }>> {
@@ -560,6 +599,7 @@ export class FileRepository implements RepositoryPort {
     return refForProjection(projection) as Readonly<Ref<T> & { readonly revision: 0 }>;
   }
 
+  /** appendTransition 的核心实现：验证前态与引用，先写 revision/event，再原子替换 current。 */
   async #appendTransition<T extends LifecycleProjectionBase>(
     transition: StateTransition<T>,
   ): Promise<Readonly<Ref<T> & { readonly revision: number }>> {
@@ -648,6 +688,7 @@ export class FileRepository implements RepositoryPort {
     return refForProjection(next);
   }
 
+  /** 不可变记录提交前核对分区 Scope、Gate 输入形状及其全部非 Artifact Ref。 */
   async #validateRecordScopeAndRefs(record: UnknownRecord): Promise<void> {
     const schema = String(record.schema);
     if (SCOPELESS_SCHEMAS.has(schema)) {
@@ -684,6 +725,7 @@ export class FileRepository implements RepositoryPort {
     }
   }
 
+  /** GateDecision 落盘前读取当前 Run/Attempt/Environment/Reset 状态，强制终结事实先提交。 */
   async #validateGateCommitOrder(gate: UnknownRecord): Promise<void> {
     const gateScope = validateScope(gate.scope, "GateDecision scope");
     if (gateScope.runId !== this.#runId) {
@@ -812,6 +854,7 @@ export class FileRepository implements RepositoryPort {
     }
   }
 
+  /** 按已知聚合 ID 读取 Gate 顺序校验所需的 current 投影。 */
   async #readCurrentProjectionForGate(
     schema: LifecycleAggregateSchema,
     id: StableId,
@@ -824,6 +867,7 @@ export class FileRepository implements RepositoryPort {
     return this.#readAndVerifyCurrentProjectionForGate(path, schema, label, `${id}.json`);
   }
 
+  /** 在当前 Run 中读取某 schema 唯一的 current 投影，用于定位 Attempt/Environment。 */
   async #readUniqueCurrentProjectionForGate(
     schema: LifecycleAggregateSchema,
     label: string,
@@ -849,6 +893,7 @@ export class FileRepository implements RepositoryPort {
     );
   }
 
+  /** Gate 辅助读取器：核对 current 文件名、投影身份、revision、摘要和分区 Scope。 */
   async #readAndVerifyCurrentProjectionForGate(
     path: string,
     schema: LifecycleAggregateSchema,
@@ -872,6 +917,7 @@ export class FileRepository implements RepositoryPort {
     return record as Readonly<LifecycleProjectionBase> & UnknownRecord;
   }
 
+  /** 读取至多一个指定 schema 的不可变记录，供 Gate 检查可选 ResetVerification。 */
   async #readOptionalUniqueImmutableForGate(
     schema: string,
     label: string,
@@ -903,6 +949,7 @@ export class FileRepository implements RepositoryPort {
     return record;
   }
 
+  /** 解析并读取记录内所有非 Artifact Ref，验证目标摘要及与 owner 的 Scope 兼容性。 */
   async #validateReferences(value: unknown, ownerScope: ScopeRef): Promise<void> {
     const refs: Ref[] = [];
     collectRefs(value, refs);
@@ -919,6 +966,7 @@ export class FileRepository implements RepositoryPort {
     }
   }
 
+  /** 确认记录 Scope 属于构造时固定的 Run 分区和更上层锚点。 */
   #assertPartitionScope(scope: unknown): void {
     const recordScope = validateScope(scope, "record scope");
     if (recordScope.runId !== undefined && recordScope.runId !== this.#runId) {
@@ -927,6 +975,7 @@ export class FileRepository implements RepositoryPort {
     assertScopeCompatible(this.#scope, recordScope);
   }
 
+  /** get 与内部引用校验共用的读取器，按 schema 类型定位文件并复验身份、revision 和摘要。 */
   async #readRef<T>(unvalidatedRef: Ref<T>): Promise<Readonly<T>> {
     const lifecycle = isLifecycleSchema(unvalidatedRef.schema);
     const ref = validateRef<T>(unvalidatedRef, { lifecycle });
@@ -962,6 +1011,7 @@ export class FileRepository implements RepositoryPort {
     return deepFreeze(record as unknown as T);
   }
 
+  /** 从普通文件读取 JSON 对象，拒绝符号链接、缺失记录和非对象内容。 */
   async #readJson(path: string): Promise<UnknownRecord> {
     let bytes: Buffer;
     try {
@@ -990,10 +1040,12 @@ export class FileRepository implements RepositoryPort {
     return parsed as UnknownRecord;
   }
 
+  /** 通过 ensureSafeDirectory 解析或创建当前 Run 的仓储分区。 */
   async #partitionDirectory(): Promise<string> {
     return ensureSafeDirectory(this.#runRoot, [this.#runId]);
   }
 
+  /** 为受支持的不可变 schema/ID 生成分区内记录路径。 */
   async #immutablePath(schema: string, id: StableId): Promise<string> {
     if (isLifecycleSchema(schema)) {
       throw new ContractViolation("INVALID_REF", "lifecycle Ref requires a revision");
@@ -1008,6 +1060,7 @@ export class FileRepository implements RepositoryPort {
     return join(records, `${validateStableId(id)}.json`);
   }
 
+  /** 为生命周期聚合的指定不可变 revision 生成记录路径。 */
   async #projectionRevisionPath(
     schema: LifecycleAggregateSchema,
     id: StableId,
@@ -1023,6 +1076,7 @@ export class FileRepository implements RepositoryPort {
     return join(records, `${validateStableId(id)}.r${revision}.json`);
   }
 
+  /** 为生命周期聚合生成可原子替换的 current 投影路径。 */
   async #projectionCurrentPath(schema: LifecycleAggregateSchema, id: StableId): Promise<string> {
     const records = await ensureSafeDirectory(await this.#partitionDirectory(), [
       "records",
@@ -1031,6 +1085,7 @@ export class FileRepository implements RepositoryPort {
     return join(records, `${validateStableId(id)}.json`);
   }
 
+  /** 首次真实操作前只执行一次恢复扫描，发现异常则阻断该实例的后续操作。 */
   async #ensureInitialized(): Promise<void> {
     this.#initialization ??= (async () => {
       const partition = await this.#partitionDirectory();
@@ -1045,8 +1100,10 @@ export class FileRepository implements RepositoryPort {
     return this.#initialization;
   }
 
+  /** 递归扫描临时文件/JSONL，并核对每个生命周期聚合的完整 revision 历史。 */
   async #scanRecoveryIssues(partition: string): Promise<readonly RecoveryIssue[]> {
     const issues: RecoveryIssue[] = [];
+    /** 递归遍历分区，收集符号链接、临时文件以及破损/重复 JSONL 事件。 */
     const walk = async (directory: string): Promise<void> => {
       const entries = await readdir(directory, { withFileTypes: true });
       for (const entry of entries) {
@@ -1148,6 +1205,7 @@ export class FileRepository implements RepositoryPort {
     return issues;
   }
 
+  /** 在当前 Repository 实例内串行执行写动作，保护多文件提交顺序。 */
   async #withWriteLock<T>(action: () => Promise<T>): Promise<T> {
     const preceding = this.#writeQueue;
     let release!: () => void;
@@ -1162,6 +1220,7 @@ export class FileRepository implements RepositoryPort {
     }
   }
 
+  /** 按“操作名 + idempotencyKey”缓存 Promise；同键不同输入返回冲突。 */
   async #idempotent<T>(
     operation: string,
     context: OperationContext,
@@ -1189,6 +1248,7 @@ export class FileRepository implements RepositoryPort {
     return result;
   }
 
+  /** 各 Port 入口在触碰存储前调用，将取消请求转换成统一 cancelled 结果。 */
   #cancelledIfRequested<T>(context: OperationContext): PortResult<T> | undefined {
     if (!context.cancellationToken.isCancellationRequested) return undefined;
     return cancelled(
@@ -1196,6 +1256,7 @@ export class FileRepository implements RepositoryPort {
     );
   }
 
+  /** 将领域/文件系统异常归一为 RepositoryPort 的 rejected 或 failed 结果。 */
   #mapError<T>(context: OperationContext, error: unknown, fallbackReason: string): PortResult<T> {
     if (error instanceof ContractViolation) {
       const rejection =
@@ -1223,6 +1284,7 @@ export class FileRepository implements RepositoryPort {
     );
   }
 
+  /** 为本适配器构造统一脱敏的 STORAGE FailureDraft，供取消和错误映射复用。 */
   #failure(
     _context: OperationContext,
     category: FailureDraft["category"],
@@ -1246,5 +1308,3 @@ export class FileRepository implements RepositoryPort {
     };
   }
 }
-
-export { FileRepository as Repository };

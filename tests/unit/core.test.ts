@@ -1,3 +1,7 @@
+/**
+ * 测试职责：验证 Core 的规范 JSON、SHA-256、StableId、PortablePath、Scope/Ref
+ * 约束和五类生命周期状态迁移，作为所有上层模块的值语义门禁。
+ */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -103,7 +107,7 @@ test("MVP-UT-CORE-002 StableId, Scope and PortablePath validation reject ambigui
     () => validateScope({ targetId: "target", unknown: "field" }),
     /unknown fields/u,
   );
-  assert.equal(validatePortablePath("output/result.txt"), "output/result.txt");
+  assert.equal(validatePortablePath("output/attention.py"), "output/attention.py");
   for (const path of ["/tmp/result", "../result", "output/../result", "output/*.txt", "C:\\x"]) {
     assert.throws(() => validatePortablePath(path), ContractViolation, path);
   }
