@@ -1,5 +1,5 @@
 /**
- * 测试职责：守住八个源码模块的依赖方向，并拒绝重复 Core 实体、空壳和占位实现。
+ * 测试职责：守住 MVP 八个模块和独立 dynamic 扩展的依赖方向，并拒绝重复 Core 实体、空壳和占位实现。
  * 直接扫描 `src/`；覆盖生产代码整体结构，不依赖运行 Fixture。
  */
 import assert from "node:assert/strict";
@@ -17,6 +17,7 @@ const MODULES = Object.freeze([
   "evaluation",
   "storage",
   "platform",
+  "dynamic",
 ]);
 const BUSINESS_MODULES = new Set(MODULES.filter((name) => name !== "app"));
 
@@ -46,7 +47,7 @@ function importedModule(file: string, specifier: string): string | undefined {
   return relative.split(path.sep)[0];
 }
 
-test("MVP-CT-ARCH-001: seven business modules depend only on themselves/core and app is the composition root", async () => {
+test("MVP-CT-ARCH-001: business modules and dynamic extension depend only on themselves/core; MVP composition stays in app", async () => {
   const actualModules = (await readdir(SOURCE_ROOT, { withFileTypes: true }))
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)

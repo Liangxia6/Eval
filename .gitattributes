@@ -1,0 +1,3 @@
+# Executable Node/shell scripts must keep LF shebangs when checked out on Windows.
+*.mjs text eol=lf
+*.sh text eol=lf

@@ -1,0 +1,12 @@
+{
+  "id": "dsh-reference",
+  "model": "REPLACE-with-DSH-base-model",
+  "modelVersion": "REPLACE-with-pinned-model-version",
+  "harnessVersion": "REPLACE-with-DSH-version",
+  "image": "REPLACE-with-immutable-sandbox-image-digest",
+  "plugins": [
+    { "id": "REPLACE-with-reviewed-plugin", "version": "REPLACE-with-version", "config": {} }
+  ],
+  "permissions": ["isolated-test-workspace-only"],
+  "settings": { "temperature": 0, "maxActionSteps": 100 }
+}

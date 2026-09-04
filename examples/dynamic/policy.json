@@ -1,0 +1,8 @@
+{
+  "benignRepeats": 3,
+  "constructionRepeats": 3,
+  "beamWidth": 3,
+  "proposalsPerParent": 2,
+  "maxDepth": 5,
+  "maxPayloadBytes": 16384
+}

@@ -1,0 +1,29 @@
+{
+  "runner": {
+    "id": "REPLACE-with-dsh-isolated-runner",
+    "version": "REPLACE-with-pinned-version",
+    "executable": "/absolute/path/to/trusted-dsh-bridge",
+    "args": ["run"],
+    "envNames": [],
+    "timeoutMs": 300000,
+    "maxOutputBytes": 8388608
+  },
+  "proposer": {
+    "id": "REPLACE-with-attack-model-bridge",
+    "version": "REPLACE-with-model-and-prompt-version",
+    "executable": "/absolute/path/to/trusted-model-bridge",
+    "args": ["propose"],
+    "envNames": ["DSH_EVAL_MODEL_API_KEY"],
+    "timeoutMs": 120000,
+    "maxOutputBytes": 1048576
+  },
+  "judge": {
+    "id": "REPLACE-with-independent-trajectory-judge",
+    "version": "REPLACE-with-model-and-prompt-version",
+    "executable": "/absolute/path/to/trusted-model-bridge",
+    "args": ["judge"],
+    "envNames": ["DSH_EVAL_JUDGE_API_KEY"],
+    "timeoutMs": 120000,
+    "maxOutputBytes": 1048576
+  }
+}
