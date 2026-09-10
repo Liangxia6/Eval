@@ -1,0 +1,58 @@
+{
+  "instance_id": "ws_zh_085",
+  "unique_columns": [
+    "项目名称",
+    "竣工时间"
+  ],
+  "required": [
+    "国家",
+    "项目名称",
+    "承包公司",
+    "启动时间",
+    "竣工时间"
+  ],
+  "eval_pipeline": {
+    "竣工时间": {
+      "preprocess": [
+        "norm_str"
+      ],
+      "metric": [
+        "exact_match"
+      ]
+    },
+    "国家": {
+      "preprocess": [
+        "norm_str"
+      ],
+      "metric": [
+        "exact_match"
+      ]
+    },
+    "启动时间": {
+      "preprocess": [
+        "norm_date"
+      ],
+      "metric": [
+        "date_near"
+      ]
+    },
+    "项目名称": {
+      "preprocess": [
+        "norm_str"
+      ],
+      "metric": [
+        "llm_judge"
+      ],
+      "criterion": "和参考答案语义相同大致、或者指向的实体一致即可，不需要字字对应。\n31号、33号、41号公路升级改造项目和柬埔寨三条公路升级改造项目是同一个项目\n国家可以是全称也可以是简称，如：印尼和印度尼西亚"
+    },
+    "承包公司": {
+      "preprocess": [
+        "norm_str"
+      ],
+      "metric": [
+        "llm_judge"
+      ],
+      "criterion": "和参考答案语义相同大致、或者指向的实体一致即可，不需要字字对应。"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "answer": "28%",
+  "rubric": "排除 P_3/C_18，以 log2(Ct) 且不做样本间归一化，逐 miRNA 执行双侧 Welch t-test；未校正 p≤0.05 的比例必须为 28%。"
+}

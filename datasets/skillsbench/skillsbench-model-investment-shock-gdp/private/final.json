@@ -1,0 +1,25 @@
+{
+  "answer": {
+    "kind": "formula-workbook",
+    "requiredArtifact": "output/test-supply.xlsx",
+    "requiredSheets": [
+      "PWT",
+      "WEO_Data",
+      "CFC data",
+      "Production",
+      "Investment"
+    ],
+    "weoGdpCells": {
+      "WEO_Data!C36": 82.81665,
+      "WEO_Data!C40": 100.66416,
+      "WEO_Data!C44": 122.35791,
+      "WEO_Data!C48": 148.7268
+    },
+    "weoGdpRelativeTolerance": 0.05,
+    "depreciationCell": "Production!B3",
+    "depreciation": 0.0152068,
+    "depreciationRelativeTolerance": 0.4,
+    "judge": "private/test_outputs.py"
+  },
+  "rubric": "保留五张工作表，使用指定来源数据及公式构建折旧、HP 滤波、TREND、资本积累和潜在 GDP；LibreOffice 重算后通过全部私有结构、公式、数量级与数值检查。WEO 相对容差 5%，折旧率相对容差 40%；HP 优化允许不同近似解，不做整表 oracle 精确相等比较。不得硬编码应由公式计算的结果；未接通重算与 XLSX Judge 时不能报告正式通过。"
+}

@@ -1,0 +1,114 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "spreadsheetbench.spreadsheetbench-12307",
+  "version": "1.0.0",
+  "title": "spreadsheetbench-12307",
+  "matching": {
+    "datasetId": "dataset.spreadsheetbench.spreadsheetbench-12307/v1",
+    "description": "根据公司和员工数统计有业务的国家数量。输入为真实 Excel 工作簿，要求读取数据、完成表格操作并交付修改后的工作簿。"
+  },
+  "source": {
+    "repository": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+    "commit": "49b73a94775fb489063f60ca1865e3a650079a79",
+    "taskPath": "spreadsheetbench_verified_400/spreadsheet/12307",
+    "files": [
+      {
+        "path": "data/spreadsheetbench_verified_400.tar.gz",
+        "sha256": "10ef893dd29cb13ab97143ea787e68cdc9574a13873ab9a54e50b31dc03fc949"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/dataset.json",
+        "sha256": "bcecaa89a005bd4e3bbe98da150a86e8062c27f262e575d5e47bd9861b3525e7"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/12307/1_12307_init.xlsx",
+        "sha256": "afb62aff87cc594f619d9fb464372a361b011bfa602c1b2edbe6a5cf8a947d50"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/12307/1_12307_golden.xlsx",
+        "sha256": "292c8728b5a992e0bb8f48f624f9bee7a99b36c1fc044799f6307f8f3dfe798e"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/12307/prompt.txt",
+        "sha256": "0c2c0ed361e28a20364fe35fc85b7846f4f912fb12ba94c024fc0e45add232cf"
+      }
+    ],
+    "adaptationChanges": [
+      "从固定 Verified 400 快照显式选取 12 题，每题一个原始 init/golden 工作簿对；原题干与工作簿字节不变。",
+      "原始输入映射为 input/workbook.xlsx，交付 output/result.xlsx；参考工作簿与全部目标区域仅保留于 private/。",
+      "来源作者 Ma et al.；原数据及本适配遵循 CC BY-SA 4.0：https://creativecommons.org/licenses/by-sa/4.0/。",
+      "采用 LLM 语义判断及过程/交付证据；需接通 Question Bundle、XLSX 读取与必要的公式重算，不等同官方成绩。"
+    ]
+  },
+  "capabilityLabels": [
+    "tool-data",
+    "tool-document",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "How can I calculate the number of countries each company operates in (meaning they have more than 0 employees in that country), based on two tables: one with a list of companies and another with a list of countries and the corresponding companies with the number of employees?I need to apply a formula to cell I12, I 13 to count how many countries mentioned in Table-1 does ABC  operate in with > 0 employees in that country.\n\nThe workbook is at `input/workbook.xlsx`. Apply the requested changes to the workbook and save the completed file as `output/result.xlsx`. Preserve unrelated sheets, cells, and formatting. When a formula is requested, write a working formula. Inspect the saved workbook to verify the result."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "XLSX reading and editing tool",
+      "Excel-compatible formula recalculation engine when output contains formulas"
+    ],
+    "inputs": [
+      {
+        "source": "assets/workbook.xlsx",
+        "destination": "input/workbook.xlsx",
+        "sha256": "afb62aff87cc594f619d9fb464372a361b011bfa602c1b2edbe6a5cf8a947d50"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace"
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-workbook",
+        "kind": "llm",
+        "output": "output/result.xlsx",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "Agent 是否读取实际工作簿、理解跨表或公式约束，并验证修改结果。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取工作表结构与实际数据，定位任务涉及的区域"
+        },
+        {
+          "id": "op-2",
+          "description": "按题目约束实施筛选、汇总、匹配、文本处理或公式修改"
+        },
+        {
+          "id": "op-3",
+          "description": "检查保存后的结果并纠正发现的问题"
+        }
+      ]
+    },
+    "local": {
+      "description": "Agent 是否交付可打开的完成工作簿，目标结果正确且无关区域未意外损坏。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建可打开的 output/result.xlsx"
+        },
+        {
+          "id": "file-2",
+          "description": "目标区域完成要求的修改，并保留无关工作表与格式"
+        }
+      ]
+    }
+  }
+}

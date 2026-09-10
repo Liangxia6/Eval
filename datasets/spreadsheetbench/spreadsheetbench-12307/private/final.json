@@ -1,0 +1,19 @@
+{
+  "answer": {
+    "referenceWorkbook": "private/reference.xlsx",
+    "regions": [
+      {
+        "sheet": "Sheet1",
+        "range": "I12:I13",
+        "cells": {
+          "I12": 2,
+          "I13": 2
+        }
+      }
+    ],
+    "upstreamAnswerPosition": "I12:I13",
+    "upstreamAnswerSheet": null,
+    "referenceSha256": "292c8728b5a992e0bb8f48f624f9bee7a99b36c1fc044799f6307f8f3dfe798e"
+  },
+  "rubric": "读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列 regions 中的目标区域结果作语义比较。需要覆盖全部目标单元格；数值、日期、空值和文本按业务含义比较，不能仅凭文件存在或 Agent 的说明判为正确。题目要求公式时需保留可计算公式，并检查题干明确要求的格式及无关区域。过程和本地层只提供描述性质证据，不绑定固定工具路线。如果无法读取 XLSX 或所需公式结果尚未重算，标记 UNEVALUABLE，不能把缺失缓存当正确空值。此适配不等同官方确定性指标。"
+}

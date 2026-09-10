@@ -1,0 +1,353 @@
+{
+  "table_name": "hockey_players",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Pick #",
+        "type": "TEXT"
+      },
+      {
+        "name": "Player",
+        "type": "TEXT"
+      },
+      {
+        "name": "Nationality",
+        "type": "TEXT"
+      },
+      {
+        "name": "Position",
+        "type": "TEXT"
+      },
+      {
+        "name": "Team from",
+        "type": "TEXT"
+      },
+      {
+        "name": "League from",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "151",
+        "Mirko Hoefflin",
+        "Germany",
+        "C",
+        "Jungadler Mannheim",
+        "DNL (Germany)"
+      ],
+      [
+        "152",
+        "Joe Rogalski",
+        "United States",
+        "D",
+        "Sarnia Sting",
+        "Ontario Hockey League"
+      ],
+      [
+        "153",
+        "Corey Durocher",
+        "Canada",
+        "C",
+        "Kingston Frontenacs",
+        "Ontario Hockey League"
+      ],
+      [
+        "154",
+        "Dalton Prout",
+        "Canada",
+        "D",
+        "Barrie Colts",
+        "Ontario Hockey League"
+      ],
+      [
+        "155",
+        "Kendall McFaull",
+        "Canada",
+        "D",
+        "Moose Jaw Warriors",
+        "Western Hockey League"
+      ],
+      [
+        "156",
+        "Brendan O'Donnell",
+        "Canada",
+        "C",
+        "Winnipeg South Blues",
+        "Manitoba Junior Hockey League"
+      ],
+      [
+        "157",
+        "Jesper Fasth",
+        "Sweden",
+        "RW",
+        "HV71",
+        "J20 SuperElit (Sweden)"
+      ],
+      [
+        "158",
+        "Maxim Kitsyn",
+        "Russia",
+        "LW",
+        "Metallurg Novokuznetsk",
+        "Kontinental Hockey League (Russia)"
+      ],
+      [
+        "159",
+        "Johan Gustafsson",
+        "Sweden",
+        "G",
+        "Färjestad BK",
+        "Elitserien (Sweden)"
+      ],
+      [
+        "160",
+        "Tanner Lane",
+        "United States",
+        "C",
+        "Detroit Lakes High School",
+        "United States High School-MN"
+      ],
+      [
+        "161",
+        "Andreas Dahlstrom",
+        "Sweden",
+        "C",
+        "AIK",
+        "HockeyAllsvenskan (Sweden)"
+      ],
+      [
+        "162",
+        "Brandon Davidson",
+        "Canada",
+        "D",
+        "Regina Pats",
+        "Western Hockey League"
+      ],
+      [
+        "163",
+        "Konrad Abeltshauser",
+        "Germany",
+        "D",
+        "Halifax Mooseheads",
+        "Quebec Major Junior Hockey League"
+      ],
+      [
+        "164",
+        "Stephen MacAulay",
+        "Canada",
+        "LW",
+        "Saint John Sea Dogs",
+        "Quebec Major Junior Hockey League"
+      ],
+      [
+        "165",
+        "Zane Gothberg",
+        "United States",
+        "G",
+        "Lincoln High School",
+        "United States High School-MN"
+      ],
+      [
+        "166",
+        "Drew Czerwonka",
+        "Canada",
+        "LW",
+        "Kootenay Ice",
+        "Western Hockey League"
+      ],
+      [
+        "167",
+        "Tyler Stahl",
+        "Canada",
+        "D",
+        "Chilliwack Bruins",
+        "Western Hockey League"
+      ],
+      [
+        "168",
+        "Anthony Bitetto",
+        "United States",
+        "D",
+        "Indiana Ice",
+        "United States Hockey League"
+      ],
+      [
+        "169",
+        "Sebastian Owuya",
+        "Sweden",
+        "D",
+        "Timrå IK",
+        "J20 SuperElit (Sweden)"
+      ],
+      [
+        "170",
+        "Reid McNeill",
+        "Canada",
+        "D",
+        "London Knights",
+        "Ontario Hockey League"
+      ],
+      [
+        "171",
+        "Brooks Macek",
+        "Canada",
+        "C",
+        "Tri-City Americans",
+        "Western Hockey League"
+      ],
+      [
+        "172",
+        "Alex Friesen",
+        "Canada",
+        "C",
+        "Niagara IceDogs",
+        "Ontario Hockey League"
+      ],
+      [
+        "173",
+        "Cedrick Henley",
+        "Canada",
+        "LW",
+        "Val-d'Or Foreurs",
+        "Quebec Major Junior Hockey League"
+      ],
+      [
+        "174",
+        "Maxime Clermont",
+        "Canada",
+        "G",
+        "Gatineau Olympiques",
+        "Quebec Major Junior Hockey League"
+      ],
+      [
+        "175",
+        "Jonathan Iilahti",
+        "Finland",
+        "G",
+        "Espoo Blues",
+        "SM-liiga Jr. (Finland)"
+      ],
+      [
+        "176",
+        "Samuel Carrier",
+        "Canada",
+        "RW",
+        "Lewiston Maineiacs",
+        "Quebec Major Junior Hockey League"
+      ],
+      [
+        "177",
+        "Kevin Lind",
+        "United States",
+        "D",
+        "Chicago Steel",
+        "United States Hockey League"
+      ],
+      [
+        "178",
+        "Mark Stone",
+        "Canada",
+        "RW",
+        "Brandon Wheat Kings",
+        "Western Hockey League"
+      ],
+      [
+        "179",
+        "Nicholas Luukko",
+        "United States",
+        "D",
+        "The Gunnery",
+        "United States High School-CT"
+      ],
+      [
+        "180",
+        "Nick Mattson",
+        "United States",
+        "D",
+        "Indiana Ice",
+        "United States Hockey League"
+      ],
+      [
+        "181",
+        "Carter Camper",
+        "United States",
+        "C",
+        "Texas Stars",
+        "American Hockey League"
+      ],
+      [
+        "182",
+        "Igor Ozhiganov",
+        "Russia",
+        "D",
+        "CSKA Moscow",
+        "Kontinental Hockey League (Russia)"
+      ],
+      [
+        "183",
+        "Victor Olofsson",
+        "Sweden",
+        "LW",
+        "Frolunda HC",
+        "SHL (Sweden)"
+      ],
+      [
+        "184",
+        "Philippe Myers",
+        "Canada",
+        "D",
+        "Lehigh Valley Phantoms",
+        "American Hockey League"
+      ],
+      [
+        "185",
+        "Jesse Graham",
+        "Canada",
+        "D",
+        "Bridgeport Sound Tigers",
+        "American Hockey League"
+      ],
+      [
+        "186",
+        "Simon Ryfors",
+        "Sweden",
+        "RW",
+        "Vaxjo Lakers HC",
+        "SHL (Sweden)"
+      ],
+      [
+        "187",
+        "Ivan Chekhovich",
+        "Russia",
+        "LW",
+        "Worcester Sharks",
+        "ECHL"
+      ],
+      [
+        "188",
+        "Bokondji Imama",
+        "Canada",
+        "LW",
+        "Stockton Heat",
+        "American Hockey League"
+      ],
+      [
+        "189",
+        "Emil Galimov",
+        "Russia",
+        "RW",
+        "Avtomobilist Yekaterinburg",
+        "Kontinental Hockey League (Russia)"
+      ],
+      [
+        "190",
+        "Alexander Alexeyev",
+        "Russia",
+        "D",
+        "Hershey Bears",
+        "American Hockey League"
+      ]
+    ]
+  }
+}

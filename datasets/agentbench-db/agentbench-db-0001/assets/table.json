@@ -1,0 +1,155 @@
+{
+  "table_name": "Jiu-Jitsu Championships Results",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Result",
+        "type": "TEXT"
+      },
+      {
+        "name": "Opponent",
+        "type": "TEXT"
+      },
+      {
+        "name": "Method",
+        "type": "TEXT"
+      },
+      {
+        "name": "Event",
+        "type": "TEXT"
+      },
+      {
+        "name": "Notes",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "Win",
+        "Venla Luukkonen",
+        "Points (11 x 0)",
+        "2012 IBJJF World Jiu-Jitsu Championships",
+        "Female Purple Belt Final"
+      ],
+      [
+        "Win",
+        "Hillary VanOrnum",
+        "Points (4 x 0)",
+        "2012 IBJJF World Jiu-Jitsu Championships",
+        "Female Purple Belt Semifinal"
+      ],
+      [
+        "Win",
+        "Maia Matalon",
+        "Submission (armbar)",
+        "2012 IBJJF World Jiu-Jitsu Championships",
+        "Female Purple Belt Quarterfinal"
+      ],
+      [
+        "Win",
+        "Amanda Lucas",
+        "Points (8 x 0)",
+        "2011 IBJJF World Jiu-Jitsu Championships",
+        "Female Purple Belt Final"
+      ],
+      [
+        "Win",
+        "Sarah Draht",
+        "Points (16 x 0)",
+        "2011 IBJJF World Jiu-Jitsu Championships",
+        "Female Purple Belt Semifinal"
+      ],
+      [
+        "Win",
+        "Rosangela Conceicao",
+        "Decision",
+        "2009 ADCC Submission Wrestling World Championships",
+        "Women +60kg Bronze"
+      ],
+      [
+        "Loss",
+        "Penny Thomas",
+        "Points (-2 x -1)",
+        "2009 ADCC Submission Wrestling World Championships",
+        "Women +60kg Semifinal"
+      ],
+      [
+        "Win",
+        "Ida Hansson",
+        "Points (10 x 0)",
+        "2009 ADCC Submission Wrestling World Championships",
+        "Women +60kg Quarterfinal"
+      ],
+      [
+        "Win",
+        "John Smith",
+        "Submission (choke)",
+        "2019 Grappling Open",
+        "Over 200 lbs division final"
+      ],
+      [
+        "Loss",
+        "Jane Doe",
+        "Points (-3 x -2)",
+        "2020 IBJJF Pan Championship",
+        "Female Blue Belt Quarterfinal"
+      ],
+      [
+        "Win",
+        "Mike Johnson",
+        "Submission (arm triangle)",
+        "2017 US Grappling Open",
+        "Men's Purple Belt Semifinal"
+      ],
+      [
+        "Win",
+        "Julia Martinez",
+        "Points (6 x 2)",
+        "2018 NAGA East Coast Championship",
+        "Female NoGi Intermediate division final"
+      ],
+      [
+        "Loss",
+        "David Jones",
+        "Submission (guillotine)",
+        "2019 North American Grappling Association Nationals",
+        "Men's Blue Belt Quarterfinal"
+      ],
+      [
+        "Win",
+        "Karen Williams",
+        "Points (10 x 0)",
+        "2015 Good Fight Submission Only",
+        "Female Blue Belt Final"
+      ],
+      [
+        "Loss",
+        "Ryan Lee",
+        "Points (-2 x -1)",
+        "2019 NABJJF Pan American Championship",
+        "Men's Purple Belt Quarterfinal"
+      ],
+      [
+        "Win",
+        "Samantha Adams",
+        "Submission (triangle)",
+        "2018 New York Open",
+        "Women's Brown Belt Semifinal"
+      ],
+      [
+        "Win",
+        "Tony Nguyen",
+        "Submission (rear naked choke)",
+        "2016 US Grappling Open",
+        "Men's Black Belt Quarterfinal"
+      ],
+      [
+        "Loss",
+        "Jessica Lee",
+        "Points (-2 x -0)",
+        "2017 IBJJF World Jiu-Jitsu Championship",
+        "Female Black Belt Quarterfinal"
+      ]
+    ]
+  }
+}

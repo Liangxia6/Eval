@@ -1,0 +1,114 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "spreadsheetbench.spreadsheetbench-44389",
+  "version": "1.0.0",
+  "title": "spreadsheetbench-44389",
+  "matching": {
+    "datasetId": "dataset.spreadsheetbench.spreadsheetbench-44389/v1",
+    "description": "检索每行最小正数对应的列标题并处理并列。输入为真实 Excel 工作簿，要求读取数据、完成表格操作并交付修改后的工作簿。"
+  },
+  "source": {
+    "repository": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+    "commit": "49b73a94775fb489063f60ca1865e3a650079a79",
+    "taskPath": "spreadsheetbench_verified_400/spreadsheet/44389",
+    "files": [
+      {
+        "path": "data/spreadsheetbench_verified_400.tar.gz",
+        "sha256": "10ef893dd29cb13ab97143ea787e68cdc9574a13873ab9a54e50b31dc03fc949"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/dataset.json",
+        "sha256": "bcecaa89a005bd4e3bbe98da150a86e8062c27f262e575d5e47bd9861b3525e7"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/44389/1_44389_init.xlsx",
+        "sha256": "a9534f243553db67127086ebbe8484ef61e9fba2d016139cf48e881cbf77cc74"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/44389/1_44389_golden.xlsx",
+        "sha256": "fa9af6b91c7e3728e8cda284e10bb4f36941c99014b9583c7c239b14d3e44678"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/44389/prompt.txt",
+        "sha256": "da959425e1809261507b0892b6fbc14f0e90e4263fb49ea1a20765b947137697"
+      }
+    ],
+    "adaptationChanges": [
+      "从固定 Verified 400 快照显式选取 12 题，每题一个原始 init/golden 工作簿对；原题干与工作簿字节不变。",
+      "原始输入映射为 input/workbook.xlsx，交付 output/result.xlsx；参考工作簿与全部目标区域仅保留于 private/。",
+      "来源作者 Ma et al.；原数据及本适配遵循 CC BY-SA 4.0：https://creativecommons.org/licenses/by-sa/4.0/。",
+      "采用 LLM 语义判断及过程/交付证据；需接通 Question Bundle、XLSX 读取与必要的公式重算，不等同官方成绩。"
+    ]
+  },
+  "capabilityLabels": [
+    "tool-data",
+    "tool-document",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "How can I create a formula in Excel that returns the column header of the smallest value greater than zero in each row. If there's more than one value that matches the lowest value above zero separate them by commas without spaces?\n\nThe workbook is at `input/workbook.xlsx`. Apply the requested changes to the workbook and save the completed file as `output/result.xlsx`. Preserve unrelated sheets, cells, and formatting. When a formula is requested, write a working formula. Inspect the saved workbook to verify the result."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "XLSX reading and editing tool",
+      "Excel-compatible formula recalculation engine when output contains formulas"
+    ],
+    "inputs": [
+      {
+        "source": "assets/workbook.xlsx",
+        "destination": "input/workbook.xlsx",
+        "sha256": "a9534f243553db67127086ebbe8484ef61e9fba2d016139cf48e881cbf77cc74"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace"
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-workbook",
+        "kind": "llm",
+        "output": "output/result.xlsx",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "Agent 是否读取实际工作簿、理解跨表或公式约束，并验证修改结果。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取工作表结构与实际数据，定位任务涉及的区域"
+        },
+        {
+          "id": "op-2",
+          "description": "按题目约束实施筛选、汇总、匹配、文本处理或公式修改"
+        },
+        {
+          "id": "op-3",
+          "description": "检查保存后的结果并纠正发现的问题"
+        }
+      ]
+    },
+    "local": {
+      "description": "Agent 是否交付可打开的完成工作簿，目标结果正确且无关区域未意外损坏。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建可打开的 output/result.xlsx"
+        },
+        {
+          "id": "file-2",
+          "description": "目标区域完成要求的修改，并保留无关工作表与格式"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "answer": "Between 40 and 60 inclusive",
+  "rubric": "接受 40 至 60，含端点。须排除 intronic、intergenic 和 UTR 变异，再计算每个样本的平均 CHIP 变异数。"
+}

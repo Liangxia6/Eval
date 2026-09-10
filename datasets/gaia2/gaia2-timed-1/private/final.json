@@ -1,0 +1,145 @@
+{
+  "answer": {
+    "finalResponse": "Both replies to Kjersti have been sent.",
+    "scenario": "private/scenario.json",
+    "oracleEvents": [
+      {
+        "event_id": "OracleEvent-AGENT-a57e955b-ae54-480b-8708-cf21674f716b",
+        "event_type": "AGENT",
+        "event_time": 1728975633.0,
+        "parent_event_ids": [
+          "Event-ENV-e99917ce-b847-4de8-ba71-0be452148fcd"
+        ],
+        "function": "reply_to_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-e99917ce-b847-4de8-ba71-0be452148fcd}}",
+          "folder_name": "INBOX",
+          "content": "OK!",
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-32d27a34-a112-4652-87b3-61f85231425a",
+        "event_type": "AGENT",
+        "event_time": 1728975663.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-a57e955b-ae54-480b-8708-cf21674f716b"
+        ],
+        "function": "reply_to_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-e99917ce-b847-4de8-ba71-0be452148fcd}}",
+          "folder_name": "INBOX",
+          "content": "I HAVE STARTED WORKING ON YOUR TASK!",
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-b05100cc-fa92-4f0e-b345-b1d058a549ad",
+        "event_type": "AGENT",
+        "event_time": 1728975664.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-32d27a34-a112-4652-87b3-61f85231425a"
+        ],
+        "function": "send_message_to_user",
+        "app": "AgentUserInterface",
+        "args": {
+          "content": "Both replies to Kjersti's email have been sent."
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-a61adcd1-7837-4ea5-92ef-f7088a5e1d52",
+        "event_type": "AGENT",
+        "event_time": 1728975716.0,
+        "parent_event_ids": [
+          "Event-ENV-2957c13f-b9f9-46f8-89ce-546aa0459108"
+        ],
+        "function": "reply_to_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-2957c13f-b9f9-46f8-89ce-546aa0459108}}",
+          "folder_name": "INBOX",
+          "content": "OK!",
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-b0883f44-2519-47cd-adc1-ab82e9c442e1",
+        "event_type": "AGENT",
+        "event_time": 1728975746.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-a61adcd1-7837-4ea5-92ef-f7088a5e1d52"
+        ],
+        "function": "reply_to_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-2957c13f-b9f9-46f8-89ce-546aa0459108}}",
+          "folder_name": "INBOX",
+          "content": "I HAVE STARTED WORKING ON YOUR TASK!",
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-feefbfe7-f579-44ee-b7fb-b86e997104e8",
+        "event_type": "AGENT",
+        "event_time": 1728975747.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-b0883f44-2519-47cd-adc1-ab82e9c442e1"
+        ],
+        "function": "send_message_to_user",
+        "app": "AgentUserInterface",
+        "args": {
+          "content": "Both replies to Kjersti have been sent."
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-ebf10299-d40f-437f-8123-868ba01931b9",
+        "event_type": "AGENT",
+        "event_time": 1728975779.0,
+        "parent_event_ids": [
+          "Event-ENV-103422d8-ceae-4ebd-9305-0d7b480f75b0"
+        ],
+        "function": "add_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "title": "Email Kjersti again",
+          "start_datetime": "2024-10-15 09:00:00",
+          "end_datetime": "2024-10-15 10:00:00",
+          "tag": "",
+          "description": "email her again",
+          "location": "",
+          "attendees": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-e77c4c53-4386-4297-8b24-9fed1060f6f0",
+        "event_type": "AGENT",
+        "event_time": 1728975783.0,
+        "parent_event_ids": [
+          "Event-ENV-103422d8-ceae-4ebd-9305-0d7b480f75b0"
+        ],
+        "function": "add_to_cart",
+        "app": "Shopping",
+        "args": {
+          "item_id": "a3b763b58c2045379620fcb64c9dca92",
+          "quantity": 2
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-2e184fef-d5c3-40eb-9649-ad6f5c900d71",
+        "event_type": "AGENT",
+        "event_time": 1728975784.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-e77c4c53-4386-4297-8b24-9fed1060f6f0"
+        ],
+        "function": "checkout",
+        "app": "Shopping",
+        "args": {
+          "discount_code": ""
+        }
+      }
+    ]
+  },
+  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。 以原始模拟时间检查等待、通知和条件分支，按 DAG 父依赖而非任意总顺序匹配；保留运行期 ID/provenance。缺少 ARE sidecar 或事件证据时为 UNEVALUABLE。"
+}

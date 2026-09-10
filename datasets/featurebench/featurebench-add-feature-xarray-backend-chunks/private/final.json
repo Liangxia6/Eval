@@ -1,0 +1,14 @@
+{
+  "answer": {
+    "kind": "patch",
+    "requiredFunctions": [
+      "align_nd_chunks",
+      "build_grid_chunks",
+      "grid_rechunk"
+    ],
+    "f2p": "xarray/tests/test_backends_chunks.py",
+    "p2pCount": 5,
+    "judge": "private/test.sh"
+  },
+  "rubric": "补丁必须在固定 xarray 基线上实现三个 API，通过隐藏 F2P 及五个 P2P 文件，并且存在非测试代码修改。"
+}

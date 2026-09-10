@@ -1,0 +1,190 @@
+{
+  "table_name": "Crest Whitestrips Products",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Model",
+        "type": "TEXT"
+      },
+      {
+        "name": "Availability",
+        "type": "TEXT"
+      },
+      {
+        "name": "Introduced",
+        "type": "DATE"
+      },
+      {
+        "name": "Length of use",
+        "type": "TEXT"
+      },
+      {
+        "name": "Last of whiteness",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "Crest Whitestrips Classic\\npreviously Crest Whitestrips",
+        "Discontinued",
+        "May 2001",
+        "14 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Professional",
+        "Discontinued",
+        "2001",
+        "10 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Supreme",
+        "Dentist and online",
+        "September 2003",
+        "21 days",
+        "18 months"
+      ],
+      [
+        "Crest Whitestrips Premium",
+        "Discontinued",
+        "January 2004",
+        "7 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Pro\\npreviously Crest Whitestrips Premium Plus",
+        "Discontinued",
+        "April 2005",
+        "10 days",
+        "18 months"
+      ],
+      [
+        "Crest Whitestrips Renewal",
+        "Discontinued",
+        "January 2006",
+        "10 days",
+        "18 months"
+      ],
+      [
+        "Crest Whitestrips Daily Multicare",
+        "Discontinued",
+        "March 2007",
+        "Daily",
+        "White after using system"
+      ],
+      [
+        "Crest Whitestrips Advanced Seal",
+        "Discontinued",
+        "February 2009",
+        "14 days",
+        "18 months"
+      ],
+      [
+        "Crest Whitestrips 3D Vivid",
+        "Instore and online",
+        "2009",
+        "10 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips 3D Advanced Vivid",
+        "Instore and online",
+        "March 2010",
+        "14 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips 3D Professional Effects",
+        "Instore and online",
+        "March 2010",
+        "20 days",
+        "12 months"
+      ],
+      [
+        "Crest 3D White 2 Hour Express",
+        "Instore and online",
+        "2010",
+        "2 hours",
+        "3 months"
+      ],
+      [
+        "Crest 3D Intensive Professional Effects",
+        "Instore and online",
+        "2011",
+        "7 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Supreme Platinum",
+        "Dentist offices only",
+        "December 2015",
+        "28 days",
+        "24 months"
+      ],
+      [
+        "Crest 3D White Arctic Fresh",
+        "Instore and online",
+        "June 2012",
+        "14 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Optic White",
+        "Online only",
+        "August 2013",
+        "20 days",
+        "18 months"
+      ],
+      [
+        "Crest Whitestrips Gentle Routine",
+        "Instore and online",
+        "October 2014",
+        "30 days",
+        "24 months"
+      ],
+      [
+        "Crest Whitestrips Brilliance",
+        "Online only",
+        "February 2016",
+        "15 days",
+        "18 months"
+      ],
+      [
+        "Crest 3D White Strips Light Kit",
+        "Instore and online",
+        "June 2017",
+        "45 minutes",
+        "3 months"
+      ],
+      [
+        "Crest Whitestrips Enamel Care",
+        "Online only",
+        "September 2018",
+        "14 days",
+        "12 months"
+      ],
+      [
+        "Crest 3D White Whitening Kit with Mouthwash",
+        "Instore and online",
+        "January 2019",
+        "10 days",
+        "12 months"
+      ],
+      [
+        "Crest Whitestrips Supreme Flexfit",
+        "Dentist offices only",
+        "June 2020",
+        "30 days",
+        "24 months"
+      ],
+      [
+        "Crest 3D White Luxe Glamorous White",
+        "Instore and online",
+        "April 2021",
+        "20 days",
+        "18 months"
+      ]
+    ]
+  }
+}

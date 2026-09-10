@@ -1,0 +1,95 @@
+{
+  "answer": {
+    "finalResponse": "There are two versions of the Pressman Chinese Checkers Board Game. Which would you like to purchase?",
+    "scenario": "private/scenario.json",
+    "oracleEvents": [
+      {
+        "event_id": "OracleEvent-AGENT-d26b96e7-3b42-44d5-891c-a1c4c0b00a94",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "remove_saved_apartment",
+        "app": "RentAFlat",
+        "args": {
+          "apartment_id": "f0fa6894d3d24d4ab2d35ccee61afff0"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-b8c9da77-667c-43d9-a562-efe0c82b0e8f",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "remove_saved_apartment",
+        "app": "RentAFlat",
+        "args": {
+          "apartment_id": "34c89eecd0244de9b7900e06c0d4f083"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-ad8144a1-4939-4b31-8dc4-e0c84880a9f6",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "remove_saved_apartment",
+        "app": "RentAFlat",
+        "args": {
+          "apartment_id": "e46e29d5ec8f45a098c635f61f8cc57d"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-2db3f89d-957c-49f9-9181-54594d49c836",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "remove_saved_apartment",
+        "app": "RentAFlat",
+        "args": {
+          "apartment_id": "b16169f730284ea4a6034b75158f43ad"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-57d756dd-f81a-4211-82ba-3c08110eebd0",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "reply_to_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "74699dcc20f64627bf9383eb0edab999",
+          "folder_name": "INBOX",
+          "content": "I love your idea and I'll call you later this week.",
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-95c9bc58-ab20-4920-815e-41d3927f6863",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "add_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "title": "Grocery Trip",
+          "start_datetime": "2024-10-19 14:00:00",
+          "end_datetime": "2024-10-19 16:00:00",
+          "tag": "",
+          "description": "",
+          "location": "Hashbro Farmer's Market",
+          "attendees": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-9dbb9bd3-088e-4009-899a-5d50d176aec6",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [],
+        "function": "send_message_to_user",
+        "app": "AgentUserInterface",
+        "args": {
+          "content": "There are two versions of the Pressman Chinese Checkers Board Game. Which would you like to purchase?"
+        }
+      }
+    ]
+  },
+  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。"
+}

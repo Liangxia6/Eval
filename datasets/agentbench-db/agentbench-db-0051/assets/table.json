@@ -1,0 +1,148 @@
+{
+  "table_name": "SWAT Games",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Title",
+        "type": "TEXT"
+      },
+      {
+        "name": "Year",
+        "type": "TEXT"
+      },
+      {
+        "name": "Platform",
+        "type": "TEXT"
+      },
+      {
+        "name": "Developer",
+        "type": "TEXT"
+      },
+      {
+        "name": "Publisher",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "SWAT 3: Close Quarters Battle",
+        "1999",
+        "Microsoft Windows",
+        "Sierra Northwest",
+        "Sierra Entertainment"
+      ],
+      [
+        "SWAT: Global Strike Team",
+        "2003",
+        "PlayStation 2 , Xbox",
+        "Argonaut Games",
+        "Argonaut Games Sierra Entertainment"
+      ],
+      [
+        "SWAT 4",
+        "2005",
+        "Microsoft Windows",
+        "Irrational Games",
+        "Vivendi Universal Games Sierra Entertainment"
+      ],
+      [
+        "SWAT 4: The Stetchkov Syndicate",
+        "2006",
+        "Microsoft Windows",
+        "Irrational Games",
+        "Vivendi Universal Games Sierra Entertainment"
+      ],
+      [
+        "SWAT Force",
+        "2006",
+        "Mobile phones",
+        "Kaolink",
+        "Vivendi Games Mobile"
+      ],
+      [
+        "SWAT: Target Liberty",
+        "2007",
+        "PlayStation Portable",
+        "3G Studios",
+        "Sierra Entertainment"
+      ],
+      [
+        "SWAT Elite Troops",
+        "2008",
+        "Mobile phones",
+        "Rovio Mobile",
+        "Vivendi Games Mobile"
+      ],
+      [
+        "Super Mario Bros.",
+        "1985",
+        "Nintendo Entertainment System",
+        "Nintendo",
+        "Nintendo"
+      ],
+      [
+        "Tetris",
+        "1984",
+        "Various platforms",
+        "Alexey Pajitnov",
+        "Various publishers"
+      ],
+      [
+        "Doom",
+        "1993",
+        "Microsoft Windows",
+        "id Software",
+        "GT Interactive Software"
+      ],
+      [
+        "Myst",
+        "1993",
+        "Mac OS",
+        "Cyan",
+        "Brøderbund Software"
+      ],
+      [
+        "SimCity 2000",
+        "1994",
+        "Microsoft Windows",
+        "Maxis",
+        "Maxis Electronic Arts"
+      ],
+      [
+        "Gran Turismo",
+        "1997",
+        "PlayStation",
+        "Polyphony Digital",
+        "Sony Computer Entertainment"
+      ],
+      [
+        "Half-Life",
+        "1998",
+        "Microsoft Windows",
+        "Valve Corporation",
+        "Sierra Studios"
+      ],
+      [
+        "The Sims",
+        "2000",
+        "Microsoft Windows",
+        "Maxis",
+        "Electronic Arts"
+      ],
+      [
+        "Grand Theft Auto III",
+        "2001",
+        "PlayStation 2",
+        "DMA Design",
+        "Rockstar Games"
+      ],
+      [
+        "Halo: Combat Evolved",
+        "2001",
+        "Xbox, Microsoft Windows, Mac OS",
+        "Bungie",
+        "Microsoft Game Studios"
+      ]
+    ]
+  }
+}

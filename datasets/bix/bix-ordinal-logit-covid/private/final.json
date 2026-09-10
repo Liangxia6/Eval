@@ -1,0 +1,4 @@
+{
+  "answer": "Between 0.74 and 0.77 inclusive",
+  "rubric": "接受 0.74 至 0.77，含端点。须基于全部不良事件生成每位受试者唯一的有序 AESEV，以 patients_seen_cat 有序分数和接种状态作调整，输出 expect_interact_cat 的优势比。"
+}

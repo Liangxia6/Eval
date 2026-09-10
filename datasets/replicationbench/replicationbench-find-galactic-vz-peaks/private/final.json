@@ -1,0 +1,14 @@
+{
+  "answer": {
+    "value": [
+      8.0,
+      10.5
+    ],
+    "unit": "kpc",
+    "absoluteTolerance": [
+      0.2,
+      0.2
+    ]
+  },
+  "rubric": "output/result.json 必须符合 {\"value\":[peak1,peak2]}，两个半径递增，并分别落在 8.0±0.2 kpc 与 10.5±0.2 kpc。"
+}

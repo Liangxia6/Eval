@@ -1,0 +1,114 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "spreadsheetbench.spreadsheetbench-82-38",
+  "version": "1.0.0",
+  "title": "spreadsheetbench-82-38",
+  "matching": {
+    "datasetId": "dataset.spreadsheetbench.spreadsheetbench-82-38/v1",
+    "description": "跨工作表匹配发票编号并按分段重复填充。输入为真实 Excel 工作簿，要求读取数据、完成表格操作并交付修改后的工作簿。"
+  },
+  "source": {
+    "repository": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+    "commit": "49b73a94775fb489063f60ca1865e3a650079a79",
+    "taskPath": "spreadsheetbench_verified_400/spreadsheet/82-38",
+    "files": [
+      {
+        "path": "data/spreadsheetbench_verified_400.tar.gz",
+        "sha256": "10ef893dd29cb13ab97143ea787e68cdc9574a13873ab9a54e50b31dc03fc949"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/dataset.json",
+        "sha256": "bcecaa89a005bd4e3bbe98da150a86e8062c27f262e575d5e47bd9861b3525e7"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/82-38/1_82-38_init.xlsx",
+        "sha256": "f6781585d4e4b065a1423cb41995ceb6de689584c3b88cbddb3544eec836a5cb"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/82-38/1_82-38_golden.xlsx",
+        "sha256": "9044ec3a4913a99f3af49ffbf96349ff48563e3f8328f3517fd3413053b38736"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/82-38/prompt.txt",
+        "sha256": "f1ad6b9b9ddc8450a3ef2c14acec148ee8fd8176989b4cd54b354df21da64a3e"
+      }
+    ],
+    "adaptationChanges": [
+      "从固定 Verified 400 快照显式选取 12 题，每题一个原始 init/golden 工作簿对；原题干与工作簿字节不变。",
+      "原始输入映射为 input/workbook.xlsx，交付 output/result.xlsx；参考工作簿与全部目标区域仅保留于 private/。",
+      "来源作者 Ma et al.；原数据及本适配遵循 CC BY-SA 4.0：https://creativecommons.org/licenses/by-sa/4.0/。",
+      "采用 LLM 语义判断及过程/交付证据；需接通 Question Bundle、XLSX 读取与必要的公式重算，不等同官方成绩。"
+    ]
+  },
+  "capabilityLabels": [
+    "tool-data",
+    "tool-document",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "On my SH1 sheet, there are multiple headers labeled 'INVOICE NO' with a number underneath each for different ranges. In my DATA sheet, column D should match the 'INVOICE NO' from SH1 and repeat for each header until a 'TOTAL' row, which correlates with the sheet name in column E of the DATA sheet. The invoice numbers should be arranged in the order they appear on SH1 when the sheet names match; otherwise, sheets with names that do not match should be ignored. I initially wanted formulas that do not specify a range and dynamically work up to the last row containing data. However, I encountered a problem when the DATA sheet has more data than the SH1 sheet, resulting in a #NUM! error. I want to keep the original numbers after the new ones have been filled in and only fill in column D when there is a matching sheet name in column E, while ignoring rows with unmatched names or extra data. Can you provide a solution or VBA code that addresses these issues?\n\nThe workbook is at `input/workbook.xlsx`. Apply the requested changes to the workbook and save the completed file as `output/result.xlsx`. Preserve unrelated sheets, cells, and formatting. When a formula is requested, write a working formula. Inspect the saved workbook to verify the result."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "XLSX reading and editing tool",
+      "Excel-compatible formula recalculation engine when output contains formulas"
+    ],
+    "inputs": [
+      {
+        "source": "assets/workbook.xlsx",
+        "destination": "input/workbook.xlsx",
+        "sha256": "f6781585d4e4b065a1423cb41995ceb6de689584c3b88cbddb3544eec836a5cb"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace"
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-workbook",
+        "kind": "llm",
+        "output": "output/result.xlsx",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "Agent 是否读取实际工作簿、理解跨表或公式约束，并验证修改结果。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取工作表结构与实际数据，定位任务涉及的区域"
+        },
+        {
+          "id": "op-2",
+          "description": "按题目约束实施筛选、汇总、匹配、文本处理或公式修改"
+        },
+        {
+          "id": "op-3",
+          "description": "检查保存后的结果并纠正发现的问题"
+        }
+      ]
+    },
+    "local": {
+      "description": "Agent 是否交付可打开的完成工作簿，目标结果正确且无关区域未意外损坏。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建可打开的 output/result.xlsx"
+        },
+        {
+          "id": "file-2",
+          "description": "目标区域完成要求的修改，并保留无关工作表与格式"
+        }
+      ]
+    }
+  }
+}

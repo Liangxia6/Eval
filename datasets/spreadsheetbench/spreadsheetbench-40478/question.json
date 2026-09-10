@@ -1,0 +1,114 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "spreadsheetbench.spreadsheetbench-40478",
+  "version": "1.0.0",
+  "title": "spreadsheetbench-40478",
+  "matching": {
+    "datasetId": "dataset.spreadsheetbench.spreadsheetbench-40478/v1",
+    "description": "按空格和连字符边界用公式抽取文本。输入为真实 Excel 工作簿，要求读取数据、完成表格操作并交付修改后的工作簿。"
+  },
+  "source": {
+    "repository": "https://github.com/RUCKBReasoning/SpreadsheetBench",
+    "commit": "49b73a94775fb489063f60ca1865e3a650079a79",
+    "taskPath": "spreadsheetbench_verified_400/spreadsheet/40478",
+    "files": [
+      {
+        "path": "data/spreadsheetbench_verified_400.tar.gz",
+        "sha256": "10ef893dd29cb13ab97143ea787e68cdc9574a13873ab9a54e50b31dc03fc949"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/dataset.json",
+        "sha256": "bcecaa89a005bd4e3bbe98da150a86e8062c27f262e575d5e47bd9861b3525e7"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/40478/1_40478_init.xlsx",
+        "sha256": "fc4947026d76988e81763f61c4081f2cbfd5591f99ddb6c97f71d7dbfaca53ab"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/40478/1_40478_golden.xlsx",
+        "sha256": "69afc1a64d5835314d556e56d84f2e2d6c559a17f4436343222b5fcb7cae291f"
+      },
+      {
+        "path": "spreadsheetbench_verified_400/spreadsheet/40478/prompt.txt",
+        "sha256": "a1c33aaf059ce06e4d6ff97e9acfd7edb23882f7214ef71328dbc900572978bd"
+      }
+    ],
+    "adaptationChanges": [
+      "从固定 Verified 400 快照显式选取 12 题，每题一个原始 init/golden 工作簿对；原题干与工作簿字节不变。",
+      "原始输入映射为 input/workbook.xlsx，交付 output/result.xlsx；参考工作簿与全部目标区域仅保留于 private/。",
+      "来源作者 Ma et al.；原数据及本适配遵循 CC BY-SA 4.0：https://creativecommons.org/licenses/by-sa/4.0/。",
+      "采用 LLM 语义判断及过程/交付证据；需接通 Question Bundle、XLSX 读取与必要的公式重算，不等同官方成绩。"
+    ]
+  },
+  "capabilityLabels": [
+    "tool-data",
+    "tool-document",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "How do I use a formula to extract text from column A in a spreadsheet, starting after the second space character to the right and ending before a dash character? An example of the manually extracted data is provided in column B for reference. When you have a formula created please use it.\n\nThe workbook is at `input/workbook.xlsx`. Apply the requested changes to the workbook and save the completed file as `output/result.xlsx`. Preserve unrelated sheets, cells, and formatting. When a formula is requested, write a working formula. Inspect the saved workbook to verify the result."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "XLSX reading and editing tool",
+      "Excel-compatible formula recalculation engine when output contains formulas"
+    ],
+    "inputs": [
+      {
+        "source": "assets/workbook.xlsx",
+        "destination": "input/workbook.xlsx",
+        "sha256": "fc4947026d76988e81763f61c4081f2cbfd5591f99ddb6c97f71d7dbfaca53ab"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace"
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-workbook",
+        "kind": "llm",
+        "output": "output/result.xlsx",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "Agent 是否读取实际工作簿、理解跨表或公式约束，并验证修改结果。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取工作表结构与实际数据，定位任务涉及的区域"
+        },
+        {
+          "id": "op-2",
+          "description": "按题目约束实施筛选、汇总、匹配、文本处理或公式修改"
+        },
+        {
+          "id": "op-3",
+          "description": "检查保存后的结果并纠正发现的问题"
+        }
+      ]
+    },
+    "local": {
+      "description": "Agent 是否交付可打开的完成工作簿，目标结果正确且无关区域未意外损坏。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建可打开的 output/result.xlsx"
+        },
+        {
+          "id": "file-2",
+          "description": "目标区域完成要求的修改，并保留无关工作表与格式"
+        }
+      ]
+    }
+  }
+}

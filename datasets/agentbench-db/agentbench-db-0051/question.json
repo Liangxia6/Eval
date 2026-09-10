@@ -1,0 +1,126 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "thudm.agentbench-db-0051",
+  "version": "1.0.0",
+  "title": "agentbench-db-0051",
+  "matching": {
+    "datasetId": "dataset.thudm.agentbench-db-0051/v1",
+    "description": "对完整本地数据表 SWAT Games 执行 SQL，完成 comparison 查询；需要检查表结构、解释筛选和聚合条件，并交付查询结果。材料为公开表格 JSON 和 Python 标准库 SQLite 工具。"
+  },
+  "source": {
+    "repository": "https://github.com/THUDM/AgentBench",
+    "commit": "ed013ff9887b0c3d7864c56ae54d41eba54a99d8",
+    "taskPath": "data/dbbench/standard.jsonl#line=51",
+    "files": [
+      {
+        "path": "data/dbbench/standard.jsonl",
+        "sha256": "d1ac4d67ec39fad083c38944972e392ff100257c755361ee63eaef608ddafcb3"
+      },
+      {
+        "path": "src/server/tasks/dbbench/__init__.py",
+        "sha256": "8b7b78cc7e5ae04897110083da3be1e17e5cb4b61b9caf14200fad27936df4e8"
+      },
+      {
+        "path": "src/server/tasks/dbbench/Interaction.py",
+        "sha256": "8cabfeb2f1afa856f036b76059ba4fe47503198d14dbf10775daeb0822f7ab3c"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "adaptationChanges": [
+      "保留所选 SELECT 题的原题干、完整表格及官方答案；来源行号见 taskPath。导入时执行原始 SQL 并核对官方 label。",
+      "MySQL/Docker 改为只读内存 SQLite；全列 TEXT、NOCASE，数值需显式 CAST，不保证所有 MySQL 语义等价。",
+      "表格、工具、使用说明和许可证映射到 input/；答案仅保留于 private/final.json。",
+      "交付答案、实际 SQL 与查询结果；使用本地时间预算和 LLM 语义评分，不复现上游轮数、截断协议或官方总分。"
+    ]
+  },
+  "capabilityLabels": [
+    "tool-data",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Use the supplied local database table to answer this question:\n\nName the plaform for year more than 2006 and developer of 3g studios\n\nThe name of this table is SWAT Games, and the headers of this table are Title,Year,Platform,Developer,Publisher.\n\nRead `input/README.md`. Inspect the database schema with `python3 input/db_tool.py --schema`, then formulate and actually execute SQLite SQL using `input/db_tool.py`. Use only the complete supplied table in `input/table.json` as the factual source. You may run diagnostic queries and correct errors. All columns are stored as TEXT; inspect values and explicitly convert numerical text when necessary.\n\nWrite the answer values as a JSON array to `output/answer.txt`. Save the SQL actually used to `output/query.sql` and its actual tool JSON response to `output/query-result.json` (for example: `python3 input/db_tool.py --sql-file output/query.sql > output/query-result.json`). Keep the input materials unchanged. You have up to 600 seconds."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 600,
+    "dependencies": [
+      "Python >=3.9 with standard-library sqlite3"
+    ],
+    "inputs": [
+      {
+        "source": "assets/table.json",
+        "destination": "input/table.json",
+        "sha256": "d051d8aa598e47b2fb1fc9ad8a4c0b59d35244cc682cbbd25fac7e9446e15b25"
+      },
+      {
+        "source": "assets/db_tool.py",
+        "destination": "input/db_tool.py",
+        "sha256": "164692a2be37d1b257b675b135cedef4e26634fead158db56f4ac4d78d274918"
+      },
+      {
+        "source": "assets/README.md",
+        "destination": "input/README.md",
+        "sha256": "341f8cdbdc0ed58cebeac9f509d4189d4df99cf50ddc263569e2c087a9874283"
+      },
+      {
+        "source": "assets/LICENSE",
+        "destination": "input/LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace"
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-answer",
+        "kind": "llm",
+        "output": "output/answer.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "评价是否实际读取表结构、执行与题意一致的 SQL，并依据工具返回值确定答案；如有错误，能否利用反馈修正。",
+      "checkpoints": [
+        {
+          "id": "inspect-schema",
+          "description": "读取 input/README.md 并检查目标表与列名，可使用 db_tool.py --schema。"
+        },
+        {
+          "id": "execute-query",
+          "description": "围绕题目的 comparison 条件构造并实际执行 SQL，适当处理文本数值、大小写和标点。"
+        },
+        {
+          "id": "ground-answer",
+          "description": "核对实际查询返回行，确认结果对应所问实体、数量或聚合值，必要时修正查询。"
+        }
+      ]
+    },
+    "local": {
+      "description": "评价本地交付是否包含有效答案、实际执行的 SQL 与相应查询结果，且保留输入材料。",
+      "checkpoints": [
+        {
+          "id": "write-answer",
+          "description": "创建 output/answer.txt，包含答案值的 JSON 数组。"
+        },
+        {
+          "id": "save-query",
+          "description": "创建 output/query.sql，保留实际用于求解的 SQL。"
+        },
+        {
+          "id": "save-result",
+          "description": "创建 output/query-result.json，保存与交付 SQL 相符的真实工具返回结果。"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "answer": {
+    "finalResponse": "The things you requested have been done.",
+    "scenario": "private/scenario.json",
+    "oracleEvents": [
+      {
+        "event_id": "OracleEvent-AGENT-9ca29aa0-de61-43b9-8784-1181580bc6b2",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-USER-18ffbb0b-c192-4b7d-8c98-352ac9ba1008"
+        ],
+        "function": "add_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "title": "Film Production Day",
+          "start_datetime": "2024-10-19 08:00:00",
+          "end_datetime": "2024-10-19 20:00:00",
+          "tag": "",
+          "description": "",
+          "location": "",
+          "attendees": [
+            "Åke Lindström"
+          ]
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-5a7544b9-62b6-451e-b485-f2628cc66444",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-USER-18ffbb0b-c192-4b7d-8c98-352ac9ba1008"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "f041377cce14424692cf96b15fc4fd0b"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-8ad56d85-3053-444a-9141-9fdcba7aac68",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-9ca29aa0-de61-43b9-8784-1181580bc6b2"
+        ],
+        "function": "send_email",
+        "app": "Emails",
+        "args": {
+          "recipients": [
+            "ake.lindstrom@filmproduktion.se"
+          ],
+          "subject": "Film Production Day",
+          "content": "Dear Åke,\n\nI've scheduled a \"Film Production Day\" event for this upcoming Saturday, October 19, 2024, from 8 AM to 8 PM. \n\nBest,\nAstrid Lundqvist",
+          "cc": [],
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-78d99363-08cd-4a69-a6b4-dd85160292dd",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-8ad56d85-3053-444a-9141-9fdcba7aac68",
+          "OracleEvent-AGENT-5a7544b9-62b6-451e-b485-f2628cc66444"
+        ],
+        "function": "send_message_to_user",
+        "app": "AgentUserInterface",
+        "args": {
+          "content": "The things you requested have been done."
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-f1eeb388-b7fe-4694-a361-061c9ca6df30",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "{{OracleEvent-AGENT-9ca29aa0-de61-43b9-8784-1181580bc6b2}}"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-e3cb5699-1201-4394-bc94-1b58b040b00f",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "2c50e300723342fd890a082b5b19cbba"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-95fb6b1a-36b8-42fc-a2cb-ee62b2b5b502",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "06551b52bea4471a87591728dfb818ab"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-818b871a-acdf-43e1-b953-009f5415c6e6",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "4ef002bd4c244d74a176d172b6d3094a"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-ad7375b9-b7dd-44a1-a4fa-13a57250e186",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "fae4a56e0fba4243a08497fe47b6fb10"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-481f3f24-ef6e-48c3-8a2f-69e12633a7f1",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "delete_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "event_id": "521f19c1968d44a29ccbd47a3784bafe"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-0b1c8085-b438-4262-8ec2-7fd7fcfa1163",
+        "event_type": "AGENT",
+        "event_time": 0.0,
+        "parent_event_ids": [
+          "Event-ENV-db27d521-bdb2-4e54-93c7-9020aad11998"
+        ],
+        "function": "add_calendar_event",
+        "app": "Calendar",
+        "args": {
+          "title": "Film Production Day",
+          "start_datetime": "2024-10-17 08:00:00",
+          "end_datetime": "2024-10-17 20:00:00",
+          "tag": "",
+          "description": "",
+          "location": "",
+          "attendees": [
+            "Åke Lindström"
+          ]
+        }
+      }
+    ]
+  },
+  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。"
+}

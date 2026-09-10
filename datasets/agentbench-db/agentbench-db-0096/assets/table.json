@@ -1,0 +1,176 @@
+{
+  "table_name": "racers_database",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Year",
+        "type": "TEXT"
+      },
+      {
+        "name": "Entrant",
+        "type": "TEXT"
+      },
+      {
+        "name": "Chassis",
+        "type": "TEXT"
+      },
+      {
+        "name": "Engine",
+        "type": "TEXT"
+      },
+      {
+        "name": "Points",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "1950",
+        "Blue Crown Spark Plug / Moore",
+        "Kurtis Kraft 2000",
+        "Offenhauser L4",
+        "1"
+      ],
+      [
+        "1951",
+        "oil Mobil / Rotary Engineering",
+        "Deidt Tuffanelli Derrico",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1952",
+        "Blue Crown Spark Plug / Earl Slick",
+        "Deidt Tuffanelli Derrico",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1953",
+        "J.C. Agajanian",
+        "Kuzma",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1954",
+        "Automobile Shippers / Casaroll",
+        "Kurtis Kraft 4000",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1955",
+        "H.A. Chapman",
+        "Kurtis Kraft 500C",
+        "Offenhauser L4",
+        "3"
+      ],
+      [
+        "1956",
+        "Belanger Motors",
+        "Kurtis Kraft 500C",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1957",
+        "Novi Racing",
+        "Kurtis Kraft 500F",
+        "Novi V8",
+        "0"
+      ],
+      [
+        "1958",
+        "Jones & Maley Cars",
+        "Epperly Indy Roadster",
+        "Offenhauser L4",
+        "4"
+      ],
+      [
+        "1959",
+        "Hoover Motor Express",
+        "Epperly Indy Roadster",
+        "Offenhauser L4",
+        "3"
+      ],
+      [
+        "1960",
+        "Lindsey Hopkins",
+        "Watson Indy Roadster",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1961",
+        "Bowes Seal Fast",
+        "Watson Indy Roadster",
+        "Offenhauser L4",
+        "2"
+      ],
+      [
+        "1962",
+        "Bignotti-Brabham Racing",
+        "Brabham BT3",
+        "Offenhauser L4",
+        "1"
+      ],
+      [
+        "1963",
+        "John Zink Racing",
+        "Brabham BT6",
+        "Offenhauser L4",
+        "0"
+      ],
+      [
+        "1964",
+        "Bryant Heating & Cooling",
+        "Brabham BT12",
+        "Offenhauser L4",
+        "4"
+      ],
+      [
+        "1965",
+        "STP Corporation",
+        "Lotus 38",
+        "Ford V8",
+        "1"
+      ],
+      [
+        "1966",
+        "Gurney Racing",
+        "Eagle T1G",
+        "Weslake V12",
+        "2"
+      ],
+      [
+        "1967",
+        "Team Lotus",
+        "Lotus 38",
+        "Ford V8",
+        "2"
+      ],
+      [
+        "1968",
+        "McLaren Racing",
+        "McLaren M6B",
+        "Chevrolet V8",
+        "0"
+      ],
+      [
+        "1969",
+        "Al Unser Racing",
+        "Brabham BT26A",
+        "Ford V8",
+        "1"
+      ],
+      [
+        "1970",
+        "Team Lotus",
+        "Lotus 72C",
+        "Ford V8",
+        "3"
+      ]
+    ]
+  }
+}

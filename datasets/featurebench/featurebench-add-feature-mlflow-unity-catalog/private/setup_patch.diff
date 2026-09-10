@@ -1,0 +1,99 @@
+diff --git a/mlflow/data/dataset.py b/mlflow/data/dataset.py
+index b587012..5b409dd 100644
+--- a/mlflow/data/dataset.py
++++ b/mlflow/data/dataset.py
+@@ -15,14 +15,7 @@ class Dataset:
+     """
+ 
+     def __init__(self, source: DatasetSource, name: str | None = None, digest: str | None = None):
+-        """
+-        Base constructor for a dataset. All subclasses must call this constructor.
+-        """
+-        self._name = name
+-        self._source = source
+-        # Note: Subclasses should call super() once they've initialized all of
+-        # the class attributes necessary for digest computation
+-        self._digest = digest or self._compute_digest()
++        raise NotImplementedError("Dataset.__init__")
+ 
+     @abstractmethod
+     def _compute_digest(self) -> str:
+diff --git a/mlflow/models/signature.py b/mlflow/models/signature.py
+index ff1d285..9a5d595 100644
+--- a/mlflow/models/signature.py
++++ b/mlflow/models/signature.py
+@@ -313,8 +313,7 @@ def _get_arg_names(f):
+ 
+ class _TypeHints:
+     def __init__(self, input_=None, output=None):
+-        self.input = input_
+-        self.output = output
++        raise NotImplementedError("_TypeHints.__init__")
+ 
+     def __repr__(self):
+         return f"<input: {self.input}, output: {self.output}>"
+diff --git a/mlflow/types/schema.py b/mlflow/types/schema.py
+index abee279..c6883cf 100644
+--- a/mlflow/types/schema.py
++++ b/mlflow/types/schema.py
+@@ -1005,7 +1005,7 @@ class Schema:
+     @property
+     def inputs(self) -> list[ColSpec | TensorSpec]:
+         """Representation of a dataset that defines this schema."""
+-        return self._inputs
++        raise NotImplementedError("Schema.inputs")
+ 
+     def is_tensor_spec(self) -> bool:
+         """Return true iff this schema is specified using TensorSpec"""
+diff --git a/mlflow/utils/_unity_catalog_utils.py b/mlflow/utils/_unity_catalog_utils.py
+index 73240c4..7c22086 100644
+--- a/mlflow/utils/_unity_catalog_utils.py
++++ b/mlflow/utils/_unity_catalog_utils.py
+@@ -151,17 +151,13 @@ def registered_model_search_from_uc_proto(uc_proto: ProtoRegisteredModel) -> Reg
+ def uc_registered_model_tag_from_mlflow_tags(
+     tags: list[RegisteredModelTag] | None,
+ ) -> list[ProtoRegisteredModelTag]:
+-    if tags is None:
+-        return []
+-    return [ProtoRegisteredModelTag(key=t.key, value=t.value) for t in tags]
++    raise NotImplementedError("uc_registered_model_tag_from_mlflow_tags")
+ 
+ 
+ def uc_model_version_tag_from_mlflow_tags(
+     tags: list[ModelVersionTag] | None,
+ ) -> list[ProtoModelVersionTag]:
+-    if tags is None:
+-        return []
+-    return [ProtoModelVersionTag(key=t.key, value=t.value) for t in tags]
++    raise NotImplementedError("uc_model_version_tag_from_mlflow_tags")
+ 
+ 
+ def get_artifact_repo_from_storage_info(
+diff --git a/mlflow/utils/proto_json_utils.py b/mlflow/utils/proto_json_utils.py
+index 65fb652..cb636ec 100644
+--- a/mlflow/utils/proto_json_utils.py
++++ b/mlflow/utils/proto_json_utils.py
+@@ -111,22 +111,7 @@ def _merge_json_dicts(from_dict, to_dict):
+ 
+ def message_to_json(message):
+     """Converts a message to JSON, using snake_case for field names."""
+-
+-    # Google's MessageToJson API converts int64 proto fields to JSON strings.
+-    # For more info, see https://github.com/protocolbuffers/protobuf/issues/2954
+-    json_dict_with_int64_as_str = json.loads(
+-        MessageToJson(message, preserving_proto_field_name=True)
+-    )
+-    # We convert this proto message into a JSON dict where only int64 proto fields
+-    # are preserved, and they are treated as JSON numbers, not strings.
+-    json_dict_with_int64_fields_only = _mark_int64_fields(message)
+-    # By merging these two JSON dicts, we end up with a JSON dict where int64 proto fields are not
+-    # converted to JSON strings. Int64 keys in proto maps will always be converted to JSON strings
+-    # because JSON doesn't support non-string keys.
+-    json_dict_with_int64_as_numbers = _merge_json_dicts(
+-        json_dict_with_int64_fields_only, json_dict_with_int64_as_str
+-    )
+-    return json.dumps(json_dict_with_int64_as_numbers, indent=2)
++    raise NotImplementedError("message_to_json")
+ 
+ 
+ def proto_timestamp_to_milliseconds(timestamp: str) -> int:

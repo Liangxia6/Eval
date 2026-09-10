@@ -1,0 +1,167 @@
+{
+  "answer": {
+    "finalResponse": "The email to the detective has been sent.",
+    "scenario": "private/scenario.json",
+    "oracleEvents": [
+      {
+        "event_id": "OracleEvent-AGENT-e79947bf-2272-4689-972b-053cfe6eca85",
+        "event_type": "AGENT",
+        "event_time": 1728975660.0,
+        "parent_event_ids": [
+          "Event-ENV-d8c5e2b2-67a1-4602-b666-ae822557385c",
+          "Event-ENV-d35a58cf-64f5-4a93-8104-7fb56b8ae80b",
+          "Event-ENV-2063add8-2ceb-4887-8f73-98f61f2ca0ec",
+          "Event-ENV-08b22023-d197-4403-80d0-76d8caa9bf28",
+          "Event-ENV-63e91b37-606e-4db7-aa29-f39c4475c934",
+          "Event-ENV-8a1e67d5-1e90-43ab-bce5-db476fcdac8e"
+        ],
+        "function": "send_email",
+        "app": "Emails",
+        "args": {
+          "recipients": [
+            "caoimhe.nichonaill@chicagopolice.org"
+          ],
+          "subject": "I am being harassed",
+          "content": "Dear Caoimhe,\n\nAn individual named John Smith is harassing me via email. Do you know a good lawyer in Moscow? Can you give me any safety advice?\n\nBest,\nAnastasiya",
+          "cc": [],
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-ace07cd5-ae8c-4000-a260-22f0cc06385c",
+        "event_type": "AGENT",
+        "event_time": 1728975661.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-e79947bf-2272-4689-972b-053cfe6eca85"
+        ],
+        "function": "send_message_to_user",
+        "app": "AgentUserInterface",
+        "args": {
+          "content": "The email to the detective has been sent."
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf",
+        "event_type": "AGENT",
+        "event_time": 1728975723.0,
+        "parent_event_ids": [
+          "Event-ENV-90de185d-4e05-4aa7-b6ba-73a1216c8e78"
+        ],
+        "function": "send_email",
+        "app": "Emails",
+        "args": {
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "subject": "I am being harassed",
+          "content": "Dear Sergei,\n\nAn individual named John Smith is harassing me via email. What is my best course of action?\n\nBest,\nAnastasiya",
+          "cc": [],
+          "attachment_paths": []
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-d1f813b1-929b-4623-b997-50e065da09ea",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-d8c5e2b2-67a1-4602-b666-ae822557385c}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-59b9abe2-dcd1-4e23-8924-15701199ba4f",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-d35a58cf-64f5-4a93-8104-7fb56b8ae80b}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-a56d6cd2-9c5d-4681-a908-4152cd0e558f",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-2063add8-2ceb-4887-8f73-98f61f2ca0ec}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-93eb36a2-e1c5-4ca6-a6d9-953bffd9f907",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-08b22023-d197-4403-80d0-76d8caa9bf28}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-bc7c0a30-57b1-4b15-beef-f762fa17aa14",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-63e91b37-606e-4db7-aa29-f39c4475c934}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      },
+      {
+        "event_id": "OracleEvent-AGENT-3e8006f7-c282-41d4-b858-76c854644cb9",
+        "event_type": "AGENT",
+        "event_time": 1728975724.0,
+        "parent_event_ids": [
+          "OracleEvent-AGENT-36bd60d6-72d6-4296-bbc5-6f286acd27cf"
+        ],
+        "function": "forward_email",
+        "app": "Emails",
+        "args": {
+          "email_id": "{{Event-ENV-8a1e67d5-1e90-43ab-bce5-db476fcdac8e}}",
+          "recipients": [
+            "sergei.petrov@moscowlawyers.ru"
+          ],
+          "folder_name": "INBOX"
+        }
+      }
+    ]
+  },
+  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。 以原始模拟时间检查等待、通知和条件分支，按 DAG 父依赖而非任意总顺序匹配；保留运行期 ID/provenance。缺少 ARE sidecar 或事件证据时为 UNEVALUABLE。"
+}

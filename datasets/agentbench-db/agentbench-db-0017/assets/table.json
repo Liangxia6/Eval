@@ -1,0 +1,419 @@
+{
+  "table_name": "Football_Player_Stats",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Name",
+        "type": "TEXT"
+      },
+      {
+        "name": "Nation",
+        "type": "TEXT"
+      },
+      {
+        "name": "Position",
+        "type": "TEXT"
+      },
+      {
+        "name": "League Apps",
+        "type": "INT"
+      },
+      {
+        "name": "League Goals",
+        "type": "INT"
+      },
+      {
+        "name": "FA Cup Apps",
+        "type": "INT"
+      },
+      {
+        "name": "FA Cup Goals",
+        "type": "INT"
+      },
+      {
+        "name": "Total Apps",
+        "type": "INT"
+      },
+      {
+        "name": "Total Goals",
+        "type": "INT"
+      }
+    ],
+    "rows": [
+      [
+        "Ned Barkas",
+        "England",
+        "DF",
+        "4",
+        "0",
+        "0",
+        "0",
+        "4",
+        "0"
+      ],
+      [
+        "Harry Brough",
+        "England",
+        "DF",
+        "9",
+        "0",
+        "0",
+        "0",
+        "9",
+        "0"
+      ],
+      [
+        "George Brown",
+        "England",
+        "FW",
+        "6",
+        "4",
+        "0",
+        "0",
+        "6",
+        "4"
+      ],
+      [
+        "Jack Byers",
+        "England",
+        "MF",
+        "5",
+        "1",
+        "0",
+        "0",
+        "5",
+        "1"
+      ],
+      [
+        "Harry Cawthorne",
+        "England",
+        "DF",
+        "5",
+        "0",
+        "0",
+        "0",
+        "5",
+        "0"
+      ],
+      [
+        "Ted Davis",
+        "England",
+        "GK",
+        "27",
+        "0",
+        "7",
+        "0",
+        "34",
+        "0"
+      ],
+      [
+        "Ernie Islip",
+        "England",
+        "FW",
+        "34",
+        "11",
+        "9",
+        "4",
+        "43",
+        "15"
+      ],
+      [
+        "Billy Johnston",
+        "England",
+        "FW",
+        "21",
+        "2",
+        "2",
+        "0",
+        "23",
+        "2"
+      ],
+      [
+        "Robert Jones",
+        "England",
+        "MF",
+        "2",
+        "1",
+        "0",
+        "0",
+        "2",
+        "1"
+      ],
+      [
+        "Frank Mann",
+        "England",
+        "FW",
+        "40",
+        "5",
+        "8",
+        "4",
+        "48",
+        "9"
+      ],
+      [
+        "Len Marlow",
+        "England",
+        "FW",
+        "1",
+        "0",
+        "0",
+        "0",
+        "1",
+        "0"
+      ],
+      [
+        "Colin McKay",
+        "Scotland",
+        "DF",
+        "14",
+        "2",
+        "0",
+        "0",
+        "14",
+        "2"
+      ],
+      [
+        "Sandy Mutch",
+        "Scotland",
+        "GK",
+        "15",
+        "0",
+        "2",
+        "0",
+        "17",
+        "0"
+      ],
+      [
+        "Stan Pearson",
+        "England",
+        "MF",
+        "1",
+        "0",
+        "1",
+        "0",
+        "2",
+        "0"
+      ],
+      [
+        "George Richardson",
+        "England",
+        "MF",
+        "14",
+        "1",
+        "8",
+        "1",
+        "22",
+        "2"
+      ],
+      [
+        "Charlie Slade",
+        "England",
+        "DF",
+        "25",
+        "0",
+        "9",
+        "0",
+        "34",
+        "0"
+      ],
+      [
+        "Billy E. Smith",
+        "England",
+        "FW",
+        "1",
+        "0",
+        "0",
+        "0",
+        "1",
+        "0"
+      ],
+      [
+        "Billy H. Smith",
+        "England",
+        "MF",
+        "40",
+        "8",
+        "9",
+        "4",
+        "49",
+        "12"
+      ],
+      [
+        "Clem Stephenson",
+        "England",
+        "FW",
+        "39",
+        "9",
+        "9",
+        "6",
+        "48",
+        "15"
+      ],
+      [
+        "Jack Swann",
+        "England",
+        "FW",
+        "9",
+        "3",
+        "0",
+        "0",
+        "9",
+        "3"
+      ],
+      [
+        "Sam Wadsworth",
+        "England",
+        "DF",
+        "39",
+        "1",
+        "9",
+        "0",
+        "48",
+        "1"
+      ],
+      [
+        "Billy Watson",
+        "England",
+        "DF",
+        "36",
+        "0",
+        "9",
+        "1",
+        "45",
+        "1"
+      ],
+      [
+        "Tom Wilson",
+        "England",
+        "DF",
+        "39",
+        "1",
+        "9",
+        "0",
+        "48",
+        "1"
+      ],
+      [
+        "James Wood",
+        "England",
+        "DF",
+        "36",
+        "0",
+        "9",
+        "0",
+        "45",
+        "0"
+      ],
+      [
+        "John Smith",
+        "Australia",
+        "FW",
+        "15",
+        "7",
+        "2",
+        "1",
+        "17",
+        "8"
+      ],
+      [
+        "Sarah Lee",
+        "USA",
+        "MF",
+        "23",
+        "3",
+        "5",
+        "0",
+        "28",
+        "3"
+      ],
+      [
+        "Yuto Nagamoto",
+        "Japan",
+        "DF",
+        "12",
+        "1",
+        "3",
+        "0",
+        "15",
+        "1"
+      ],
+      [
+        "Francois Dupont",
+        "France",
+        "MF",
+        "29",
+        "6",
+        "7",
+        "2",
+        "36",
+        "8"
+      ],
+      [
+        "Hans Müller",
+        "Germany",
+        "GK",
+        "30",
+        "0",
+        "8",
+        "0",
+        "38",
+        "0"
+      ],
+      [
+        "Elena Martinez",
+        "Spain",
+        "DF",
+        "20",
+        "0",
+        "3",
+        "0",
+        "23",
+        "0"
+      ],
+      [
+        "Giuseppe Rossi",
+        "Italy",
+        "FW",
+        "16",
+        "9",
+        "4",
+        "1",
+        "20",
+        "10"
+      ],
+      [
+        "Marta Silva",
+        "Brazil",
+        "FW",
+        "14",
+        "11",
+        "0",
+        "0",
+        "14",
+        "11"
+      ],
+      [
+        "Johan Svensson",
+        "Sweden",
+        "MF",
+        "32",
+        "4",
+        "6",
+        "3",
+        "38",
+        "7"
+      ],
+      [
+        "David Kim",
+        "South Korea",
+        "DF",
+        "18",
+        "2",
+        "2",
+        "0",
+        "20",
+        "2"
+      ]
+    ]
+  }
+}

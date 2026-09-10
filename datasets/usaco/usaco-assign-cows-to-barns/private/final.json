@@ -1,0 +1,8 @@
+{
+  "answer": {
+    "kind": "hidden-test-suite",
+    "requiredArtifact": "output/solution.py",
+    "packagedCases": 20
+  },
+  "rubric": "solution.py 必须是无需外部库的 Python 3 程序；20 组私有输入全部输出正确，且满足 N≤3000、总执行 600 秒和 1280 MiB 内存约束。"
+}

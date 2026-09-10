@@ -1,0 +1,29 @@
+{
+  "answer": {
+    "referenceWorkbook": "private/reference.xlsx",
+    "regions": [
+      {
+        "sheet": "LIST",
+        "range": "C2:E5",
+        "cells": {
+          "C2": 37200,
+          "D2": 16800,
+          "E2": 20400,
+          "C3": 26300,
+          "D3": 12000,
+          "E3": 14300,
+          "C4": 26500,
+          "D4": 800,
+          "E4": 25700,
+          "C5": 90000,
+          "D5": 29600,
+          "E5": 60400
+        }
+      }
+    ],
+    "upstreamAnswerPosition": "'LIST'!C2:E5",
+    "upstreamAnswerSheet": "LIST",
+    "referenceSha256": "343f15cb355f3ba80bbae6de6fdc740f33c3618bd0701ee8a9885d972ecc643c"
+  },
+  "rubric": "读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列 regions 中的目标区域结果作语义比较。需要覆盖全部目标单元格；数值、日期、空值和文本按业务含义比较，不能仅凭文件存在或 Agent 的说明判为正确。题目要求公式时需保留可计算公式，并检查题干明确要求的格式及无关区域。过程和本地层只提供描述性质证据，不绑定固定工具路线。如果无法读取 XLSX 或所需公式结果尚未重算，标记 UNEVALUABLE，不能把缺失缓存当正确空值。此适配不等同官方确定性指标。"
+}

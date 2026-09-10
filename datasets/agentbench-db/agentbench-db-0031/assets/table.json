@@ -1,0 +1,188 @@
+{
+  "table_name": "raiders_game_stats",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Game",
+        "type": "TEXT"
+      },
+      {
+        "name": "Date",
+        "type": "TEXT"
+      },
+      {
+        "name": "Opponent",
+        "type": "TEXT"
+      },
+      {
+        "name": "Result",
+        "type": "TEXT"
+      },
+      {
+        "name": "Raiders points",
+        "type": "TEXT"
+      },
+      {
+        "name": "Opponents",
+        "type": "TEXT"
+      },
+      {
+        "name": "Raiders first downs",
+        "type": "TEXT"
+      },
+      {
+        "name": "Record",
+        "type": "TEXT"
+      },
+      {
+        "name": "Attendance",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "1",
+        "Sept. 22",
+        "at Miami Dolphins",
+        "Win",
+        "31",
+        "21",
+        "17",
+        "1–0",
+        "78744"
+      ],
+      [
+        "2",
+        "Sept. 28",
+        "at Baltimore Colts",
+        "Win",
+        "31",
+        "20",
+        "18",
+        "2–0",
+        "40657"
+      ],
+      [
+        "3",
+        "Oct. 5",
+        "at San Diego Chargers",
+        "Win",
+        "6",
+        "0",
+        "17",
+        "3–0",
+        "31095"
+      ],
+      [
+        "4",
+        "Oct. 12",
+        "at Kansas City Chiefs",
+        "Loss",
+        "10",
+        "42",
+        "23",
+        "3–1",
+        "60425"
+      ],
+      [
+        "5",
+        "Oct. 19",
+        "at Cincinnati Bengals",
+        "Loss",
+        "10",
+        "14",
+        "18",
+        "3–2",
+        "48122"
+      ],
+      [
+        "6",
+        "Oct. 26",
+        "San Diego Chargers",
+        "Win",
+        "25",
+        "0",
+        "23",
+        "4–2",
+        "42796"
+      ],
+      [
+        "7",
+        "Nov. 2",
+        "at Denver Broncos",
+        "Win",
+        "42",
+        "17",
+        "21",
+        "5–2",
+        "52505"
+      ],
+      [
+        "8",
+        "Nov. 9",
+        "New Orleans Saints",
+        "Win",
+        "48",
+        "10",
+        "34",
+        "6–2",
+        "51267"
+      ],
+      [
+        "9",
+        "Nov. 16",
+        "Cleveland Browns",
+        "Win",
+        "38",
+        "17",
+        "22",
+        "7–2",
+        "50461"
+      ],
+      [
+        "10",
+        "Nov. 23",
+        "at Washington Redskins",
+        "Win",
+        "26",
+        "23",
+        "26",
+        "8–2",
+        "53582"
+      ],
+      [
+        "11",
+        "Nov. 30",
+        "Atlanta Falcons",
+        "Win",
+        "37",
+        "34",
+        "33",
+        "9–2",
+        "50860"
+      ],
+      [
+        "12",
+        "Dec. 8",
+        "Denver Broncos",
+        "Win",
+        "17",
+        "10",
+        "16",
+        "10–2",
+        "51075"
+      ],
+      [
+        "13",
+        "Dec. 14",
+        "Houston Oilers",
+        "Loss",
+        "26",
+        "27",
+        "23",
+        "10–3",
+        "50719"
+      ]
+    ]
+  }
+}

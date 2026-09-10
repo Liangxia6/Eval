@@ -1,0 +1,19 @@
+{
+  "answer": {
+    "kind": "patch",
+    "requiredArtifact": "output/agent.patch",
+    "baseCommit": "126fa6f1bf0dceb03643c59ff4130c701b61aca4",
+    "f2p": [
+      "tests/tests_pytorch/models/test_hooks.py"
+    ],
+    "p2p": [
+      "tests/tests_pytorch/utilities/test_seed.py",
+      "tests/tests_fabric/plugins/collectives/test_torch_collective.py",
+      "tests/tests_fabric/strategies/test_dp.py",
+      "tests/tests_fabric/accelerators/test_mps.py",
+      "tests/tests_pytorch/plugins/precision/test_amp_integration.py"
+    ],
+    "judge": "private/test.sh"
+  },
+  "rubric": "补丁须针对应用对应 setup/test patch 后的已清理基线，包含非测试代码修改；恢复隐藏测试后，F2P 文件和五个 P2P 文件全部通过。不能通过还原未掩码仓库历史或修改测试取巧。未接通固定环境 Judge 时不得仅凭补丁文本报告通过。"
+}

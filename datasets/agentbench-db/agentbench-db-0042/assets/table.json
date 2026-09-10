@@ -1,0 +1,193 @@
+{
+  "table_name": "US Music Charts",
+  "table_info": {
+    "columns": [
+      {
+        "name": "Year",
+        "type": "TEXT"
+      },
+      {
+        "name": "US Billboard",
+        "type": "TEXT"
+      },
+      {
+        "name": "US Cash Box",
+        "type": "TEXT"
+      },
+      {
+        "name": "US AC",
+        "type": "TEXT"
+      },
+      {
+        "name": "CAN AC",
+        "type": "TEXT"
+      },
+      {
+        "name": "Title",
+        "type": "TEXT"
+      }
+    ],
+    "rows": [
+      [
+        "1972",
+        "86",
+        "90",
+        "–",
+        "–",
+        "\"Don't Want to Say Goodbye\""
+      ],
+      [
+        "1972",
+        "5",
+        "4",
+        "–",
+        "–",
+        "\" Go All the Way \""
+      ],
+      [
+        "1972",
+        "16",
+        "10",
+        "–",
+        "–",
+        "\"I Wanna Be With You\""
+      ],
+      [
+        "1973",
+        "35",
+        "18",
+        "–",
+        "–",
+        "\"Let's Pretend\""
+      ],
+      [
+        "1973",
+        "69",
+        "37",
+        "–",
+        "–",
+        "\"Tonight\""
+      ],
+      [
+        "1973",
+        "94",
+        "75",
+        "–",
+        "–",
+        "\"I'm a Rocker\""
+      ],
+      [
+        "1974",
+        "18",
+        "24",
+        "–",
+        "–",
+        "\"Overnight Sensation (Hit Record)\""
+      ],
+      [
+        "1976",
+        "2",
+        "1",
+        "6",
+        "1",
+        "\" All By Myself \""
+      ],
+      [
+        "1976",
+        "11",
+        "9",
+        "1",
+        "1",
+        "\" Never Gonna Fall in Love Again \""
+      ],
+      [
+        "1976",
+        "34",
+        "38",
+        "33",
+        "29",
+        "\"Sunrise\""
+      ],
+      [
+        "1977",
+        "23",
+        "15",
+        "26",
+        "–",
+        "\" She Did It \""
+      ],
+      [
+        "1978",
+        "88",
+        "95",
+        "–",
+        "–",
+        "\"Boats Against the Current\""
+      ],
+      [
+        "1978",
+        "19",
+        "19",
+        "6",
+        "10",
+        "\"Change of Heart\""
+      ],
+      [
+        "1978",
+        "62",
+        "60",
+        "30",
+        "8",
+        "\" Baby I Need Your Lovin' \""
+      ],
+      [
+        "1980",
+        "75",
+        "83",
+        "–",
+        "–",
+        "\"It Hurts Too Much\""
+      ],
+      [
+        "1985",
+        "35",
+        "37",
+        "10",
+        "17",
+        "\"I Wanna Hear it from Your Lips\""
+      ],
+      [
+        "1985",
+        "87",
+        "79",
+        "16",
+        "–",
+        "\"I'm Through with Love\""
+      ],
+      [
+        "1987",
+        "4",
+        "3",
+        "2",
+        "6",
+        "\" Hungry Eyes \""
+      ],
+      [
+        "1988",
+        "3",
+        "4",
+        "1",
+        "1",
+        "\" Make Me Lose Control \""
+      ],
+      [
+        "1988",
+        "87",
+        "–",
+        "–",
+        "–",
+        "\"Reason to Try\""
+      ]
+    ]
+  }
+}
