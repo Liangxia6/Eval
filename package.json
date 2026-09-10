@@ -18,7 +18,8 @@
     "check": "tsc -p src/agent-trace/native-probe/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit",
     "cli": "node dist/src/app/cli.js",
     "viewer": "node dist/src/app/viewer-cli.js",
-    "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'"
+    "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'",
+    "verify": "pnpm run check && pnpm test"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",

@@ -5,11 +5,12 @@
 ## 1. 发布门禁
 
 ```bash
-pnpm run check
-pnpm test
+pnpm run verify
 ```
 
-当前自动化共 85 项，必须全部通过。测试不访问公网，不需要模型 API Key。
+`pnpm run verify` 等价于 `pnpm run check && pnpm test`，本地与 CI（`.github/workflows/ci.yml`）使用同一入口。
+
+当前自动化共 104 项，必须全部通过。测试不访问公网，不需要模型 API Key。
 
 ## 2. 测试层次
 
