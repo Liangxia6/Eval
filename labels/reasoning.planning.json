@@ -1,0 +1,108 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.reasoning-planning/v1",
+  "metricId": "metric.reasoning-planning/v1",
+  "title": "推理与规划",
+  "evidence": {
+    "requiredFactTypes": [
+      "ACTION_SEQUENCE"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "01_reasoning.planning.md",
+    "label": "reasoning.planning",
+    "title": "reasoning.planning 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 是否理解目标和约束，能否拆分任务、安排正确顺序、处理依赖关系，并根据中间结果调整方案。最终答案正确但过程顺序错误，不能直接判满分。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "目标和约束是否被完整识别。",
+          "任务步骤是否覆盖关键工作。",
+          "步骤顺序和前置条件是否正确。",
+          "是否处理分支、冲突和异常。",
+          "最终结果是否与计划和用户目标一致。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "目标理解准确，计划完整，顺序合理，主动处理依赖和异常，结果与计划一致"
+          },
+          {
+            "score": 3,
+            "standard": "主路径正确并完成任务，只有非关键步骤遗漏或说明不够清楚"
+          },
+          {
+            "score": 2,
+            "standard": "完成部分任务，但存在顺序错误、约束遗漏或依赖处理不完整"
+          },
+          {
+            "score": 1,
+            "standard": "主要靠试错或用户逐步纠正，计划与执行脱节，结果偶然正确"
+          },
+          {
+            "score": 0,
+            "standard": "未理解目标，步骤无法执行，或结论与任务要求矛盾"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "复杂任务可计算“正确完成的关键步骤数 / 关键步骤总数”，再按顺序错误、约束遗漏和异常处理进行校准。顺序错误导致后续任务失败时最高 2 分。"
+        ]
+      },
+      {
+        "heading": "边界",
+        "content": [
+          "本标签评价决策和步骤设计。执行后的观察与修正属于 `loop`，合法指令的遵守属于 `instruction.following`。"
+        ]
+      }
+    ]
+  }
+}

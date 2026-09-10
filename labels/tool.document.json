@@ -1,0 +1,103 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.tool-document/v1",
+  "metricId": "metric.tool-document/v1",
+  "title": "工具（文档与 PDF）",
+  "evidence": {
+    "requiredFactTypes": [
+      "DOCUMENT_ACCESS"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE",
+      "FILESYSTEM"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "06_tool.document.md",
+    "label": "tool.document",
+    "title": "tool.document 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 读取、解析、检索、生成和编辑 Word、Markdown、PDF 等文档的能力，兼顾内容定位、结构保留和文件可用性。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "文件、页码、章节和表格定位是否正确。",
+          "标题、段落、表格、脚注和引用是否保留。",
+          "输出文件是否可打开、渲染和继续编辑。",
+          "是否区分正文、批注、元数据和扫描图片。",
+          "转换或编辑后是否进行结构或视觉检查。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "内容定位准确，结构和格式完整，文件可打开、可复核、无关键遗漏"
+          },
+          {
+            "score": 3,
+            "standard": "内容和文件基本正确，存在轻微格式、分页或说明问题"
+          },
+          {
+            "score": 2,
+            "standard": "能提取或生成主要内容，但表格、页码或结构存在明显缺陷"
+          },
+          {
+            "score": 1,
+            "standard": "只能读取少量纯文本或生成无法直接使用的草稿"
+          },
+          {
+            "score": 0,
+            "standard": "读错文件、关键内容丢失、文件损坏或破坏原始文档"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "内容正确性与文件可用性分别评价。内容正确但文件打不开时最高 1 分；文件可打开但关键表格或页码错误时最高 2 分。"
+        ]
+      }
+    ]
+  }
+}

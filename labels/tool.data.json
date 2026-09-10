@@ -1,0 +1,104 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.tool-data/v1",
+  "metricId": "metric.tool-data/v1",
+  "title": "工具（数据库与数据处理）",
+  "evidence": {
+    "requiredFactTypes": [
+      "DATA_STATE",
+      "TOOL_CALL"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE",
+      "DATABASE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "08_tool.data.md",
+    "label": "tool.data",
+    "title": "tool.data 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 查询、清洗、转换、统计和更新结构化数据的能力，以及对模式、类型、空值、重复值和结果一致性的处理。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "SQL、筛选、连接、聚合和时间条件是否正确。",
+          "是否理解字段类型、主键、空值和重复数据。",
+          "是否检查异常值、单位和边界条件。",
+          "结果是否能通过样例或独立计算复核。",
+          "写操作是否经过确认、事务控制和验证。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "逻辑正确，识别数据质量问题，结果可复核，写操作安全可控"
+          },
+          {
+            "score": 3,
+            "standard": "主要结果正确，少量边界条件或性能问题未处理"
+          },
+          {
+            "score": 2,
+            "standard": "能返回部分正确结果，但存在连接、聚合、类型或空值错误"
+          },
+          {
+            "score": 1,
+            "standard": "只能完成简单筛选或格式转换，复杂结果不可信"
+          },
+          {
+            "score": 0,
+            "standard": "结果完全错误、破坏数据，或未经授权执行危险写操作"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "分别记录逻辑正确性、数据质量处理、结果校验和写操作控制。统计值正确但未处理重复或空值时最高 3 分；更新范围错误时记 0 分。"
+        ]
+      }
+    ]
+  }
+}

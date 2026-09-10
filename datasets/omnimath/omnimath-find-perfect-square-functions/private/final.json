@@ -1,0 +1,4 @@
+{
+  "answer": "\n[\n     $$\n     f(n) = \n     \\begin{cases} \n     0 & \\text{if } n \\text{ is even}, \\\\ \n     \\text{any perfect square} & \\text{if } n \\text{ is odd} \n     \\end{cases}\n     $$;\n     $$\n     f(n) = n^{2} \\quad \\text{for every integer } n.\n     $$\n]\n",
+  "rubric": "答案为所有满足条件函数 f 的完整刻画。接受等价数学表示。"
+}

@@ -1,0 +1,109 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.loop/v1",
+  "metricId": "metric.loop/v1",
+  "title": "执行闭环与自我修正",
+  "evidence": {
+    "requiredFactTypes": [
+      "RUNTIME_EVENT",
+      "TOOL_RESULT"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "02_loop.md",
+    "label": "loop",
+    "title": "loop 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 是否形成“执行、观察、判断、修正、再执行、验证”的闭环，尤其关注工具失败、空结果、状态未改变或输出不完整时能否继续推进。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "是否读取工具返回值、错误信息和当前状态。",
+          "是否发现失败并解释失败原因。",
+          "是否根据观察结果改变策略。",
+          "是否验证任务真的完成。",
+          "是否设置停止条件，避免无效重复和无限重试。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "完整执行、观察、修正和验证；失败后能换策略，并有明确停止条件"
+          },
+          {
+            "score": 3,
+            "standard": "能发现主要失败并修正，验证较简单，存在少量冗余调用"
+          },
+          {
+            "score": 2,
+            "standard": "能执行和部分观察，但修正滞后，或只会重复原操作"
+          },
+          {
+            "score": 1,
+            "standard": "盲目执行或重试，基本不读取结果，失败后仍宣称完成"
+          },
+          {
+            "score": 0,
+            "standard": "没有闭环，无法根据结果行动，或出现死循环和重复失败"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "分别记录错误发现率、有效修正率、最终验证率和无效重试率。未验证却宣称完成时最高 1 分；无限重试或重复造成副作用时记 0 分。"
+        ]
+      },
+      {
+        "heading": "边界",
+        "content": [
+          "本标签评价反馈控制过程。具体工具调用正确性属于对应 `tool.*` 标签，整体资源消耗属于 `efficiency.reliability`。"
+        ]
+      }
+    ]
+  }
+}

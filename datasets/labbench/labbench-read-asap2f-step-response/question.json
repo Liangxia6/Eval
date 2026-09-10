@@ -1,0 +1,156 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.labbench-read-asap2f-step-response",
+  "version": "1.0.0",
+  "title": "labbench-read-asap2f-step-response",
+  "matching": {
+    "datasetId": "dataset.harbor.labbench-read-asap2f-step-response/v1",
+    "description": "阅读生物学实验图片，结合题目理解图表并从随机排列选项中选择答案。需要读取本地图片和文件，适合多模态理解。"
+  },
+  "source": {
+    "repository": "https://github.com/harbor-framework/harbor-index",
+    "commit": "5399ea1026fb2c7fc384cf8acd91a7d10fc943f3",
+    "taskPath": "tasks/labbench-read-asap2f-step-response",
+    "files": [
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/environment/workspace/figure.jpg",
+        "sha256": "1c1c2ec80cb076993e35427e2842c651c7da6e25705f3949711419163f558220"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/environment/workspace/instruction_template.md",
+        "sha256": "3d2439b87db70b9fd1687f1f085d9ef55bc34d3831c48784f3fb87ef8f7e6350"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/environment/workspace/options.json",
+        "sha256": "ed4f7854597901b3c59eb486a220150de524c7e38b4c8f50874c5e543032f133"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/environment/workspace/setup.py",
+        "sha256": "fae7c1dc8bb689a9f78246318e70cb149ef02a9cdc994f067e797685fc9ff2fc"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/instruction.md",
+        "sha256": "da32f82776b06b86d28d0252d4a4caa192c673b92d97a4063109772eaab67c24"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/task.toml",
+        "sha256": "3ebe2c5baf6f4a60a01fcd409d8cd0f41ddf3404eeb67d31c6ad0ac735e0bbe7"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/tests/choices.json",
+        "sha256": "5b65bed145297ee4cc23f4c8f99e7041431f7cdcbb2e9176ec9f4edfd047e749"
+      },
+      {
+        "path": "tasks/labbench-read-asap2f-step-response/tests/test.sh",
+        "sha256": "a1ece8ab4836873394e536a5df6552c3c2d94836e81fb3ea4849b2c698c52201"
+      }
+    ],
+    "adaptationChanges": [
+      "带种子的选项打乱由 DSHEval 控制器实现，原始映射在执行前封存并作为评分权威，不信任任何 Agent 提供的映射",
+      "路径映射进隔离工作区",
+      "容器依赖与网络沙箱未在离线夹具测试中复现",
+      "对错判定改为 LLM 语义判断",
+      "证据由 io/tools/local 改为 process/local 两层描述性质要求"
+    ]
+  },
+  "capabilityLabels": [
+    "multimodal",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nIn panel D, for how many of the steps was the response to stimulus greater in the ASAP2f R414Q than the ASAP2f L146G S147T R414Q?\n\nOptions:\n{options}\n\nWrite your answer (the number) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
+  },
+  "environment": {
+    "platform": "darwin",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "image-reading-tool"
+    ],
+    "inputs": [
+      {
+        "source": "assets/figure.jpg",
+        "destination": "input/figure.jpg",
+        "sha256": "1c1c2ec80cb076993e35427e2842c651c7da6e25705f3949711419163f558220"
+      },
+      {
+        "source": "assets/options.json",
+        "destination": "input/options.json",
+        "sha256": "ed4f7854597901b3c59eb486a220150de524c7e38b4c8f50874c5e543032f133"
+      }
+    ],
+    "setup": {
+      "kind": "shuffle-options",
+      "options": [
+        "2",
+        "5",
+        "Insufficient information to answer the question",
+        "6",
+        "0",
+        "4",
+        "1",
+        "3"
+      ],
+      "mappingDestination": "input/letter_mapping.json"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "agent": {
+        "build_timeout_sec": 600,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 2048
+      },
+      "verifier": {
+        "timeout_sec": 300,
+        "environment_mode": "separate",
+        "environment": {
+          "build_timeout_sec": 600,
+          "cpus": 1,
+          "memory_mb": 2048,
+          "storage_mb": 2048,
+          "network_mode": "no-network"
+        }
+      }
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-answer",
+        "kind": "llm",
+        "output": "output/answer.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "agent 是否真正读取了图片内容、是否正确从图中统计出满足条件的步数、推理是否合理、是否仅凭文字猜测。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取 input/figure.jpg 的图片内容"
+        },
+        {
+          "id": "op-2",
+          "description": "分析阶跃响应"
+        },
+        {
+          "id": "op-3",
+          "description": "统计满足条件的步数"
+        }
+      ]
+    },
+    "local": {
+      "description": "agent 是否交付了 output/answer.txt，内容是否为有效回答。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建 output/answer.txt 并写入答案"
+        }
+      ]
+    }
+  }
+}

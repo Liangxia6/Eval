@@ -1,0 +1,13 @@
+- insert:
+    - id: dsheval-runtime-probe
+      name: dsheval-runtime-probe
+      config:
+        outputDir: !!js process.env.DSH_EVAL_OUTPUT_DIR ?? './.dsheval/runs'
+        runId: !!js process.env.DSH_EVAL_RUN_ID
+        contentMode: !!js process.env.DSH_EVAL_CONTENT_MODE ?? 'full'
+        captureDispatch: true
+        captureLogs: true
+        captureServiceValues: true
+        snapshotIntervalMs: 10000
+        deepPipelineCapture: !!js process.env.DSH_EVAL_DEEP_CAPTURE === '1'
+        captureLlmChunks: !!js process.env.DSH_EVAL_CAPTURE_LLM_CHUNKS === '1'

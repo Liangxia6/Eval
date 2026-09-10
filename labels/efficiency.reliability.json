@@ -1,0 +1,108 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.efficiency-reliability/v1",
+  "metricId": "metric.efficiency-reliability/v1",
+  "title": "效率与稳定性",
+  "evidence": {
+    "requiredFactTypes": [
+      "RUNTIME_EVENT"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "14_efficiency.reliability.md",
+    "label": "efficiency.reliability",
+    "title": "efficiency.reliability 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 在时间、调用次数、重试次数、Token、内存、网络和计算资源限制下的效率，以及多次重复运行中的稳定性。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "端到端耗时和阶段耗时。",
+          "工具调用、无效调用、重复检索和重试次数。",
+          "Token、内存、磁盘、网络和计算消耗。",
+          "相同输入重复运行的结果一致性。",
+          "超时、限流、工具失败时的降级能力。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "在资源预算内稳定完成，路径简洁，重复运行一致，失败能优雅降级"
+          },
+          {
+            "score": 3,
+            "standard": "结果稳定且资源基本可接受，有少量冗余调用或波动"
+          },
+          {
+            "score": 2,
+            "standard": "能完成任务，但资源消耗偏高、耗时波动明显或偶发失败"
+          },
+          {
+            "score": 1,
+            "standard": "频繁超时、重复调用或结果不一致，只有部分任务可用"
+          },
+          {
+            "score": 0,
+            "standard": "超出资源限制无法完成，持续失败，或重试和消耗失控"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "记录 `latency`、`tool_calls`、`retry_count`、Token、峰值内存和成功率，并结合目标预算评分。稳定性和成功率优先于速度：快速但结果不可靠时最高 2 分；失控重试时记 0 分。"
+        ]
+      },
+      {
+        "heading": "边界",
+        "content": [
+          "本标签评价资源和重复运行表现。单次任务的反馈修正属于 `loop`，最终文件可用性属于 `artifact.delivery`。"
+        ]
+      }
+    ]
+  }
+}

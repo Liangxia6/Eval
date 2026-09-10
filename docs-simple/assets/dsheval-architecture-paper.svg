@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1020" viewBox="0 0 1800 1020" role="img" aria-labelledby="title desc">
+  <title id="title">DSHEval 证据驱动的 Agent 测评架构</title>
+  <desc id="desc">从 Agent 静态能力检查、标签选择、数据集规划，到执行、双通道观测、按标签判定、Gate、Reset 与报告的完整测评流程。</desc>
+  <defs>
+    <style>
+      text { font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; fill: #182230; }
+      .title { font-size: 30px; font-weight: 700; letter-spacing: .3px; }
+      .subtitle { font-size: 17px; fill: #52606d; }
+      .phase { font-size: 17px; font-weight: 700; fill: #334e68; letter-spacing: 1.2px; }
+      .box-title { font-size: 20px; font-weight: 700; }
+      .body { font-size: 16px; }
+      .small { font-size: 14px; fill: #52606d; }
+      .tiny { font-size: 13px; fill: #627d98; }
+      .mono { font-family: "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; }
+      .box { fill: #ffffff; stroke: #486581; stroke-width: 1.5; rx: 10; }
+      .blue-box { fill: #f0f6ff; stroke: #2f6fca; stroke-width: 1.7; rx: 10; }
+      .green-box { fill: #f0faf5; stroke: #27845a; stroke-width: 1.7; rx: 10; }
+      .amber-box { fill: #fff8eb; stroke: #b26a00; stroke-width: 1.7; rx: 10; }
+      .violet-box { fill: #f6f3ff; stroke: #6b56c6; stroke-width: 1.7; rx: 10; }
+      .phase-bg { fill: #f8fafc; stroke: #d9e2ec; stroke-width: 1; rx: 14; }
+      .arrow { fill: none; stroke: #334e68; stroke-width: 2.2; marker-end: url(#arrow); }
+      .blue-arrow { fill: none; stroke: #2f6fca; stroke-width: 2.4; marker-end: url(#arrow-blue); }
+      .green-arrow { fill: none; stroke: #27845a; stroke-width: 2.4; marker-end: url(#arrow-green); }
+      .dash-arrow { fill: none; stroke: #627d98; stroke-width: 2; stroke-dasharray: 7 6; marker-end: url(#arrow-muted); }
+      .divider { stroke: #d9e2ec; stroke-width: 1; }
+      .tag-blue { fill: #e6f0ff; stroke: #8fb8ee; stroke-width: 1; rx: 13; }
+      .tag-green { fill: #e7f6ee; stroke: #8ccbaa; stroke-width: 1; rx: 13; }
+      .tag-violet { fill: #eee9ff; stroke: #b2a5e6; stroke-width: 1; rx: 13; }
+      .number { fill: #334e68; }
+      .number-text { fill: #fff; font-size: 14px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#334e68"/></marker>
+    <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#2f6fca"/></marker>
+    <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#27845a"/></marker>
+    <marker id="arrow-muted" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#627d98"/></marker>
+  </defs>
+
+  <rect width="1800" height="1020" fill="#ffffff"/>
+  <text x="70" y="58" class="title">DSHEval：证据驱动的 Agent 测评架构</text>
+  <text x="70" y="88" class="subtitle">标签连接 Agent 能力与评测标准；Dataset Pack 原子绑定 Case、Judge、环境和观测要求</text>
+
+  <!-- Phase backgrounds -->
+  <rect x="50" y="125" width="490" height="730" class="phase-bg"/>
+  <rect x="560" y="125" width="500" height="730" class="phase-bg"/>
+  <rect x="1080" y="125" width="670" height="730" class="phase-bg"/>
+  <text x="75" y="160" class="phase">I  CAPABILITY PROFILING</text>
+  <text x="585" y="160" class="phase">II  TEST PLANNING</text>
+  <text x="1105" y="160" class="phase">III  EXECUTION &amp; EVALUATION</text>
+
+  <!-- Phase I -->
+  <rect x="85" y="195" width="185" height="150" class="box"/>
+  <circle cx="110" cy="220" r="14" class="number"/><text x="110" y="220" class="number-text">1</text>
+  <text x="135" y="227" class="box-title">被测 Agent</text>
+  <text x="110" y="266" class="body">FULL_AGENT</text>
+  <text x="110" y="296" class="small">冻结源码与配置</text>
+  <text x="110" y="320" class="small">校验身份与摘要</text>
+
+  <path d="M270 270 H325" class="arrow"/>
+
+  <rect x="325" y="195" width="180" height="150" class="blue-box"/>
+  <circle cx="350" cy="220" r="14" fill="#2f6fca"/><text x="350" y="220" class="number-text">2</text>
+  <text x="375" y="227" class="box-title">静态检查</text>
+  <text x="350" y="266" class="small">插件树 · 工具 Schema</text>
+  <text x="350" y="292" class="small">权限 · 沙箱 · Probe</text>
+  <text x="350" y="318" class="small">安全认证 · 限制项</text>
+
+  <path d="M295 345 V395 H295" class="dash-arrow"/>
+
+  <rect x="85" y="395" width="420" height="205" class="violet-box"/>
+  <circle cx="110" cy="422" r="14" fill="#6b56c6"/><text x="110" y="422" class="number-text">3</text>
+  <text x="135" y="429" class="box-title">LLM 标签选择</text>
+  <text x="110" y="462" class="small">输入：已验证的静态能力事实</text>
+  <text x="110" y="489" class="small">输出：建议评测的能力标签（1–5 个）</text>
+  <rect x="110" y="520" width="116" height="34" class="tag-blue"/><text x="168" y="542" class="small" text-anchor="middle">工具（代码）</text>
+  <rect x="360" y="520" width="116" height="34" class="tag-green"/><text x="418" y="542" class="small" text-anchor="middle">产物交付</text>
+  <text x="110" y="580" class="tiny">标签表示“应该测什么”，不表示 Agent 已通过</text>
+
+  <rect x="85" y="645" width="420" height="155" class="box"/>
+  <text x="110" y="678" class="box-title">固定标签池</text>
+  <text x="110" y="711" class="body">少量、可复用、跨 Agent / Dataset</text>
+  <text x="110" y="741" class="small">每个标签一对一绑定一套评测指标</text>
+  <text x="110" y="770" class="small">当前：14 个版本化 Label / Metric</text>
+  <path d="M295 645 V600" class="dash-arrow"/>
+
+  <!-- Phase II -->
+  <rect x="595" y="195" width="430" height="175" class="box"/>
+  <text x="620" y="228" class="box-title">Dataset Catalog</text>
+  <text x="620" y="258" class="small">每个 Pack 对外暴露：Dataset ID · 标签 · Case 数量</text>
+  <rect x="620" y="285" width="118" height="52" class="box"/><text x="679" y="307" class="small" text-anchor="middle">Attention</text><text x="679" y="328" class="tiny" text-anchor="middle">2 labels</text>
+  <rect x="752" y="285" width="118" height="52" fill="#f8fafc" stroke="#bcccdc" rx="8"/><text x="811" y="307" class="small" text-anchor="middle">Dataset B</text><text x="811" y="328" class="tiny" text-anchor="middle">future</text>
+  <rect x="884" y="285" width="118" height="52" fill="#f8fafc" stroke="#bcccdc" rx="8"/><text x="943" y="307" class="small" text-anchor="middle">Dataset C</text><text x="943" y="328" class="tiny" text-anchor="middle">future</text>
+
+  <path d="M505 500 H585 V445 H620" class="blue-arrow"/>
+  <path d="M810 370 V405" class="arrow"/>
+
+  <rect x="620" y="405" width="380" height="145" class="blue-box"/>
+  <circle cx="648" cy="432" r="14" fill="#2f6fca"/><text x="648" y="432" class="number-text">4</text>
+  <text x="675" y="439" class="box-title">LLM Dataset Planner</text>
+  <text x="645" y="475" class="body">按标签选择最匹配的 Dataset</text>
+  <text x="645" y="504" class="small">选择范围：1–4 个</text>
+  <text x="645" y="530" class="small">当前 MVP：Attention + PyTorch</text>
+
+  <path d="M810 550 V585" class="arrow"/>
+
+  <rect x="595" y="585" width="430" height="215" class="violet-box"/>
+  <circle cx="620" cy="612" r="14" fill="#6b56c6"/><text x="620" y="612" class="number-text">5</text>
+  <text x="647" y="619" class="box-title">Evaluation Unit（原子执行包）</text>
+  <line x1="620" y1="642" x2="1000" y2="642" class="divider"/>
+  <text x="625" y="676" class="body">Dataset</text><text x="785" y="676" class="body">Case</text><text x="900" y="676" class="body">Metrics</text>
+  <text x="625" y="713" class="body">Judge</text><text x="785" y="713" class="body">Environment</text><text x="925" y="713" class="body">Observers</text>
+  <text x="625" y="756" class="small">Planner 只选择；Catalog 校验绑定；执行计划确定性编译</text>
+  <text x="625" y="782" class="tiny">单 Dataset · 单 Case · 单 Attempt（MVP）</text>
+
+  <!-- Phase III -->
+  <path d="M1025 690 H1088 V260 H1115" class="arrow"/>
+  <rect x="1115" y="195" width="260" height="130" class="blue-box"/>
+  <circle cx="1142" cy="222" r="14" fill="#2f6fca"/><text x="1142" y="222" class="number-text">6</text>
+  <text x="1169" y="229" class="box-title">Agent 执行</text>
+  <text x="1140" y="265" class="body">运行选中的 Case</text>
+  <text x="1140" y="294" class="small">受控 VM · 单 Attempt</text>
+
+  <path d="M1245 325 V375 H1195" class="blue-arrow"/>
+  <path d="M1245 325 V375 H1465" class="green-arrow"/>
+
+  <rect x="1100" y="375" width="285" height="155" class="violet-box"/>
+  <text x="1125" y="408" class="box-title">Agent Trace</text>
+  <text x="1125" y="442" class="body">模型请求与响应</text>
+  <text x="1125" y="470" class="body">工具调用与结果</text>
+  <text x="1125" y="498" class="body">最终回答与时序</text>
+
+  <rect x="1420" y="375" width="285" height="155" class="green-box"/>
+  <text x="1445" y="408" class="box-title">独立环境观测</text>
+  <text x="1445" y="442" class="body">Before / After</text>
+  <text x="1445" y="470" class="body">文件产物与环境变化</text>
+  <text x="1445" y="498" class="body">摘要与路径边界</text>
+
+  <path d="M1243 530 V572 H1398" class="blue-arrow"/>
+  <path d="M1563 530 V572 H1412" class="green-arrow"/>
+
+  <rect x="1250" y="572" width="310" height="95" class="box"/>
+  <text x="1405" y="608" class="box-title" text-anchor="middle">Evidence Closure</text>
+  <text x="1405" y="637" class="small" text-anchor="middle">原始事实 → 标准化事实 → 推断事实</text>
+
+  <path d="M1405 667 V700" class="arrow"/>
+  <rect x="1110" y="700" width="590" height="100" class="blue-box"/>
+  <text x="1135" y="732" class="box-title">按标签 Judge</text>
+  <text x="1135" y="766" class="body">工具（代码）：Trace</text>
+  <text x="1550" y="766" class="body">产物交付：环境状态</text>
+
+  <!-- Decision and post-run -->
+  <path d="M1405 800 V875 H660" class="arrow"/>
+  <rect x="560" y="875" width="300" height="90" class="amber-box"/>
+  <text x="710" y="910" class="box-title" text-anchor="middle">CheckResult → Gate（一次）</text>
+  <text x="710" y="940" class="body" text-anchor="middle">PASS / FAIL / UNEVALUABLE</text>
+
+  <path d="M860 920 H930" class="arrow"/>
+  <rect x="930" y="875" width="265" height="90" class="green-box"/>
+  <text x="1062" y="910" class="box-title" text-anchor="middle">Reset + 独立验证</text>
+  <text x="1062" y="940" class="small" text-anchor="middle">只影响运行健康度</text>
+
+  <path d="M1195 920 H1265" class="arrow"/>
+  <rect x="1265" y="875" width="415" height="90" class="box"/>
+  <text x="1472" y="910" class="box-title" text-anchor="middle">可审计输出</text>
+  <text x="1472" y="940" class="small" text-anchor="middle">JSON · JSONL · Artifact · status.html · report.html</text>
+
+  <!-- Principles and legend -->
+  <rect x="70" y="875" width="420" height="90" fill="#fff" stroke="#b26a00" stroke-width="1.4" rx="10"/>
+  <text x="95" y="907" class="body" font-weight="700">判定约束</text>
+  <text x="95" y="935" class="small">证据不足不能 PASS</text>
+  <text x="250" y="935" class="small">Reset 失败不篡改 Agent 判定</text>
+
+  <line x1="70" y1="993" x2="110" y2="993" class="arrow"/><text x="120" y="998" class="tiny">主流程</text>
+  <line x1="220" y1="993" x2="260" y2="993" class="dash-arrow"/><text x="270" y="998" class="tiny">事实 / 约束输入</text>
+  <line x1="425" y1="993" x2="465" y2="993" class="green-arrow"/><text x="475" y="998" class="tiny">独立环境证据</text>
+</svg>

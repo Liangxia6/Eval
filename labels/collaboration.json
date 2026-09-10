@@ -1,0 +1,102 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.collaboration/v1",
+  "metricId": "metric.collaboration/v1",
+  "title": "协作与委派",
+  "evidence": {
+    "requiredFactTypes": [
+      "COLLABORATION_EVENT"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "12_collaboration.md",
+    "label": "collaboration",
+    "title": "collaboration 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 与用户、子 Agent、工具或其他执行者之间的信息同步、任务拆分、委派、结果整合和冲突处理能力。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "是否准确同步用户目标、约束和优先级。",
+          "子任务边界、输入、输出和完成条件是否清楚。",
+          "是否检查委派结果后再合并。",
+          "多个结果冲突时是否回溯证据并处理。",
+          "是否及时报告进度、阻塞、风险和最终状态。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "拆分和委派合理，结果经过核验和整合，冲突处理有依据，沟通准确及时"
+          },
+          {
+            "score": 3,
+            "standard": "协作流程有效，有少量同步延迟或整合说明不足"
+          },
+          {
+            "score": 2,
+            "standard": "能完成简单委派，但依赖人工协调，整合或状态同步不稳定"
+          },
+          {
+            "score": 1,
+            "standard": "信息传递不完整，重复劳动或遗漏责任边界"
+          },
+          {
+            "score": 0,
+            "standard": "丢失关键要求，错误合并结果，隐瞒失败，或导致任务无法推进"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "分别评价任务拆分、信息同步、结果核验、冲突处理和进度汇报。委派结果正确但没有核验时最高 3 分；直接合并矛盾结果时最高 1 分。"
+        ]
+      }
+    ]
+  }
+}

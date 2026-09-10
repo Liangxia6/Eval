@@ -1,0 +1,108 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.retrieval-grounding/v1",
+  "metricId": "metric.retrieval-grounding/v1",
+  "title": "检索与依据",
+  "evidence": {
+    "requiredFactTypes": [
+      "RETRIEVED_SOURCE"
+    ],
+    "allowedSourceTypes": [
+      "DSH_PROBE"
+    ],
+    "minimumTrust": "COOPERATIVE",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "04_retrieval.md",
+    "label": "retrieval",
+    "title": "retrieval 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 是否能从历史、文档、轨迹或数据库候选内容中找到相关证据，并保证证据覆盖、相关性和排序质量。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "是否命中标准答案所需证据。",
+          "是否召回全部必要证据，而非只命中一个片段。",
+          "Top-K 结果的相关性和噪声比例。",
+          "证据位置、来源和时间是否正确。",
+          "是否排除相似但错误的干扰内容。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "所有关键证据均命中，位置和来源准确，噪声低且排序合理"
+          },
+          {
+            "score": 3,
+            "standard": "主要证据命中，少量遗漏或噪声不影响回答"
+          },
+          {
+            "score": 2,
+            "standard": "命中部分证据，需要二次搜索、模型推断或人工补充"
+          },
+          {
+            "score": 1,
+            "standard": "只有表面相关内容，关键证据未命中"
+          },
+          {
+            "score": 0,
+            "standard": "没有相关证据，或召回冲突信息并误导模型"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "有标注证据时报告 Recall@K、Precision@K 和 NDCG；开放式证据按关键证据完整度校准到 0–4 分。答案正确但没有可验证证据时，检索分最高 2 分。"
+        ]
+      },
+      {
+        "heading": "边界",
+        "content": [
+          "本标签只评价找证据。长期保存和整合属于 `memory`，浏览器/网络调用过程属于 `tool.web`。"
+        ]
+      }
+    ]
+  }
+}

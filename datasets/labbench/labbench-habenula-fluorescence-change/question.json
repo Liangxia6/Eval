@@ -1,0 +1,153 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.labbench-habenula-fluorescence-change",
+  "version": "1.0.0",
+  "title": "labbench-habenula-fluorescence-change",
+  "matching": {
+    "datasetId": "dataset.harbor.labbench-habenula-fluorescence-change/v1",
+    "description": "阅读生物学实验图片，结合题目理解图表并从随机排列选项中选择答案。需要读取本地图片和文件，适合多模态理解。"
+  },
+  "source": {
+    "repository": "https://github.com/harbor-framework/harbor-index",
+    "commit": "5399ea1026fb2c7fc384cf8acd91a7d10fc943f3",
+    "taskPath": "tasks/labbench-habenula-fluorescence-change",
+    "files": [
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/environment/workspace/figure.jpg",
+        "sha256": "483e6f02431790d34d1414cdf4b4640661ddb9d69110d96857cb96078355e8ef"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/environment/workspace/instruction_template.md",
+        "sha256": "5baab26ac8312bcd984ec56393655a0dc62ab31129c94326f99e310dd0d4bbe1"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/environment/workspace/options.json",
+        "sha256": "aeb8d7e87741ad60aefae12bc27bbb5195eeae6a4692d53c29a8069499b1964b"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/environment/workspace/setup.py",
+        "sha256": "fae7c1dc8bb689a9f78246318e70cb149ef02a9cdc994f067e797685fc9ff2fc"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/instruction.md",
+        "sha256": "da32f82776b06b86d28d0252d4a4caa192c673b92d97a4063109772eaab67c24"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/task.toml",
+        "sha256": "93f91b97d712a244d85f761979f4fe3e3e4dfd01988e1fa3d52025ea9a947d9c"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/tests/choices.json",
+        "sha256": "02ec102bb15d74756e1d841e97043f3d165c5e300ac884fa37192aceb709d423"
+      },
+      {
+        "path": "tasks/labbench-habenula-fluorescence-change/tests/test.sh",
+        "sha256": "a1ece8ab4836873394e536a5df6552c3c2d94836e81fb3ea4849b2c698c52201"
+      }
+    ],
+    "adaptationChanges": [
+      "带种子的选项打乱由 DSHEval 控制器实现，原始映射在执行前封存并作为评分权威，不信任任何 Agent 提供的映射",
+      "路径映射进隔离工作区",
+      "容器依赖与网络沙箱未在离线夹具测试中复现",
+      "对错判定改为 LLM 语义判断",
+      "证据由 io/tools/local 改为 process/local 两层描述性质要求"
+    ]
+  },
+  "capabilityLabels": [
+    "multimodal",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nUsing panel c, which section of the ventral habenula of the \"shock\" brain exhibited the greatest change in fluorescence over the post-behavioral change period?\n\nOptions:\n{options}\n\nWrite your answer (the section name) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
+  },
+  "environment": {
+    "platform": "darwin",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "Node.js >=22",
+      "image-reading-tool"
+    ],
+    "inputs": [
+      {
+        "source": "assets/figure.jpg",
+        "destination": "input/figure.jpg",
+        "sha256": "483e6f02431790d34d1414cdf4b4640661ddb9d69110d96857cb96078355e8ef"
+      },
+      {
+        "source": "assets/options.json",
+        "destination": "input/options.json",
+        "sha256": "aeb8d7e87741ad60aefae12bc27bbb5195eeae6a4692d53c29a8069499b1964b"
+      }
+    ],
+    "setup": {
+      "kind": "shuffle-options",
+      "options": [
+        "Left",
+        "Right",
+        "Anterior",
+        "Insufficient information to answer the question",
+        "Posterior"
+      ],
+      "mappingDestination": "input/letter_mapping.json"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "agent": {
+        "build_timeout_sec": 600,
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 2048
+      },
+      "verifier": {
+        "timeout_sec": 300,
+        "environment_mode": "separate",
+        "environment": {
+          "build_timeout_sec": 600,
+          "cpus": 1,
+          "memory_mb": 2048,
+          "storage_mb": 2048,
+          "network_mode": "no-network"
+        }
+      }
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-answer",
+        "kind": "llm",
+        "output": "output/answer.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "agent 是否真正读取了图片内容、是否正确从图中判断荧光变化最大的区域、推理是否合理、是否仅凭文字猜测。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "读取 input/figure.jpg 的图片内容"
+        },
+        {
+          "id": "op-2",
+          "description": "分析图中荧光变化"
+        },
+        {
+          "id": "op-3",
+          "description": "判断荧光变化最大的区域"
+        }
+      ]
+    },
+    "local": {
+      "description": "agent 是否交付了 output/answer.txt，内容是否为有效回答。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "创建 output/answer.txt 并写入答案"
+        }
+      ]
+    }
+  }
+}

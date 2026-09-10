@@ -1,0 +1,10 @@
+{
+  "schema": "dsheval.mvp.target-descriptor/v1",
+  "targetId": "vm.real-dsh-headless",
+  "targetType": "FULL_AGENT",
+  "sourceRoot": "/Users/dsheval/Targets/dsh-headless-current",
+  "dshExecutable": "package/lib/bin.js",
+  "dshHome": "dsh-home",
+  "profile": "dsheval",
+  "targetIdentity": "dshagent"
+}

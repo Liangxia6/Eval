@@ -1,0 +1,11 @@
+node_modules/
+dist/
+src/agent-trace/native-probe/lib/
+var/
+*.tsbuildinfo
+.DS_Store
+
+# Local document/presentation generation workspaces and exported artifacts
+.codex-build/
+.codex-finalizer/
+outputs/

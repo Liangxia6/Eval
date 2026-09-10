@@ -1,0 +1,103 @@
+{
+  "schema": "dsheval.label/v1",
+  "version": "1.0.0",
+  "labelId": "label.artifact-delivery/v1",
+  "metricId": "metric.artifact-delivery/v1",
+  "title": "产物交付",
+  "evidence": {
+    "requiredFactTypes": [
+      "FILE_AFTER",
+      "FILE_DIFF"
+    ],
+    "allowedSourceTypes": [
+      "FILESYSTEM"
+    ],
+    "minimumTrust": "INDEPENDENT",
+    "minimumCompleteness": "COMPLETE",
+    "validityRequired": true,
+    "missingOutcome": "UNEVALUABLE"
+  },
+  "judge": {
+    "method": "LLM",
+    "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
+    "instructions": [
+      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
+      "不得使用未出现在 authorized_evidence 中的信息。",
+      "证据不足时不得猜测。",
+      "只输出 output_schema 指定的 JSON。"
+    ],
+    "outputSchema": {
+      "score": "integer 0..4",
+      "reason": "non-empty string, at most 2000 characters",
+      "evidence_ids": "array of cited authorized evidenceId values"
+    },
+    "passScore": 3
+  },
+  "scoringStandard": {
+    "format": "agent_label_scoring_standard",
+    "version": "1.0",
+    "source_markdown": "11_artifact.delivery.md",
+    "label": "artifact.delivery",
+    "title": "artifact.delivery 评分标准",
+    "scoring_scale": {
+      "min": 0,
+      "max": 4,
+      "meanings": {
+        "0": "未完成、结果错误或发生严重违规",
+        "1": "只完成小部分，结果基本不可用",
+        "2": "部分完成，存在明显缺陷但仍有一定可用性",
+        "3": "核心能力达标，有轻微问题",
+        "4": "能力完整、结果正确、过程符合要求"
+      }
+    },
+    "sections": [
+      {
+        "heading": "评价对象",
+        "content": [
+          "评价 Agent 是否把结果交付为用户可以直接使用、打开、复核和继续编辑的文件、代码、报告、表格或结构化产物。"
+        ]
+      },
+      {
+        "heading": "评分证据",
+        "content": [
+          "文件类型、路径和命名是否符合要求。",
+          "内容、格式、结构和摘要是否完整。",
+          "文件是否可打开、执行、渲染或导入。",
+          "是否包含来源、配置、说明和结果记录。",
+          "是否说明完成状态、未完成项和验证结果。"
+        ]
+      },
+      {
+        "heading": "0–4 分",
+        "content": [
+          {
+            "score": 4,
+            "standard": "产物完整、格式正确、可直接使用和复核，已完成必要验证"
+          },
+          {
+            "score": 3,
+            "standard": "产物可用，存在轻微排版、命名、说明或非关键缺失"
+          },
+          {
+            "score": 2,
+            "standard": "有主要内容，但需要用户手工修复、补文件或重新整理"
+          },
+          {
+            "score": 1,
+            "standard": "只有片段、草稿或口头说明，无法作为实际交付物"
+          },
+          {
+            "score": 0,
+            "standard": "未交付、文件错误、文件损坏，或产物完全不符合要求"
+          }
+        ]
+      },
+      {
+        "heading": "计算方法",
+        "content": [
+          "以最终产物为中心评分。过程正确但没有生成要求文件时最高 1 分；文件可打开但关键数据缺失时最高 2 分。"
+        ]
+      }
+    ]
+  }
+}

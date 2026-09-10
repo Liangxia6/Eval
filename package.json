@@ -1,0 +1,29 @@
+{
+  "name": "dsheval-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "dsheval": "./dist/src/app/cli.js",
+    "dsheval-viewer": "./dist/src/app/viewer-cli.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true});require('node:fs').rmSync('src/agent-trace/native-probe/lib',{recursive:true,force:true})\"",
+    "build:probe": "tsc -p src/agent-trace/native-probe/tsconfig.json",
+    "build": "pnpm run clean && pnpm run build:probe && tsc -p tsconfig.json",
+    "check": "tsc -p src/agent-trace/native-probe/tsconfig.json --noEmit && tsc -p tsconfig.json --noEmit",
+    "cli": "node dist/src/app/cli.js",
+    "viewer": "node dist/src/app/viewer-cli.js",
+    "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/schemastery": "3.18.1",
+    "@types/node": "22.18.0",
+    "typescript": "5.9.3"
+  }
+}
