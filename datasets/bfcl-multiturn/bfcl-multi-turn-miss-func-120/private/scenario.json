@@ -1,0 +1,128 @@
+{
+  "question": [
+    [
+      {
+        "role": "user",
+        "content": "After confirming the market's operational status, proceed to purchase 100 Apple shares at the prevailing market price."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Review the AAPL order details to ensure it's error-free and accurately executed."
+      }
+    ],
+    [],
+    [
+      {
+        "role": "user",
+        "content": "Cancel the previously placed order immediately and manage the procedure for me."
+      }
+    ]
+  ],
+  "initial_config": {
+    "TradingBot": {
+      "orders": {
+        "12345": {
+          "symbol": "AAPL",
+          "price": 210.65,
+          "num_shares": 10,
+          "status": "Completed"
+        },
+        "order_type": "Buy"
+      },
+      "account_info": {
+        "account_id": 12345,
+        "balance": 22800.0,
+        "binding_card": 1974202140965533
+      },
+      "authenticated": true,
+      "market_status": "Open",
+      "order_counter": 12446,
+      "stocks": {
+        "AAPL": {
+          "price": 227.16,
+          "percent_change": 0.17,
+          "volume": 2.552,
+          "MA(5)": 227.11,
+          "MA(20)": 227.09
+        },
+        "GOOG": {
+          "price": 2840.34,
+          "percent_change": 0.24,
+          "volume": 1.123,
+          "MA(5)": 2835.67,
+          "MA(20)": 2842.15
+        },
+        "TSLA": {
+          "price": 667.92,
+          "percent_change": -0.12,
+          "volume": 1.654,
+          "MA(5)": 671.15,
+          "MA(20)": 668.2
+        },
+        "MSFT": {
+          "price": 310.23,
+          "percent_change": 0.09,
+          "volume": 3.234,
+          "MA(5)": 309.88,
+          "MA(20)": 310.11
+        },
+        "NVDA": {
+          "price": 220.34,
+          "percent_change": 0.34,
+          "volume": 1.234,
+          "MA(5)": 220.45,
+          "MA(20)": 220.67
+        },
+        "ALPH": {
+          "price": 1320.45,
+          "percent_change": -0.08,
+          "volume": 1.567,
+          "MA(5)": 1321.12,
+          "MA(20)": 1325.78
+        },
+        "OMEG": {
+          "price": 457.23,
+          "percent_change": 0.12,
+          "volume": 2.345,
+          "MA(5)": 456.78,
+          "MA(20)": 458.12
+        },
+        "QUAS": {
+          "price": 725.89,
+          "percent_change": -0.03,
+          "volume": 1.789,
+          "MA(5)": 726.45,
+          "MA(20)": 728.0
+        },
+        "NEPT": {
+          "price": 88.34,
+          "percent_change": 0.19,
+          "volume": 0.654,
+          "MA(5)": 88.21,
+          "MA(20)": 88.67
+        },
+        "SYNX": {
+          "price": 345.67,
+          "percent_change": 0.11,
+          "volume": 2.112,
+          "MA(5)": 345.34,
+          "MA(20)": 346.12
+        }
+      },
+      "watch_list": [
+        "NVDA"
+      ],
+      "transaction_history": []
+    }
+  },
+  "involved_classes": [
+    "TradingBot"
+  ],
+  "missed_function": {
+    "2": [
+      "get_order_details"
+    ]
+  }
+}

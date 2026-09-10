@@ -1,0 +1,12 @@
+{
+  "sites": [
+    "shopping"
+  ],
+  "require_login": true,
+  "start_url": "__SHOPPING__/home-kitchen/kitchen-dining/kitchen-table-linens.html",
+  "geolocation": null,
+  "viewport_size": {
+    "width": 1280
+  },
+  "require_reset": true
+}

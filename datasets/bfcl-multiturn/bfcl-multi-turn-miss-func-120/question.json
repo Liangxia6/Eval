@@ -1,0 +1,128 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "bfcl-multiturn.bfcl-multi-turn-miss-func-120",
+  "version": "1.0.0",
+  "title": "bfcl-multi-turn-miss-func-120",
+  "matching": {
+    "datasetId": "dataset.bfcl-multiturn.bfcl-multi-turn-miss-func-120/v1",
+    "description": "BFCL V4 miss_func 多轮模拟工具任务，测跨轮状态、参数澄清及反馈驱动执行。"
+  },
+  "source": {
+    "repository": "https://github.com/ShishirPatil/gorilla",
+    "commit": "6ea57973c7a6097fd7c5915698c54c17c5b1b6c8",
+    "taskPath": "berkeley-function-call-leaderboard/bfcl_eval/data/BFCL_v4_multi_turn_miss_func.json#id=multi_turn_miss_func_120",
+    "files": [
+      {
+        "path": "berkeley-function-call-leaderboard/bfcl_eval/data/BFCL_v4_multi_turn_miss_func.json",
+        "sha256": "87d28ce10e37d864b72de85d5732eef2a867b241d6c1c99b4ae682c9e3ea921c"
+      },
+      {
+        "path": "berkeley-function-call-leaderboard/bfcl_eval/data/possible_answer/BFCL_v4_multi_turn_miss_func.json",
+        "sha256": "69e679b806d1c871b05393a4b95583bb973248e5b8d96c2d7f4ca05e29fc32e6"
+      },
+      {
+        "path": "berkeley-function-call-leaderboard/bfcl_eval/eval_checker/multi_turn_eval/multi_turn_checker.py",
+        "sha256": "b3b787515eda3bf0e365e39634a8fc7f831763f010f716d35d86f96fd5aab1b5"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "只选多轮执行题，不引入单轮 AST 问答题；完整各轮、初始状态和工具增删规则保留在私有 scenario。",
+      "参考调用轨迹放入 private/final.json，需原始工具实现和多轮判分器，不能退化为文本函数名匹配。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 6,
+      "taskId": "multi_turn_miss_func_120",
+      "split": "miss_func",
+      "sourceLine": 121
+    }
+  },
+  "capabilityLabels": [
+    "tool-external",
+    "reasoning-planning",
+    "loop",
+    "collaboration"
+  ],
+  "task": {
+    "instructions": "This is a stateful, multi-turn BFCL task. Use the provided simulated tools. The controller reveals later user turns and any newly available functions only at their designated round. Do not invent missing parameters or functions. Preserve tool state between rounds.\n\nFirst user turn:\nAfter confirming the market's operational status, proceed to purchase 100 Apple shares at the prevailing market price.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "scenario": "private/scenario.json",
+      "turnCount": 4,
+      "toolClasses": [
+        "TradingBot"
+      ],
+      "toolDefinitions": "berkeley-function-call-leaderboard/bfcl_eval/data/multi_turn_func_doc/",
+      "toolImplementation": "berkeley-function-call-leaderboard/bfcl_eval/eval_checker/multi_turn_eval/func_source_code/",
+      "protocol": "progressive turns; execute native tools; apply excluded/missed functions; native per-turn state and response/path checks"
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

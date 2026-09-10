@@ -1,0 +1,7 @@
+{
+  "instanceId": "instance_element-hq__element-web-18c03daa865d3c5b10e52b669cd50be34c67b2e5-vnan",
+  "repository": "element-hq/element-web",
+  "baseCommit": "212233cb0b9127c95966492175a730d5b954690f",
+  "beforeRepoSetCmd": "git reset --hard 212233cb0b9127c95966492175a730d5b954690f\ngit clean -fd \ngit checkout 212233cb0b9127c95966492175a730d5b954690f \ngit checkout 18c03daa865d3c5b10e52b669cd50be34c67b2e5 -- test/Markdown-test.ts",
+  "executionScope": "disposable benchmark container only; never execute on the host"
+}

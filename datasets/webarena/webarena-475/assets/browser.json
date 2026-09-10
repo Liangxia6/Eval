@@ -1,0 +1,9 @@
+{
+  "sites": [
+    "gitlab"
+  ],
+  "require_login": true,
+  "start_url": "__GITLAB__",
+  "geolocation": null,
+  "require_reset": true
+}

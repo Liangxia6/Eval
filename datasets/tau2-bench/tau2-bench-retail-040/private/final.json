@@ -1,0 +1,52 @@
+{
+  "answer": {
+    "actions": [
+      {
+        "action_id": "40_0",
+        "name": "find_user_id_by_email",
+        "arguments": {
+          "email": "isabella.lopez3271@example.com"
+        },
+        "info": null
+      },
+      {
+        "action_id": "40_1",
+        "name": "get_user_details",
+        "arguments": {
+          "user_id": "isabella_lopez_6490"
+        },
+        "info": null
+      },
+      {
+        "action_id": "40_2",
+        "name": "get_order_details",
+        "arguments": {
+          "order_id": "#W4923227"
+        },
+        "info": null
+      },
+      {
+        "action_id": "40_3",
+        "name": "modify_pending_order_payment",
+        "arguments": {
+          "order_id": "#W4923227",
+          "payment_method_id": "credit_card_8897086"
+        },
+        "info": null
+      }
+    ],
+    "communicate_info": [
+      "60",
+      "mastercard"
+    ],
+    "nl_assertions": [
+      "Agent should tell the user their gift card balance is $60.",
+      "Agent should tell the user their recent order was paid with a Mastercard."
+    ],
+    "reward_basis": [
+      "DB",
+      "NL_ASSERTION"
+    ]
+  },
+  "rubric": "必须以评测端采集的真实环境结果及上游判分器为准。output/response.txt 仅作完成说明；不得因文字声称成功、复述参考动作、伪造轨迹或自行生成成功标志而判通过。本题包的 kind=llm 只兼容现有格式，不代替上游执行判分。缺少规定的环境、私有输入、用户模拟器或原始判分器时返回 UNEVALUABLE，不记为 Agent 失败或成功。私有资源不得注入 Agent 工作区；仅由可信环境控制器和 Judge 读取。"
+}

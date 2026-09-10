@@ -1,0 +1,146 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "tau2-bench.tau2-bench-retail-040",
+  "version": "1.0.0",
+  "title": "tau2-bench-retail-040",
+  "matching": {
+    "datasetId": "dataset.tau2-bench.tau2-bench-retail-040/v1",
+    "description": "retail 多轮客服：遵循政策、通过模拟用户逐步获知需求并实际修改业务状态。"
+  },
+  "source": {
+    "repository": "https://github.com/sierra-research/tau2-bench",
+    "commit": "672227c6b6676edc20d57ea53b7000262aae77b9",
+    "taskPath": "data/tau2/domains/retail/tasks.json#index=40",
+    "files": [
+      {
+        "path": "data/tau2/domains/retail/tasks.json",
+        "sha256": "8e03ebce7901bd6218e7a7dc3105faa9324091a68058f7fe61c65262868812e8"
+      },
+      {
+        "path": "data/tau2/domains/retail/policy.md",
+        "sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467"
+      },
+      {
+        "path": "data/tau2/domains/retail/db.json",
+        "sha256": "413a65160adbdb5fde0ffc0015c49b6d70250b10c18128de169b597af7766765"
+      },
+      {
+        "path": "src/tau2/domains/retail/environment.py",
+        "sha256": "5b819fb895a4ef49df71404c3d9678ab09e8578eec841b8ec9229c8f51e32405"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "e67c5aa0074dfcaefd3c3a1aedb94cb539234aecd15d5a972574e3200e6252fe"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "用户背景、后续信息和初始状态仅交给模拟器；不把完整用户场景变成单轮 prompt。",
+      "保留原始动作、沟通信息与状态断言；完整数据库按固定源文件及哈希 Seed，不能缩成只含答案的表。",
+      "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 4,
+      "taskId": "40",
+      "sourceIndex": 40,
+      "split": "base",
+      "domain": "retail",
+      "versionNote": "tau2-bench repository current tau3 fixed tasks"
+    }
+  },
+  "capabilityLabels": [
+    "tool-external",
+    "collaboration",
+    "reasoning-planning",
+    "loop",
+    "safety-boundary"
+  ],
+  "task": {
+    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1800,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [
+      {
+        "source": "assets/policy.md",
+        "destination": "input/policy.md",
+        "sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "domain": "retail",
+      "taskId": "40",
+      "userSimulator": "required; pin model, temperature and seed",
+      "scenario": "private/scenario.json",
+      "databaseSeed": [
+        {
+          "path": "data/tau2/domains/retail/db.json",
+          "sha256": "413a65160adbdb5fde0ffc0015c49b6d70250b10c18128de169b597af7766765"
+        }
+      ],
+      "databaseSeedLocation": "pinned upstream runtime; not copied into Agent workspace",
+      "dualControl": false
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "answer": {
+    "taskId": "9bf2c8a_1",
+    "evaluator": "private/evaluation.py",
+    "groundTruthAnswer": null,
+    "privateData": {
+      "cart_product_id_to_quantity": {
+        "{_INT_}:816": 1,
+        "{_INT_}:814": 1,
+        "{_INT_}:810": 2,
+        "{_INT_}:813": 2,
+        "{_INT_}:812": 2,
+        "{_INT_}:2600": 1,
+        "{_INT_}:2602": 1,
+        "{_INT_}:2603": 2,
+        "{_INT_}:2601": 2,
+        "{_INT_}:2663": 1,
+        "{_INT_}:2667": 3,
+        "{_INT_}:2669": 1,
+        "{_INT_}:2662": 3,
+        "{_INT_}:2509": 2,
+        "{_INT_}:2510": 2,
+        "{_INT_}:2505": 1
+      },
+      "wish_list_product_id_to_quantity": {
+        "{_INT_}:596": 3,
+        "{_INT_}:599": 1
+      }
+    },
+    "publicData": {
+      "product_type": "food processor",
+      "source": "cart",
+      "target": "wish list"
+    },
+    "testRequirements": [
+      {
+        "requirement": "assert answers match.",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert model changes match amazon.WishListEntry, amazon.CartEntry.",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert product_id_to_count in the end-state of the cart\nmatches private_data.cart_product_id_to_quantity.",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert product_id_to_count in the end-state of the wish list\nmatches private_data.wish_list_product_id_to_quantity.",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert product_ids in the end-state of the cart match the keys\nof private_data.cart_product_id_to_quantity (ignore_order)",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert product_ids in the end-state of the wish list match the keys\nof private_data.wish_list_product_id_to_quantity (ignore_order)",
+        "label": "no_op_fail"
+      }
+    ]
+  },
+  "rubric": "必须以评测端采集的真实环境结果及上游判分器为准。output/response.txt 仅作完成说明；不得因文字声称成功、复述参考动作、伪造轨迹或自行生成成功标志而判通过。本题包的 kind=llm 只兼容现有格式，不代替上游执行判分。缺少规定的环境、私有输入、用户模拟器或原始判分器时返回 UNEVALUABLE，不记为 Agent 失败或成功。私有资源不得注入 Agent 工作区；仅由可信环境控制器和 Judge 读取。"
+}

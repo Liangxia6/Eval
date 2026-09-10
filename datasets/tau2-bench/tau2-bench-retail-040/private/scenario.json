@@ -1,0 +1,19 @@
+{
+  "id": "40",
+  "description": {
+    "purpose": null,
+    "relevant_policies": null,
+    "notes": null
+  },
+  "user_scenario": {
+    "persona": null,
+    "instructions": {
+      "task_instructions": "You are a young college student under the pressure of final exams and student loans, so you are a bit anxious and want to get things done quickly.",
+      "domain": "retail",
+      "reason_for_call": "You want to know how much balance does your gift card have. Also, for your recent order, whether you used your visa, mastercard, or amex credit card. You also wonder if you can apply the gift card balance to the order. If not, you want to change your payment method to visa, because the other two cards have a lot of balance.",
+      "known_info": "You are Isabella Lopez, and your email address is isabella.lopez3271@example.com.",
+      "unknown_info": null
+    }
+  },
+  "initial_state": null
+}

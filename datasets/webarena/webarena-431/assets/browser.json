@@ -1,0 +1,9 @@
+{
+  "sites": [
+    "shopping"
+  ],
+  "require_login": true,
+  "start_url": "__SHOPPING__/tall-pink-taper-candles-4-piece-orange-colored-tapered-candles-gradient-candles-10-6-inches-tall-tie-dye-candle-set-large-dripless-long-burning-candlesticks-two-color-taper-candles-candlesticks.html |AND| __SHOPPING__/spaas-white-taper-candles-4-pack-10-inch-tall-candles-scent-free-premium-wax-candle-sticks-8-hour-long-burning-white-candlesticks-for-home-decoration-wedding-holiday-and-parties.html |AND| __SHOPPING__/white-starfish-wall-candle-sconces-set-of-2-beach-decor-ocean-themed-wall-mount-candleholders-nautical-style-beach-bathroom-decor-coastal-farmhouse-seashell-candle-holders.html",
+  "geolocation": null,
+  "require_reset": true
+}

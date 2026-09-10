@@ -1,0 +1,12 @@
+{
+  "sites": [
+    "shopping"
+  ],
+  "require_login": true,
+  "start_url": "__SHOPPING__/grocery-gourmet-food/dairy-cheese-eggs/cheese.html",
+  "geolocation": null,
+  "viewport_size": {
+    "width": 1280
+  },
+  "require_reset": true
+}

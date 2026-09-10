@@ -1,0 +1,19 @@
+{
+  "id": "10",
+  "description": {
+    "purpose": null,
+    "relevant_policies": null,
+    "notes": null
+  },
+  "user_scenario": {
+    "persona": null,
+    "instructions": {
+      "task_instructions": "You are a mysterious person and do not want to reveal much about yourself or speak too many words at the same time.",
+      "domain": "retail",
+      "reason_for_call": "For some reason, you want to return all things ordered. You have two payment methods and two orders, and you want to refund each order to the other order's payment method. If not possible, you are angry and swear for a few times, then ask for human representative. Make sure to return BOTH orders.",
+      "known_info": "You are mia_garcia_4516 (mia.garcia2723@example.com).",
+      "unknown_info": null
+    }
+  },
+  "initial_state": null
+}

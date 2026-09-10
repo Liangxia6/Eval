@@ -1,0 +1,64 @@
+{
+  "answer": {
+    "actions": [
+      {
+        "action_id": "disconnect_vpn_0",
+        "requestor": "user",
+        "name": "disconnect_vpn",
+        "arguments": {},
+        "info": null,
+        "compare_args": null
+      },
+      {
+        "action_id": "refuel_data_1",
+        "requestor": "assistant",
+        "name": "refuel_data",
+        "arguments": {
+          "customer_id": "C1001",
+          "line_id": "L1002",
+          "gb_amount": 2.0
+        },
+        "info": null,
+        "compare_args": null
+      }
+    ],
+    "env_assertions": [
+      {
+        "env_type": "user",
+        "func_name": "assert_mobile_data_status",
+        "arguments": {
+          "expected_status": true
+        },
+        "assert_value": true,
+        "message": null
+      },
+      {
+        "env_type": "user",
+        "func_name": "assert_internet_speed",
+        "arguments": {
+          "expected_speed": 200,
+          "expected_desc": "excellent"
+        },
+        "assert_value": true,
+        "message": null
+      },
+      {
+        "env_type": "assistant",
+        "func_name": "assert_data_refueling_amount",
+        "arguments": {
+          "customer_id": "C1001",
+          "line_id": "L1002",
+          "expected_amount": 2.0
+        },
+        "assert_value": true,
+        "message": null
+      }
+    ],
+    "communicate_info": null,
+    "nl_assertions": null,
+    "reward_basis": [
+      "ENV_ASSERTION"
+    ]
+  },
+  "rubric": "必须以评测端采集的真实环境结果及上游判分器为准。output/response.txt 仅作完成说明；不得因文字声称成功、复述参考动作、伪造轨迹或自行生成成功标志而判通过。本题包的 kind=llm 只兼容现有格式，不代替上游执行判分。缺少规定的环境、私有输入、用户模拟器或原始判分器时返回 UNEVALUABLE，不记为 Agent 失败或成功。私有资源不得注入 Agent 工作区；仅由可信环境控制器和 Judge 读取。"
+}

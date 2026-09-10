@@ -1,0 +1,9 @@
+{
+  "sites": [
+    "classifieds"
+  ],
+  "require_login": true,
+  "start_url": "__CLASSIFIEDS__/index.php?page=search&sCategory=5&sShowAs=gallery",
+  "geolocation": null,
+  "require_reset": true
+}

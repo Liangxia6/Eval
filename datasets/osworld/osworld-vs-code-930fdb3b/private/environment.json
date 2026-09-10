@@ -1,0 +1,25 @@
+{
+  "id": "930fdb3b-11a8-46fe-9bac-577332e2640e",
+  "snapshot": "vscode",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "code"
+        ]
+      }
+    },
+    {
+      "type": "activate_window",
+      "parameters": {
+        "window_name": "Visual Studio Code"
+      }
+    }
+  ],
+  "related_apps": [
+    "vscode"
+  ],
+  "proxy": false,
+  "fixed_ip": false
+}

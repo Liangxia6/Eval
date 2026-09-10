@@ -1,0 +1,57 @@
+{
+  "answer": {
+    "taskId": "3d9a636_1",
+    "evaluator": "private/evaluation.py",
+    "groundTruthAnswer": null,
+    "privateData": {
+      "to_befriend_venmo_user_ids": [
+        43,
+        97,
+        15,
+        60
+      ],
+      "to_unfriend_venmo_user_ids": [
+        16,
+        85,
+        9,
+        71,
+        100,
+        28
+      ],
+      "all_friends_venmo_user_ids": [
+        58,
+        72,
+        29,
+        86,
+        43,
+        97,
+        15,
+        60
+      ]
+    },
+    "publicData": {},
+    "testRequirements": [
+      {
+        "requirement": "assert answers match.",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert model changes match venmo.Friendship",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "obtain added, deleted friendships using models.changed_records\nand assert friend_ids of the added ones match private_data.to_befriend_venmo_user_ids (ignore_order)",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert friend_ids of the deleted ones match private_data.to_unfriend_venmo_user_ids (ignore_order)",
+        "label": "no_op_fail"
+      },
+      {
+        "requirement": "assert all main_user's friends on venmo match\nprivate_data.all_friends_venmo_user_ids in the end state (ignore_order)",
+        "label": "no_op_fail"
+      }
+    ]
+  },
+  "rubric": "必须以评测端采集的真实环境结果及上游判分器为准。output/response.txt 仅作完成说明；不得因文字声称成功、复述参考动作、伪造轨迹或自行生成成功标志而判通过。本题包的 kind=llm 只兼容现有格式，不代替上游执行判分。缺少规定的环境、私有输入、用户模拟器或原始判分器时返回 UNEVALUABLE，不记为 Agent 失败或成功。私有资源不得注入 Agent 工作区；仅由可信环境控制器和 Judge 读取。"
+}

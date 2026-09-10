@@ -1,0 +1,119 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "osworld.osworld-libreoffice-impress-2cd43775",
+  "version": "1.0.0",
+  "title": "osworld-libreoffice-impress-2cd43775",
+  "matching": {
+    "datasetId": "dataset.osworld.osworld-libreoffice-impress-2cd43775/v1",
+    "description": "在 OSWorld 的 libreoffice_impress 桌面应用中执行设置变更并验证持久状态，不是回答操作步骤。"
+  },
+  "source": {
+    "repository": "https://github.com/xlang-ai/OSWorld",
+    "commit": "fc31a9049664292fcb35d6e501ee1dc839f2cf6d",
+    "taskPath": "evaluation_examples/examples/libreoffice_impress/2cd43775-7085-45d8-89fa-9e35c0a915cf.json",
+    "files": [
+      {
+        "path": "evaluation_examples/examples/libreoffice_impress/2cd43775-7085-45d8-89fa-9e35c0a915cf.json",
+        "sha256": "4f3699c92303b83da81e1ad44753fb333d7934f5e2f881f574db4d976254ac51"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "a8d1d88a0f9cce3cdbff73b03a80dc5e5d69e3ba2443946c268815a550c9e0ec"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "保留原始 instruction、快照初始化配置与完整 evaluator；仅选无额外文件下载的五种应用设置任务。",
+      "这是入门接入子集，不代表 OSWorld 的复杂文档/跨应用全量难度；虚拟机与应用版本仍须固定。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 9,
+      "taskId": "2cd43775-7085-45d8-89fa-9e35c0a915cf",
+      "split": "libreoffice_impress",
+      "benchmark": "OSWorld original/Verified, not OSWorld-V2"
+    }
+  },
+  "capabilityLabels": [
+    "multimodal",
+    "tool-external",
+    "loop",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Enable auto-save every 3min for me, so that I don't need to hit \"ctrl-s\" that much\n\nOperate the evaluator-provisioned OSWorld desktop only. Use the chosen benchmark action interface and observe the application after changes. Guest Linux paths and shortcuts are not macOS host paths or shortcuts.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1200,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "guestOS": "Linux",
+      "snapshot": "libreoffice_impress",
+      "controllerConfig": "private/environment.json",
+      "nativeTaskId": "2cd43775-7085-45d8-89fa-9e35c0a915cf",
+      "nativeEvaluatorRoot": "desktop_env/evaluators/",
+      "actionSpace": "must be pinned by evaluation protocol; record whether computer-use or command tools are allowed",
+      "externalTaskDownloads": false
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

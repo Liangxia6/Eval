@@ -1,0 +1,173 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "tau2-bench.tau2-bench-telecom-020",
+  "version": "1.0.0",
+  "title": "tau2-bench-telecom-020",
+  "matching": {
+    "datasetId": "dataset.tau2-bench.tau2-bench-telecom-020/v1",
+    "description": "telecom 多轮客服：遵循政策、通过模拟用户逐步获知需求并实际修改业务状态。"
+  },
+  "source": {
+    "repository": "https://github.com/sierra-research/tau2-bench",
+    "commit": "672227c6b6676edc20d57ea53b7000262aae77b9",
+    "taskPath": "data/tau2/domains/telecom/tasks.json#index=20",
+    "files": [
+      {
+        "path": "data/tau2/domains/telecom/tasks.json",
+        "sha256": "37e562e1ae3242577407e1303b1548bc64e7ea68e37d36173e6747990ceaf8a4"
+      },
+      {
+        "path": "data/tau2/domains/telecom/main_policy.md",
+        "sha256": "95943844a0cf11fdf0e2842b483b81d9f9338aa53235712ed131db075d086ed7"
+      },
+      {
+        "path": "data/tau2/domains/telecom/tech_support_manual.md",
+        "sha256": "015a3ee49ec8c199c5e1a059c922081937b92cf3a5ea74fedbc4357816f389ba"
+      },
+      {
+        "path": "data/tau2/domains/telecom/tech_support_workflow.md",
+        "sha256": "64f3ccd13875d14f358b21b9af221dab09e0e7bf5690d0e4322fb91855a43a4d"
+      },
+      {
+        "path": "data/tau2/domains/telecom/db.toml",
+        "sha256": "562d647ef9d7df8df91eafd8ee76036e707c8f9e32aaedc4a7fde06975aea2c0"
+      },
+      {
+        "path": "data/tau2/domains/telecom/user_db.toml",
+        "sha256": "4886107ea0c16f8e16d74bef91cfb557de61822afe9361f5a9b241806aea2e4c"
+      },
+      {
+        "path": "src/tau2/domains/telecom/environment.py",
+        "sha256": "7bc335d717a8cb6bda54551fa2b5c12ff073f6287878d215f4181572e551abcd"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "e67c5aa0074dfcaefd3c3a1aedb94cb539234aecd15d5a972574e3200e6252fe"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "用户背景、后续信息和初始状态仅交给模拟器；不把完整用户场景变成单轮 prompt。",
+      "保留原始动作、沟通信息与状态断言；完整数据库按固定源文件及哈希 Seed，不能缩成只含答案的表。",
+      "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。",
+      "仅为以下文本补终止换行，源哈希仍对应原始字节：assets/main_policy.md, assets/tech_support_manual.md, assets/tech_support_workflow.md"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 4,
+      "taskId": "[mobile_data_issue]data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "sourceIndex": 20,
+      "split": "base",
+      "domain": "telecom",
+      "versionNote": "tau2-bench repository current tau3 fixed tasks"
+    }
+  },
+  "capabilityLabels": [
+    "tool-external",
+    "collaboration",
+    "reasoning-planning",
+    "loop",
+    "safety-boundary"
+  ],
+  "task": {
+    "instructions": "Act as the telecom customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1800,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [
+      {
+        "source": "assets/main_policy.md",
+        "destination": "input/main_policy.md",
+        "sha256": "dde1c5d65d680e1f733863f7eab379fa045360f43dfa4c4cc8fe0b82fd7d1be6"
+      },
+      {
+        "source": "assets/tech_support_manual.md",
+        "destination": "input/tech_support_manual.md",
+        "sha256": "aaa9139ff05a692cfa7ac5499541f7a08d5850d185abb78547c79b82c627835a"
+      },
+      {
+        "source": "assets/tech_support_workflow.md",
+        "destination": "input/tech_support_workflow.md",
+        "sha256": "415ae6ba307116802cf4d68b1fbc6a5c610fe9428bc14175e72c23b57db1bac9"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "domain": "telecom",
+      "taskId": "[mobile_data_issue]data_usage_exceeded|user_abroad_roaming_enabled_off[PERSONA:Easy]",
+      "userSimulator": "required; pin model, temperature and seed",
+      "scenario": "private/scenario.json",
+      "databaseSeed": [
+        {
+          "path": "data/tau2/domains/telecom/db.toml",
+          "sha256": "562d647ef9d7df8df91eafd8ee76036e707c8f9e32aaedc4a7fde06975aea2c0"
+        },
+        {
+          "path": "data/tau2/domains/telecom/user_db.toml",
+          "sha256": "4886107ea0c16f8e16d74bef91cfb557de61822afe9361f5a9b241806aea2e4c"
+        }
+      ],
+      "databaseSeedLocation": "pinned upstream runtime; not copied into Agent workspace",
+      "dualControl": true
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

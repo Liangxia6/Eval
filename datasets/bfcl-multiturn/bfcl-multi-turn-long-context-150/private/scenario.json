@@ -1,0 +1,38 @@
+{
+  "question": [
+    [
+      {
+        "role": "user",
+        "content": "Wanderlust is calling, and I'm mapping out my travel from Rivermist to Stonebrook in the month of October—the skies above must know my next destination! Share with me, if you will, what coin I must trade for a humble economy class seat on the 6th day of October in 2026."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Let's anchor my daily spend at 15400 GBP—an expedient conversion—per my esteemed authorization. I appreciate your assistance in tethering my budget to this new mooring. My access token is 'abc123token'."
+      }
+    ]
+  ],
+  "initial_config": {
+    "TravelAPI": {
+      "credit_card_list": {
+        "1234-5678-9012-3456": {
+          "card_type": "Visa",
+          "expiry_date": "12/26",
+          "balance": 5000.0
+        }
+      },
+      "booking_record": {},
+      "access_token": "abc123token",
+      "token_type": "Bearer",
+      "token_expires_in": 3600,
+      "token_scope": "read_write",
+      "user_first_name": "Evelyn",
+      "user_last_name": "Montgomery",
+      "budget_limit": 15400.0
+    }
+  },
+  "involved_classes": [
+    "TravelAPI"
+  ]
+}

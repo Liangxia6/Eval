@@ -1,0 +1,85 @@
+{
+  "question": [
+    [
+      {
+        "role": "user",
+        "content": "I need to fill 150 liters of gasoline into my vehicle for today's trip and then start the engine using the standard start mode to ensure everything is operational before departure. How much is that in gallon? Round it to the nearest integer and fill that amount."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Find out the distance from San Francisco to Rivermist for my travel plans to determine fuel consumption and travel time."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "Also, on Twitter, let everyone know about my upcoming trip from San Francisco to Rivermist, with content 'Excited for my trip from San Francisco to Rivermist!', mentioning my best friend and using the hashtag #JourneyAhead."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "His user handle is '@TravelBuddy'."
+      }
+    ],
+    [
+      {
+        "role": "user",
+        "content": "After posting, make sure to add a mention of @RoadsideAssistance to the tweet we just created to ensure everyone is covered for emergencies."
+      }
+    ]
+  ],
+  "initial_config": {
+    "VehicleControlAPI": {
+      "fuelLevel": 5.0,
+      "batteryVoltage": 12.6,
+      "engineState": "stopped",
+      "doorStatus": {
+        "driver": "unlocked",
+        "passenger": "unlocked",
+        "rear_left": "unlocked",
+        "rear_right": "unlocked"
+      },
+      "acTemperature": 25.0,
+      "fanSpeed": 50,
+      "acMode": "auto",
+      "humidityLevel": 50.0,
+      "headLightStatus": "off",
+      "parkingBrakeStatus": "released",
+      "parkingBrakeForce": 0.0,
+      "slopeAngle": 0.0,
+      "distanceToNextVehicle": 50.0,
+      "cruiseStatus": "inactive",
+      "destination": "Rivermist",
+      "frontLeftTirePressure": 32.0,
+      "frontRightTirePressure": 32.0,
+      "rearLeftTirePressure": 30.0,
+      "rearRightTirePressure": 30.0
+    },
+    "TwitterAPI": {
+      "authenticated": true,
+      "tweet_counter": 10,
+      "tweets": {
+        "0": {
+          "id": 0,
+          "username": "wanderlust_emma",
+          "content": "Excited for my trip from San Francisco to Rivermist! @TravelBuddy #JourneyAhead",
+          "tags": [
+            "#JourneyAhead"
+          ],
+          "mentions": [
+            "@TravelBuddy"
+          ]
+        }
+      },
+      "username": "wanderlust_emma",
+      "password": "Tr@vel2023Secure"
+    }
+  },
+  "involved_classes": [
+    "TwitterAPI",
+    "VehicleControlAPI"
+  ]
+}

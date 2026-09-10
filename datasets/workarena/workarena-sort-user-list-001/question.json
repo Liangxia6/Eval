@@ -1,0 +1,123 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "workarena.workarena-sort-user-list-001",
+  "version": "1.0.0",
+  "title": "workarena-sort-user-list-001",
+  "matching": {
+    "datasetId": "dataset.workarena.workarena-sort-user-list-001/v1",
+    "description": "在 WorkArena ServiceNow 隔离实例中完成多字段列表排序或指定配置订购，验证浏览器及业务状态。"
+  },
+  "source": {
+    "repository": "https://github.com/ServiceNow/WorkArena",
+    "commit": "a772230a94cf1caf4166b8ead3983f3b3786455b",
+    "taskPath": "src/browsergym/workarena/data_files/task_configs/sort_user_list_task.json#index=1",
+    "files": [
+      {
+        "path": "src/browsergym/workarena/data_files/task_configs/sort_user_list_task.json",
+        "sha256": "a9c49012d4a383416ee127813238ccba40fb9dd2a46057625f80c14437eda9b5"
+      },
+      {
+        "path": "src/browsergym/workarena/tasks/list.py",
+        "sha256": "f321e9a0ea0f6481b909c04d2c40148040264c9f7593590d4f7a945dcf7d3d3d"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "b192c58991e8ff585cc574615d40e74185404d4b96c1109d423071ab1367344b"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "从官方固定配置选取 3 个多字段排序、2 个订购任务；排序原 goal 不变，订购目标按官方 setup 的字符串模板生成。",
+      "仅覆盖 WorkArena-L1，不冒充 WorkArena++ 长流程任务；ServiceNow 实例仍需用户取得授权。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 10,
+      "sourceIndex": 1,
+      "split": "L1",
+      "taskClass": "SortUserListTask"
+    }
+  },
+  "capabilityLabels": [
+    "tool-web",
+    "reasoning-planning",
+    "loop",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Sort the \"users\" list by the following fields:\n - Building (descending)\n - Active (descending)\n - Street (ascending)\n\nUse only the provisioned WorkArena ServiceNow instance. Complete the real browser workflow; for an order, submit it in the benchmark instance and verify the created request.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1500,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "runtimeClass": "browsergym.workarena.tasks.list.SortUserListTask",
+      "seed": 42,
+      "fixedConfigSource": "private/final.json#answer.fixedConfig",
+      "instance": "authorized WorkArena ServiceNow benchmark instance required",
+      "initialization": "official task.setup with fixed_config; reset and teardown each trial",
+      "validator": "SortUserListTask.validate",
+      "level": "L1"
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

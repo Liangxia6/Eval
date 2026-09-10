@@ -1,0 +1,132 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "agentbench-os.agentbench-os-date-format",
+  "version": "1.0.0",
+  "title": "agentbench-os-date-format",
+  "matching": {
+    "datasetId": "dataset.agentbench-os.agentbench-os-date-format/v1",
+    "description": "在隔离 Linux 中实现命令或修正文件权限，并通过原始执行检查。"
+  },
+  "source": {
+    "repository": "https://github.com/THUDM/AgentBench",
+    "commit": "ed013ff9887b0c3d7864c56ae54d41eba54a99d8",
+    "taskPath": "data/os_interaction/data/5/new.json#index=2",
+    "files": [
+      {
+        "path": "data/os_interaction/data/5/new.json",
+        "sha256": "735d0c0b3aa8fd1bef0d969470a2ac44c0af92542365c05c5f89ce3ddb47801e"
+      },
+      {
+        "path": "configs/tasks/os.yaml",
+        "sha256": "09e901ac6fd7f2308ac9f7692ca6d6039be09cd249c94d94991e3014a20a3646"
+      },
+      {
+        "path": "src/server/tasks/os_interaction/task.py",
+        "sha256": "3f00c2819d01e1c292661c5d54ba15bce26864490f98b203711cb3f50d151077"
+      },
+      {
+        "path": "data/os_interaction/res/dockerfiles/default",
+        "sha256": "f4e7b3d4298777fcc6b955e2853e7d38a8d50916b1853c3fefe6d0b3a0a2f1fe"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      },
+      {
+        "path": "data/os_interaction/scripts/5/checking/2.sh",
+        "sha256": "1c06c3f29f90b9dd728faf14540bd9602f077af6777baf2c1fe13ae0b5e23285"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "保留原题干、初始化定义、Dockerfile 及私有 shell 检查；不在导入时运行建用户或 chmod 等系统命令。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。",
+      "仅为以下文本补终止换行，源哈希仍对应原始字节：private/check.sh"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 1,
+      "split": "os-std",
+      "sourceIndex": 2
+    }
+  },
+  "capabilityLabels": [
+    "tool-code",
+    "loop",
+    "reasoning-planning",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "I would like to implement a command line tool called \"date-format\" that can format a given date string based on the provided format string. For example, if I enter command date-format 2023-5-1 '%Y/%m/%d', the output will be 2023/05/01.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 900,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "guestOS": "Linux",
+      "controllerConfig": "private/environment.json",
+      "roundLimit": 8,
+      "dockerfile": "private/Dockerfile",
+      "neverRunSetupOnHost": true
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

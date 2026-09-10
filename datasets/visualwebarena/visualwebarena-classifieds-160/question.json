@@ -1,0 +1,133 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "visualwebarena.visualwebarena-classifieds-160",
+  "version": "1.0.0",
+  "title": "visualwebarena-classifieds-160",
+  "matching": {
+    "datasetId": "dataset.visualwebarena.visualwebarena-classifieds-160/v1",
+    "description": "根据视觉页面与网页状态完成实际修改，使用原生 URL/DOM/状态条件验证。"
+  },
+  "source": {
+    "repository": "https://github.com/web-arena-x/visualwebarena",
+    "commit": "89f5af29305c3d1e9f97ce4421462060a70c9a03",
+    "taskPath": "config_files/vwa/test_classifieds.raw.json#task_id=160",
+    "files": [
+      {
+        "path": "config_files/vwa/test_classifieds.raw.json",
+        "sha256": "5d7322cc3bef21c755abc966624530d15121ad73403f64177d2f06014dbfb14f"
+      },
+      {
+        "path": "evaluation_harness/evaluators.py",
+        "sha256": "00419191831d8a4d5260b7e742b964992acb95c4846864f46b7017ef8ca89f34"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "a05020744efd1a76f94a3788a9ab9798160ac1a94b3e3adc6cea19fba59af39e"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "原题干不变，选取真实状态变更任务；原 eval 原样私有保留，comments 与参考 URL 不提供给 Agent。",
+      "公开输入仅含起始站点及视口参数。网站数据库/图片需由原生站点提供；每题从官方快照重置以免状态污染。",
+      "原生评测器必须执行；LLM 不得只凭网页操作说明或最终文本判断成功。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 8,
+      "taskId": 160,
+      "split": "classifieds",
+      "intentTemplateId": 11,
+      "visualDifficulty": "easy",
+      "reasoningDifficulty": "hard"
+    }
+  },
+  "capabilityLabels": [
+    "multimodal",
+    "tool-web",
+    "reasoning-planning",
+    "loop",
+    "artifact-delivery"
+  ],
+  "task": {
+    "instructions": "Add a comment on the item on this page whose image is taken inside a garage with the title \"More Pictures\" and text \"Could you post different angles?\".\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback and visual page content; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1800,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [
+      {
+        "source": "assets/browser.json",
+        "destination": "input/browser.json",
+        "sha256": "1a4a1839a79f146b4292b054cb43bf88950987d45d72272056ebe49a702a1775"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "nativeTaskId": 160,
+      "sites": [
+        "classifieds"
+      ],
+      "nativeRequireReset": true,
+      "authenticationState": "provision fresh benchmark account/session; never reuse real browser cookies",
+      "siteSnapshots": "official pinned benchmark environment snapshots required; not bundled here"
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

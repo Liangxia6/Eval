@@ -1,0 +1,1 @@
+(runuser -l jack -c 'cat /testfile' && runuser -l bill -c 'cat /testfile' && runuser -l tom -c 'cat /testfile' && runuser -l george -c 'cat /testfile') | if [ "$(cat -)" = "test"$'\n'"test"$'\n'"test" ]; then exit 0; else exit 1; fi

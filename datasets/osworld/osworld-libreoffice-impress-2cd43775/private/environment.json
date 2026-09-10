@@ -1,0 +1,20 @@
+{
+  "id": "2cd43775-7085-45d8-89fa-9e35c0a915cf",
+  "snapshot": "libreoffice_impress",
+  "config": [
+    {
+      "type": "launch",
+      "parameters": {
+        "command": [
+          "libreoffice",
+          "--impress"
+        ]
+      }
+    }
+  ],
+  "related_apps": [
+    "libreoffice_impress"
+  ],
+  "proxy": false,
+  "fixed_ip": false
+}

@@ -1,0 +1,9 @@
+{
+  "sites": [
+    "shopping_admin"
+  ],
+  "require_login": true,
+  "start_url": "__SHOPPING_ADMIN__",
+  "geolocation": null,
+  "require_reset": true
+}

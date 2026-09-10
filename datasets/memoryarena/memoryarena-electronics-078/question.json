@@ -1,0 +1,166 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "memoryarena.memoryarena-electronics-078",
+  "version": "1.0.0",
+  "title": "memoryarena-electronics-078",
+  "matching": {
+    "datasetId": "dataset.memoryarena.memoryarena-electronics-078/v1",
+    "description": "在模拟商城中跨六个依赖阶段完成兼容配套商品选择，评记忆保持、历史利用、工具反馈和约束规划。"
+  },
+  "source": {
+    "repository": "https://github.com/ZexueHe/MemoryArena",
+    "commit": "6cd9de14b71915e39ac742a20dc33785e14b6aab",
+    "taskPath": "bundled_shopping/data.jsonl#id=78",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "717264347ce69182d4b4a7809e1e8deabdbe570c6950f42f347c5522e85eb243"
+      },
+      {
+        "path": "setup_web_shopping.md",
+        "sha256": "39a359a7ed52ffaa56c4f96a95ae3c118881b82a23d918e1ef07d50d80e9371f"
+      },
+      {
+        "path": "run_shopping.py",
+        "sha256": "9efa3e92ff5bfc98cb9955a494c51c02099ddfa16b4842bbf1c3633424af95e4"
+      },
+      {
+        "path": "env/env_systems/web_shopping_env/runtime/runner/task_files.py",
+        "sha256": "1ed0b8e7d2ab825e69f7cc475f625b88a121e48ef3de3676c9c4dbec8fd40d8a"
+      },
+      {
+        "path": "env/env_systems/web_shopping_env/compute_reward.py",
+        "sha256": "a623f499649e674b1e443e635f89a348a5a0449d0abf5b12538b40e85dc21db5"
+      },
+      {
+        "path": "env/env_systems/web_shopping_env/runtime/reward_helpers.py",
+        "sha256": "9dbf11debf3143c6080e68ad8eeeb8df6690d27f47c9e4560106d395ba0bc857"
+      },
+      {
+        "path": "https://huggingface.co/datasets/ZexueHe/memoryarena/resolve/da1a37c8b19280e18627ca01cf368195a5e1d92e/bundled_shopping/data.jsonl",
+        "sha256": "4411a2da528a33dc6aca519b49cc225895363f18b2d19b191fddb501200134ef"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 导入固定版本的完整真实案例；题干公开，答案和评分资源私有。",
+      "只取 bundled_shopping 的电子设备配套子集，5 条完整任务链，每链 6 阶段；不将 30 阶段冒充 30 题。",
+      "当前题面仅公开第一阶段；完整阶段脚本与参考商品私有，控制器按原生协议逐步释放。",
+      "商品库、搜索索引和完整环境仍由固定版本运行器部署，不缩小候选商品池以制造简化题。",
+      "保留原生 correct-product feedback/history 协议；记忆实验须注明配置，不能混报为无提示历史记忆能力。",
+      "上游 HF 重建器未结构化恢复总预算/价格限制，故明确原生 reward 的覆盖边界；不伪称它是全约束确定性评分。",
+      "输出路径映射至 output/；增加 process/local 描述性证据，不把这些描述当作已采集的事实。",
+      "仅完成题包导入；Question Bundle 运行入口、环境及原始评分器仍须接通，缺依赖判 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-specialist-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "datasetRepository": "ZexueHe/memoryarena",
+      "datasetRevision": "da1a37c8b19280e18627ca01cf368195a5e1d92e",
+      "config": "bundled_shopping",
+      "split": "test",
+      "hfId": 78,
+      "category": "electronics_item_18",
+      "stageCount": 6,
+      "releaseStatus": "preview",
+      "licenseStatus": "no dataset/root license declaration found in the selected revisions; redistribution requires clarification"
+    }
+  },
+  "capabilityLabels": [
+    "memory",
+    "loop",
+    "reasoning-planning",
+    "tool-web"
+  ],
+  "task": {
+    "instructions": "You are an intelligent Shopping Agent operating in a webshop. Your goal is to purchase a bundle of items that are **technically compatible** and fit the **budget**.\n\n*** GLOBAL RULES ***\n1. **Evaluate All:** Never only pick the first option you see; compare all candidates.\n2. **Total Budget:** All items combined must not exceed $1530.\n3. **Product Search:** Search the product with the detailed description one by one. For example, use \"search[Product A]\" but not \"search[Product A, Product B, Product C]\".\n\n4. **Product Purchase: ** You need to buy products on the order of the steps (i.e., Product 1 first, then Product 2, and so on).\n\n----------------------------------------------------------------\nProduct 1:\n### Select Display Panel\n**Goal:** Buy the lowest-priced one in available options.\n**Preference:** Pick the highest-priced option among those compatible with the notes.\n**Available Options:**\n- A Sony 65-inch X85J 4K Ultra HD LED Smart TV bundle with a soundbar and wall mount.\n- A Sony 55 inch A80J 4K OLED Smart TV 2021 Model with a Premium 4 YR CPS Enhanced Protection Pack.\n- A LG 83 inch Class 4K Smart OLED TV with AI ThinQ and a bundle that includes Premiere Movies Streaming and accessories.\n\nThis is stage 1 of one six-stage MemoryArena shopping case in a simulated store, not a real purchase. Perform only the currently released stage using the store's search/click tools. The trusted controller will release later stages sequentially using the pinned split-step protocol. Preserve allowed memory across stages; do not request future-stage questions or private target products. After all six stages, write an honest completion summary to output/response.txt. Listing product IDs in the summary is not a substitute for executing purchases in the benchmark environment.\n\nDSHEval execution boundary: work only inside the evaluator-provisioned, isolated benchmark workspace and tools. Never operate the user's real accounts or services. Do not access private answers, gold patches, hidden tests, later-session instructions, or online solutions for this case. Use actual tool feedback and verify your result. If a required prerequisite is missing, report UNEVALUABLE and identify it; do not replace execution with a proposed solution or claim success."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 3600,
+    "dependencies": [
+      "isolated benchmark workspace",
+      "task-specific pinned runtime",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "controllerScenario": "private/scenario.json",
+      "stagesPerCase": 6,
+      "splitSteps": true,
+      "stageRelease": "one at a time; use original reconstruction, feedback and memory lifecycle from the pinned runner",
+      "memoryReset": "clear between cases/trials; preserve allowed memory within the six stages",
+      "historyProtocol": "record whether original correct-product feedback/history is enabled; do not silently replace it with agent-only history",
+      "memoryEvidence": "capture MEMORY_PROBE across stage boundaries; native reward alone does not score the memory label",
+      "runtimeRepository": "https://github.com/ZexueHe/MemoryArena",
+      "runtimeCommit": "6cd9de14b71915e39ac742a20dc33785e14b6aab",
+      "productDatabase": {
+        "repository": "ai-hyz/MemoryArena-product-db",
+        "revision": "46120a5c931d04a47bd791965d757207b7372b62",
+        "requiredPaths": [
+          "items_shuffle.json",
+          "items_ins_v2.json",
+          "domain_data.json",
+          "product_catalog/",
+          "search_engine/indexes-full/"
+        ],
+        "bundled": false
+      },
+      "judgeMode": "pin native LLM attribute judge model/settings; --no-llm is a different evaluation mode",
+      "environmentReset": "restore simulated store per native stage; never perform real purchases"
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "final-output",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "通过真实工具调用及返回结果评价执行过程，不从最终文字倒推工具使用。",
+      "checkpoints": [
+        {
+          "id": "step-1",
+          "description": "第一阶段检索并比较商品，执行模拟购买而非口头选项"
+        },
+        {
+          "id": "step-2",
+          "description": "阶段切换时按原生协议保存/恢复记忆和反馈，禁止提前读取后续题目"
+        },
+        {
+          "id": "step-3",
+          "description": "后续行动实际使用前序商品信息与兼容/预算约束"
+        },
+        {
+          "id": "step-4",
+          "description": "观察每次工具结果并验证整条任务链完成情况"
+        }
+      ]
+    },
+    "local": {
+      "description": "文件与环境结果由可信采集器保存，Agent 自述不能替代独立证据。",
+      "checkpoints": [
+        {
+          "id": "result-1",
+          "description": "验证 output/response.txt 可读取且内容完整"
+        },
+        {
+          "id": "result-2",
+          "description": "关联原生评分器结果及真实执行轨迹"
+        }
+      ]
+    }
+  }
+}

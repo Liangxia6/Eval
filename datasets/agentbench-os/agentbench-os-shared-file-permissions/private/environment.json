@@ -1,0 +1,8 @@
+{
+  "create": {
+    "init": {
+      "code": "echo 'test' > /testfile && useradd -s /bin/bash -d /home/jack -m jack && useradd -s /bin/bash -d /home/bill -m bill && useradd -s /bin/bash -d /home/tom -m tom && useradd -s /bin/bash -d /home/george -m george"
+    }
+  },
+  "round_limit": 8
+}

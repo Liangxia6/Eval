@@ -1,0 +1,162 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "tau-bench.tau-bench-airline-000",
+  "version": "1.0.0",
+  "title": "tau-bench-airline-000",
+  "matching": {
+    "datasetId": "dataset.tau-bench.tau-bench-airline-000/v1",
+    "description": "airline 多轮客服：遵循政策、通过模拟用户逐步获知需求并实际修改业务状态。"
+  },
+  "source": {
+    "repository": "https://github.com/sierra-research/tau-bench",
+    "commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+    "taskPath": "tau_bench/envs/airline/tasks_test.py#index=0",
+    "files": [
+      {
+        "path": "tau_bench/envs/airline/tasks_test.py",
+        "sha256": "14cdb6b4fe810faac9a0cc8395d3c7b32c883a979d1cde8c8003ae25a93d2ff3"
+      },
+      {
+        "path": "tau_bench/envs/airline/wiki.md",
+        "sha256": "56c335801c16e26b54f600f9db99eb04d31db477e86eb160341d5c66b796c5c8"
+      },
+      {
+        "path": "tau_bench/envs/airline/data/flights.json",
+        "sha256": "444d7565c68434a3e3fb72efd717f9f9cd5c56dce227f6f56e078f1cb0ed233a"
+      },
+      {
+        "path": "tau_bench/envs/airline/data/reservations.json",
+        "sha256": "1cf0bbc58ad984be9de7c24dba6dd27393f94cdbd482d8524f6a54db1f561a8c"
+      },
+      {
+        "path": "tau_bench/envs/airline/data/users.json",
+        "sha256": "bd264e2a31e0fa35cdfef8987e70a0dd3776828b582fe90e7a44823a12eb4cea"
+      },
+      {
+        "path": "tau_bench/envs/airline/__init__.py",
+        "sha256": "05a6a8b66b8bb5e8494ea7deedb08fe5427323e788102bb77c676db89a88a5af"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "243d23d45b80122b5ac575586ccef352fdc9c45e6d7d2605449aca8a17478b42"
+      }
+    ],
+    "adaptationChanges": [
+      "按既有最小 Question Bundle 格式导入真实任务，固定源版本；评分信息仅留在 private/。",
+      "用户背景、后续信息和初始状态仅交给模拟器；不把完整用户场景变成单轮 prompt。",
+      "保留原始动作、沟通信息与状态断言；完整数据库按固定源文件及哈希 Seed，不能缩成只含答案的表。",
+      "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
+      "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
+      "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
+    ],
+    "upstreamMetadata": {
+      "importBatch": "agent-top10-2026-09-10",
+      "runtimeStatus": "requires-environment-adapter",
+      "judgeStatus": "requires-upstream-evaluator",
+      "linkCatalogIndex": 3,
+      "taskId": 0,
+      "sourceIndex": 0,
+      "split": "test",
+      "domain": "airline",
+      "versionNote": "original frozen historical tau-bench"
+    }
+  },
+  "capabilityLabels": [
+    "tool-external",
+    "collaboration",
+    "reasoning-planning",
+    "loop",
+    "safety-boundary"
+  ],
+  "task": {
+    "instructions": "Act as the airline customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 1800,
+    "dependencies": [
+      "pinned upstream benchmark runtime",
+      "isolated benchmark environment",
+      "trusted upstream evaluator"
+    ],
+    "inputs": [
+      {
+        "source": "assets/policy.md",
+        "destination": "input/policy.md",
+        "sha256": "56c335801c16e26b54f600f9db99eb04d31db477e86eb160341d5c66b796c5c8"
+      }
+    ],
+    "setup": {
+      "kind": "none"
+    },
+    "reset": "fresh-workspace",
+    "upstreamConstraints": {
+      "required": true,
+      "missingPrerequisiteResult": "UNEVALUABLE",
+      "environmentReset": "restore upstream initial state before each trial",
+      "privateResourcesVisibility": "controller-and-judge-only",
+      "domain": "airline",
+      "taskId": 0,
+      "userSimulator": "required; pin model, temperature and seed",
+      "scenario": "private/scenario.json",
+      "databaseSeed": [
+        {
+          "path": "tau_bench/envs/airline/data/flights.json",
+          "sha256": "444d7565c68434a3e3fb72efd717f9f9cd5c56dce227f6f56e078f1cb0ed233a"
+        },
+        {
+          "path": "tau_bench/envs/airline/data/reservations.json",
+          "sha256": "1cf0bbc58ad984be9de7c24dba6dd27393f94cdbd482d8524f6a54db1f561a8c"
+        },
+        {
+          "path": "tau_bench/envs/airline/data/users.json",
+          "sha256": "bd264e2a31e0fa35cdfef8987e70a0dd3776828b582fe90e7a44823a12eb4cea"
+        }
+      ],
+      "databaseSeedLocation": "pinned upstream runtime; not copied into Agent workspace",
+      "dualControl": false
+    }
+  },
+  "final": {
+    "checks": [
+      {
+        "id": "task-completion",
+        "kind": "llm",
+        "output": "output/response.txt",
+        "reference": "private/final.json"
+      }
+    ]
+  },
+  "evidence": {
+    "process": {
+      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "checkpoints": [
+        {
+          "id": "observe",
+          "description": "读取本题隔离环境的初始状态及有效用户指令"
+        },
+        {
+          "id": "execute",
+          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+        },
+        {
+          "id": "verify",
+          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+        }
+      ]
+    },
+    "local": {
+      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "checkpoints": [
+        {
+          "id": "summary",
+          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+        },
+        {
+          "id": "trusted-state",
+          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+        }
+      ]
+    }
+  }
+}

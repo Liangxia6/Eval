@@ -1,0 +1,91 @@
+{
+  "answer": {
+    "taskId": "task68",
+    "taskIndex": 45,
+    "rubric": {
+      "info_recall": [
+        "综述部分明确提及Optimus调度器，其目标是最小化深度学习训练任务的完成时间和makespan。",
+        "综述部分明确指出Optimus使用性能模型（performance models）来预测训练速度，并结合在线拟合（online fitting）来预估模型收敛。",
+        "综述部分量化指出Optimus将任务完成时间和makespan方面分别比传统调度器提高了约 139% 和 63%。",
+        "综述部分明确提及Decima调度器，其目标是为分布式计算集群中的数据处理任务开发高效的调度策略。",
+        "综述部分明确指出Decima使用强化学习（RL）和神经网络来学习特定于工作负载的调度算法。",
+        "综述部分量化指出Decima与现有启发式算法相比，平均任务完成时间至少提高了21%。",
+        "综述部分明确提及Gandivafair调度器，其目标是在GPU集群中为深度学习训练任务实现效率和公平性之间的平衡。",
+        "综述部分明确指出Gandivafair采用了一种资源交易机制（resource trading mechanism），激励用户使用较旧的GPU。",
+        "综述部分明确提及ProCon调度方案，其目标是减少任务完成时间和makespan，同时平衡集群中的资源争用。",
+        "综述部分明确指出ProCon通过预测未来的资源使用情况来进行容器放置决策。",
+        "综述部分量化指出ProCon将特定任务的完成时间减少了高达53.3%，整体性能提升了23.0%，makespan提升了37.4%。",
+        "综述部分明确提及DL2调度器，其目标是通过动态调整分配给任务的资源来加速全局训练任务。",
+        "综述部分明确指出DL2结合了监督学习（supervised learning）和强化学习（reinforcement learning）。",
+        "综述部分量化指出DL2相比DRF调度器，平均任务完成时间性能提升了44.1%；相比Optimus提升了17.5%。",
+        "综述部分明确提及SpeCon调度器，其目标是优化短时深度学习应用的资源利用率和任务完成时间。",
+        "综述部分明确指出SpeCon通过分析训练过程的进展，并投机性地迁移（speculatively migrating）增长缓慢的模型来释放资源。",
+        "综述部分量化指出SpeCon将单个任务的完成时间最多缩短41.5%，系统级性能提升14.8%，makespan减少24.7%。",
+        "综述部分明确提及RLSK调度器，其目标是为联邦云计算集群中的独立批处理任务提供调度。",
+        "综述部分明确指出RLSK基于深度强化学习（deep reinforcement learning）。",
+        "综述部分明确提及MLFS调度系统，其目标是为可进行数据并行和模型并行处理的机器学习集群进行任务调度。",
+        "综述部分明确指出MLFS使用启发式调度方法的数据来训练一个深度强化学习模型。",
+        "综述部分量化指出MLFS将任务完成时间减少了高达53%，makespan减少了高达52%，准确率提升了高达64%。",
+        "综述部分明确提及KaiS调度框架，其目标是提高边缘云系统中处理请求的长期吞吐率。",
+        "综述部分明确指出KaiS使用图神经网络（graph neural networks）和协调的多智能体行动者-评论家方法（coordinated multi-agent actor-critic）。",
+        "综述部分量化指出KaiS将平均系统吞吐率提高了14.3%，调度成本降低了34.7%。",
+        "综述部分明确提及一种结合灰度系统理论和LSTM神经网络的调度方法。",
+        "综述部分明确指出该方法旨在减少集群中工作节点的资源碎片化问题，并提高资源利用率。",
+        "综述部分明确提及Zeus调度系统，其目标是通过安全地共置（safe colocation）尽力而为（best-effort）进程和延迟敏感型服务来提高资源效率。",
+        "综述部分明确指出Zeus基于服务器的实际利用率来调度尽力而为的任务。",
+        "综述部分量化指出Zeus可以在不违反服务等级目标（SLOs）的情况下，将平均CPU利用率从15%提高到60%。",
+        "综述部分明确提及KubFBS调度系统，其目标是提高深度学习任务的执行效率和负载均衡。",
+        "综述部分明确指出KubFBS包含一个GPU嗅探器（GPU sniffer）和一个平衡感知调度器模块。"
+      ],
+      "analysis": [
+        "总结部分指出，AI在Kubernetes调度中的一个主要应用趋势是处理复杂工作负载，尤其是在深度学习和大数据处理领域。",
+        "总结部分指出，强化学习（特别是深度强化学习）是当前该领域最主流和最受欢迎的技术路线之一，因为它能从经验中学习并适应动态变化的环境。",
+        "总结部分指出，混合方法（如结合监督学习和强化学习）成为一种趋势，旨在利用不同AI技术的优势。",
+        "总结部分指出，AI调度器的应用正从传统的云数据中心向边缘计算环境扩展。",
+        "总结部分分析认为，当前AI调度面临的一个核心挑战是缺乏用于训练和评估的真实世界大规模数据集。",
+        "总结部分分析认为，许多研究依赖于模拟或合成数据集，这可能无法完全反映真实世界工作负载的复杂性。",
+        "总结部分分析认为，AI算法（特别是深度学习模型）的准确性与计算复杂性之间存在权衡，这对于需要实时决策的调度系统是一个挑战。",
+        "总结部分分析认为，如何在保证调度精度的同时降低计算开销，是未来研究需要关注的问题。",
+        "总结部分分析认为，设计能够适应动态工作负载变化并优化资源利用的有效自动扩缩调度算法仍然是一个复杂且重要的任务。",
+        "总结部分分析认为，将AI调度算法从受控的实验环境部署到真实的生产环境中，并进行有效的评估和验证，是一个具有挑战性的实践问题。"
+      ],
+      "presentation": [
+        "报告严格按照“技术综述”、“对比分析”、“总结”三个部分组织，并使用了清晰的标题。",
+        "在“技术综述”部分，对每种调度器或方案的介绍都包含了名称、核心目标、关键AI技术和量化性能提升。",
+        "在“对比分析”部分，创建了一个表格，其列标题完全符合要求：【调度器/方案名称 | 核心目标 | 关键AI技术 | 性能提升（量化指标） | 局限性/未来工作】。",
+        "表格内容完整覆盖了综述部分提到的所有主要AI调度方案，且信息一一对应。",
+        "报告语言专业、准确，没有使用模糊不清的表述。"
+      ]
+    },
+    "blocked": {
+      "title": "A survey of Kubernetes scheduling algorithms",
+      "authors": [
+        "Khaldoun Senjab",
+        "Sohail Abbas",
+        "Naveed Ahmed",
+        "Atta ur Rehman Khan"
+      ],
+      "urls": [
+        "https://journalofcloudcomputing.springeropen.com/articles/10.1186/s13677-023-00471-1",
+        "https://nchr.elsevierpure.com/en/publications/a-survey-of-kubernetes-scheduling-algorithms",
+        "https://scispace.com/papers/a-survey-of-kubernetes-scheduling-algorithms-4bpdjhy6",
+        "https://www.researchgate.net/publication/371536479_A_survey_of_Kubernetes_scheduling_algorithms",
+        "https://www.scribd.com/document/921622606/A-Survey-of-Kubernetes-Scheduling-Algorithms"
+      ]
+    },
+    "nativeEvaluator": {
+      "repository": "https://github.com/imlrz/DeepResearch-Bench-II",
+      "commit": "087c1b8d4a0ed46fd3dd8615a0b5e93ce3acf6f8",
+      "path": "run_evaluation.py",
+      "entryPoint": "process_one_with_chunking",
+      "defaultModel": "gpt-5.5"
+    },
+    "scoreSemantics": {
+      "1": "rubric satisfied by allowed-source evidence",
+      "0": "rubric not mentioned",
+      "-1": "support relies on a blocked reference"
+    },
+    "officialPassThreshold": null
+  },
+  "rubric": "只根据实际产物及评测端独立采集的执行证据评分，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。kind=llm 是既有题包格式的兼容字段，不代替本题规定的原生评分器。原始基准结果与 DSHEval 逐标签 0–4 分分别记录，不虚构官方通过阈值或官方榜单成绩。私有答案、测试补丁和后续会话仅由可信控制器/Judge 读取，不注入 Agent 的公开输入。缺少规定的运行环境、工具、记忆适配或评分器时返回 UNEVALUABLE，不能把缺环境计为 Agent 失败或成功。不得删减 rubric 或用笼统整体印象替代逐项评分；保留三维结果及禁用来源扣分。报告正确不自动证明执行了检索工具。"
+}

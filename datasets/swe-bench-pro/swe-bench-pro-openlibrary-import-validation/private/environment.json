@@ -1,0 +1,7 @@
+{
+  "instanceId": "instance_internetarchive__openlibrary-00bec1e7c8f3272c469a58e1377df03f955ed478-v13642507b4fc1f8d234172bf8129942da2c2ca26",
+  "repository": "internetarchive/openlibrary",
+  "baseCommit": "02f647f7d525286b6e3a661133c3772649e585cd",
+  "beforeRepoSetCmd": "git reset --hard 02f647f7d525286b6e3a661133c3772649e585cd\ngit clean -fd \ngit checkout 02f647f7d525286b6e3a661133c3772649e585cd \ngit checkout 00bec1e7c8f3272c469a58e1377df03f955ed478 -- openlibrary/plugins/importapi/tests/test_import_validator.py",
+  "executionScope": "disposable benchmark container only; never execute on the host"
+}

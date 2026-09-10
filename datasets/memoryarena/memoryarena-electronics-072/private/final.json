@@ -1,0 +1,71 @@
+{
+  "answer": {
+    "taskId": "electronics_item_12",
+    "answers": [
+      {
+        "target_asin": "B0957SJ6KP",
+        "attributes": [
+          "65 inch",
+          "HDR",
+          "4K UHD",
+          "NanoCell",
+          "LG"
+        ]
+      },
+      {
+        "target_asin": "B093GX536Z",
+        "attributes": [
+          "2.1ch",
+          "sound bar",
+          "built-in subwoofer",
+          "Bluetooth",
+          "HDMI ARC",
+          "adjustable bass"
+        ]
+      },
+      {
+        "target_asin": "B002MYQTEI",
+        "attributes": [
+          "dual articulating arm",
+          "TV wall mount",
+          "VESA 400"
+        ]
+      },
+      {
+        "target_asin": "B09SPZN1X5",
+        "attributes": [
+          "4K",
+          "streaming device",
+          "WiFi",
+          "HDMI",
+          "Google Cast"
+        ]
+      },
+      {
+        "target_asin": "B01AP4LAMC",
+        "attributes": [
+          "75ft",
+          "HDMI cable",
+          "male to male",
+          "Ethernet",
+          "4K",
+          "built-in signal booster"
+        ]
+      },
+      {
+        "target_asin": "B0007D4TLG",
+        "attributes": [
+          "surge protector",
+          "power strip",
+          "Channel Vision"
+        ]
+      }
+    ],
+    "stepCount": 6,
+    "nativeTaskReconstruction": "env/env_systems/web_shopping_env/runtime/runner/task_files.py:_reconstruct_task_def_from_hf_row",
+    "nativeEvaluator": "env/env_systems/web_shopping_env/compute_reward.py",
+    "scoring": "per-step native reward and whole-chain success; exact ASIN gives full reward, nonexact matching follows pinned native evaluator",
+    "scoringLimitations": "native HF reconstruction leaves structured total-budget/price constraints empty; task text still contains them; do not claim native reward fully verifies every textual constraint"
+  },
+  "rubric": "只根据实际产物及评测端独立采集的执行证据评分，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。kind=llm 是既有题包格式的兼容字段，不代替本题规定的原生评分器。原始基准结果与 DSHEval 逐标签 0–4 分分别记录，不虚构官方通过阈值或官方榜单成绩。私有答案、测试补丁和后续会话仅由可信控制器/Judge 读取，不注入 Agent 的公开输入。缺少规定的运行环境、工具、记忆适配或评分器时返回 UNEVALUABLE，不能把缺环境计为 Agent 失败或成功。必须核对可信控制器采集的六阶段真实交互。分别记录原生 reward 与约束检查结果，不从最终商品编号列表推断记忆能力。缺 MEMORY_PROBE 时 memory 标签不可评。"
+}

@@ -1,0 +1,8 @@
+{
+  "create": {
+    "init": {
+      "code": "cd ~ && mkdir videos && cd videos && mkdir old && mkdir new && touch vid1 && touch vid2 && touch new/a && touch new/b && touch old/c"
+    }
+  },
+  "round_limit": 8
+}
