@@ -1,0 +1,11 @@
+{
+  "request": "local",
+  "local_cluster": "local",
+  "clusters": {
+    "local": {
+      "kind": "local",
+      "addr": "127.0.0.1:6443",
+      "tls": "local-cert"
+    }
+  }
+}

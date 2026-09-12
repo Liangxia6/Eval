@@ -1,0 +1,103 @@
+{
+  "input": {
+    "records": [
+      {
+        "source_id": "s0",
+        "project_id": "P0",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-01",
+        "event": "commissioned",
+        "overseas": true,
+        "bri": true
+      },
+      {
+        "source_id": "s1",
+        "project_id": "P1",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-05",
+        "event": "commissioned",
+        "overseas": true,
+        "bri": true
+      },
+      {
+        "source_id": "s2",
+        "project_id": "P2",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-06",
+        "event": "commissioned",
+        "overseas": true,
+        "bri": true
+      },
+      {
+        "source_id": "s3",
+        "project_id": "P3",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-03",
+        "event": "contract_signed",
+        "overseas": true,
+        "bri": true
+      },
+      {
+        "source_id": "s4",
+        "project_id": "P4",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-02",
+        "event": "commissioned",
+        "overseas": false,
+        "bri": true
+      },
+      {
+        "source_id": "s5",
+        "project_id": "P5",
+        "country": "示例国",
+        "project": "示例项目",
+        "contractor": "示例公司",
+        "start": null,
+        "completion": "2025-04",
+        "event": "commissioned",
+        "overseas": true,
+        "bri": false
+      }
+    ]
+  },
+  "output": [
+    {
+      "project_id": "P0",
+      "country": "示例国",
+      "project": "示例项目",
+      "contractor": "示例公司",
+      "start": null,
+      "completion": "2025-01",
+      "sources": [
+        "s0"
+      ]
+    },
+    {
+      "project_id": "P1",
+      "country": "示例国",
+      "project": "示例项目",
+      "contractor": "示例公司",
+      "start": null,
+      "completion": "2025-05",
+      "sources": [
+        "s1"
+      ]
+    }
+  ],
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

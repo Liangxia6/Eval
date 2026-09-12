@@ -8,7 +8,7 @@
   "version": "1.0",
   "datasets": [
     {
-      "datasetId": "dataset.harbor-arcagi2/v1",
+      "datasetId": "dataset.harbor-arcagi2/v2",
       "name": "Harbor ARC-AGI-2 网格变换",
       "description": "从训练网格推断变换规则，对测试网格生成 JSON 二维数组结果。测抽象推理与结构化产物交付，不要求固定工具路线。",
       "labelIds": [
@@ -18,7 +18,7 @@
       "availableCaseCount": 5
     },
     {
-      "datasetId": "dataset.harbor-gpqadiamond/v1",
+      "datasetId": "dataset.harbor-gpqadiamond/v2",
       "name": "Harbor GPQA Diamond 化学",
       "description": "根据有机化学 Cope 重排题面做四选一判断，交付一个选项字母。测知识推理与答案准确性。",
       "labelIds": [
@@ -28,7 +28,7 @@
       "availableCaseCount": 1
     },
     {
-      "datasetId": "dataset.harbor-hle/v1",
+      "datasetId": "dataset.harbor-hle/v2",
       "name": "Harbor Humanity's Last Exam",
       "description": "高难度开放问题（读图物理、数学、化学结构识别、语言学等），需读图或严谨推理后给出答案。测多模态理解与推理。",
       "labelIds": [
@@ -39,7 +39,7 @@
       "availableCaseCount": 8
     },
     {
-      "datasetId": "dataset.harbor-labbench/v1",
+      "datasetId": "dataset.harbor-labbench/v2",
       "name": "Harbor LabBench",
       "description": "阅读生物学实验图回答选择题，需从图中提取信息并推理。测多模态理解与推理。",
       "labelIds": [
@@ -50,7 +50,7 @@
       "availableCaseCount": 4
     },
     {
-      "datasetId": "dataset.harbor-omnimath/v1",
+      "datasetId": "dataset.harbor-omnimath/v2",
       "name": "Harbor OmniMath",
       "description": "数学推理题，严谨推导后给出答案。测数学推理严谨性。",
       "labelIds": [
@@ -60,7 +60,7 @@
       "availableCaseCount": 2
     },
     {
-      "datasetId": "dataset.harbor-algotune/v1",
+      "datasetId": "dataset.harbor-algotune/v2",
       "name": "Harbor AlgoTune",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。矩阵平方根、LTI 模拟、SEIRS ODE、向量外积和单纯形投影优化，测数值正确性、代码迭代与运行效率。\n\n当前题数：5。正式性能分需固定 CPU 并接通相对 oracle 计时。",
       "labelIds": [
@@ -73,7 +73,7 @@
       "availableCaseCount": 5
     },
     {
-      "datasetId": "dataset.harbor-bix/v1",
+      "datasetId": "dataset.harbor-bix/v2",
       "name": "Harbor BixBench",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。miRNA 差异表达、CpG 密度、CHIP 变异过滤、免疫通路富集和有序回归，测统计推理与数据分析。\n\n当前题数：5。正式运行需按 capsule UUID Seed 私有数据。",
       "labelIds": [
@@ -85,19 +85,20 @@
       "availableCaseCount": 5
     },
     {
-      "datasetId": "dataset.harbor-featurebench/v1",
+      "datasetId": "dataset.harbor-featurebench/v2",
       "name": "Harbor FeatureBench",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。固定 xarray、PyTorch Lightning 和 MLflow 基线的功能实现，测仓库理解、补丁交付与回归控制。\n\n当前题数：4。正式运行需 Seed 固定 Lightning、MLflow 或 xarray 的已掩码仓库和依赖环境，并接通 F2P/P2P Judge。",
       "labelIds": [
         "label.artifact-delivery/v1",
         "label.loop/v1",
         "label.reasoning-planning/v1",
-        "label.tool-code/v1"
+        "label.tool-code/v1",
+        "label.tool-data/v1"
       ],
       "availableCaseCount": 4
     },
     {
-      "datasetId": "dataset.harbor-gaia2/v1",
+      "datasetId": "dataset.harbor-gaia2/v2",
       "name": "Harbor GAIA2",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。模拟应用中的歧义澄清、回复驱动变更和定时任务，测外部工具编排、动态适应及时间约束。\n\n当前题数：5。完整 scenario/oracle 已私有保存，但正式运行需 ARE MCP sidecar；缺失时为 UNEVALUABLE。",
       "labelIds": [
@@ -107,12 +108,13 @@
         "label.loop/v1",
         "label.reasoning-planning/v1",
         "label.safety-boundary/v1",
+        "label.tool-data/v1",
         "label.tool-external/v1"
       ],
       "availableCaseCount": 5
     },
     {
-      "datasetId": "dataset.harbor-replicationbench/v1",
+      "datasetId": "dataset.harbor-replicationbench/v2",
       "name": "Harbor ReplicationBench",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。复现实证天文学分析，定位 Gaia DR2 样本垂直速度峰值的两个银河中心半径。测科研数据分析、代码工具与数值复现。\n\n当前题数：1。正式运行需 Seed 固定 revision 的 Gaia DR2 FITS 文件。",
       "labelIds": [
@@ -125,7 +127,7 @@
       "availableCaseCount": 1
     },
     {
-      "datasetId": "dataset.harbor-skillsbench/v1",
+      "datasetId": "dataset.harbor-skillsbench/v2",
       "name": "Harbor SkillsBench",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。票据 OCR 转 Excel 和投资冲击 GDP 建模，测图像读取、数据检索、公式建模及工作簿交付。\n\n当前题数：2。保留 OCR 图片、GDP 模板及必要私有判分信息；GDP 需获取指定版本的外部数据并接通重算 Judge。labels 为两题并集，并非每题均测多模态。",
       "labelIds": [
@@ -141,7 +143,7 @@
       "availableCaseCount": 2
     },
     {
-      "datasetId": "dataset.harbor-usaco/v1",
+      "datasetId": "dataset.harbor-usaco/v2",
       "name": "Harbor USACO Sleeping Cows",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。实现 USACO Sleeping Cows 的 Python 解法，并通过隐藏输入输出测试。测组合推理、动态规划、代码实现与回归可靠性。\n\n当前题数：1。正式运行需接通私有输入输出 Judge。",
       "labelIds": [
@@ -149,12 +151,13 @@
         "label.efficiency-reliability/v1",
         "label.loop/v1",
         "label.reasoning-planning/v1",
-        "label.tool-code/v1"
+        "label.tool-code/v1",
+        "label.tool-data/v1"
       ],
       "availableCaseCount": 1
     },
     {
-      "datasetId": "dataset.harbor-widesearch/v1",
+      "datasetId": "dataset.harbor-widesearch/v2",
       "name": "Harbor WideSearch",
       "description": "来自 Harbor Index 固定 commit 5399ea1026fb。全量检索并整理 2025 年 1–5 月竣工的一带一路中企海外项目，交付单一中文 Markdown 表格。测广域网页检索、证据整合与结构化交付。\n\n当前题数：1。网页内容会漂移，判分以私有固定参考与来源证据为准。",
       "labelIds": [
@@ -163,11 +166,200 @@
         "label.loop/v1",
         "label.reasoning-planning/v1",
         "label.retrieval-grounding/v1",
+        "label.tool-data/v1",
         "label.tool-web/v1"
       ],
       "availableCaseCount": 1
     },
-        {
+    {
+      "datasetId": "dataset.harbor-build-word2vec/v2",
+      "name": "Harbor Build Word2Vec",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。实现 Word2Vec 预处理流水线，将原始文本语料处理为可训练的词向量数据。测代码实现、数据处理与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-codepde/v2",
+      "name": "Harbor CodePDE",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。实现一维可压缩 Navier-Stokes 方程的数值求解器，校验输出形状、初始帧与状态守恒。测数值建模、代码实现与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-cybergym/v2",
+      "name": "Harbor CyberGym",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。修复离线长度/偏移范围解析器中的缺陷，通过确定性检查。测代码修复、推理与安全边界。\n\n当前题数：2。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.safety-boundary/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 2
+    },
+    {
+      "datasetId": "dataset.harbor-dacode/v2",
+      "name": "Harbor DACode",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。对原文作文文本做小规模自动评分并交付预测结果。测数据处理、建模与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-gaia/v2",
+      "name": "Harbor GAIA",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。多步检索与推理任务（冻结目录样本标准差比较、棋盘获胜着法、墓园资料定位）。测检索依据、网页工具与结构化交付。\n\n当前题数：3。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.retrieval-grounding/v1",
+        "label.tool-data/v1",
+        "label.tool-web/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.harbor-gso/v2",
+      "name": "Harbor GSO",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。在保持语义等价的前提下加速 pandas/numpy/pillow/pydantic 等库函数。测代码优化、数值正确性与效率稳定性。\n\n当前题数：7。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.efficiency-reliability/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 7
+    },
+    {
+      "datasetId": "dataset.harbor-qcircuitbench/v2",
+      "name": "Harbor QCircuitBench",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。设计三元 Simon 电路的测量后处理逻辑。测量子电路推理、代码实现与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-scicode/v2",
+      "name": "Harbor SciCode",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。科学计算实现（PWM DNA 位点扫描、高斯束 ABCD 传播、四面体 DOS 积分）。测数值计算、代码实现与产物交付。\n\n当前题数：3。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.harbor-sldbench/v2",
+      "name": "Harbor SLDBench",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。拟合词表规模与数据量的缩放定律交互关系。测数据处理、建模与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-spider2/v2",
+      "name": "Harbor Spider2",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。DBT 数据工程任务（机场到达汇总与球面距离、Twilio 消息分层聚合）。测数据库处理、SQL/代码与产物交付。\n\n当前题数：2。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 2
+    },
+    {
+      "datasetId": "dataset.harbor-swebenchpro/v2",
+      "name": "Harbor SWE-bench Pro",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。真实仓库缺陷修复（文件后缀选择、K8s 会话路由、mTLS CA 限制、进程信号消息）。测代码修复、回归迭代与产物交付。\n\n当前题数：4。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 4
+    },
+    {
+      "datasetId": "dataset.harbor-swebenchverified/v2",
+      "name": "Harbor SWE-bench Verified",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。真实仓库缺陷修复（matplotlib 标注、Django 多表继承与 UNION 查询、Sphinx literal）。测代码修复、回归迭代与产物交付。\n\n当前题数：5。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 5
+    },
+    {
+      "datasetId": "dataset.harbor-swesmith/v2",
+      "name": "Harbor SWE-Smith",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。修复 OAuth1 头参数编码与 URI 保留缺陷。测代码修复、回归迭代与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-swtbenchverified/v2",
+      "name": "Harbor SWT-bench Verified",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。编写能杀死零地址缺陷的测试用例。测测试设计、代码迭代与产物交付。\n\n当前题数：1。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.loop/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 1
+    },
+    {
+      "datasetId": "dataset.harbor-tb/v2",
+      "name": "Harbor Terminal-Bench",
+      "description": "来自 Harbor Index 固定 commit 5399ea1026fb。终端/系统任务（合成非编码序列引物设计、MIPS 指令编码、Yelp 文本分类训练）。测代码实现、数据处理与产物交付。\n\n当前题数：3。",
+      "labelIds": [
+        "label.artifact-delivery/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-code/v1",
+        "label.tool-data/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
       "datasetId": "dataset.agentbench-db/v1",
       "name": "AgentBench DBBench",
       "description": "来自 AgentBench v0.2 固定提交 ed013ff9887b，16 道已核验的 DBBench SELECT 题。读取完整表格，使用 Python 标准库 SQLite 工具实际执行查询，交付答案、SQL 和工具结果；覆盖查找、计数、比较、排序和聚合。每题保留 question.json、必要 assets 和 private/final.json；原始数据文件哈希及行号见 question.source。MySQL/Docker 改为只读 SQLite，使用 LLM 语义评分；非完整 AgentBench 环境或官方成绩，主运行器仍需接通 Question Bundle。",
@@ -190,7 +382,7 @@
       ],
       "availableCaseCount": 12
     },
-        {
+    {
       "datasetId": "dataset.swe-bench-pro/v1",
       "name": "SWE-bench Pro",
       "description": "数据集: SWE-bench Pro\n最突出的测试对象: 真实代码仓库修复、测试驱动迭代与补丁交付\n当前输入形态: 5 个公开 test split 题包，含原题、requirements/interface、私有参考补丁及测试资源\n输出与评分: 代码补丁与真实执行记录；使用原生 F2P/P2P 回归测试判定修复是否成功\n最适合的 Agent: 代码 Agent、仓库维护 Agent、终端开发 Agent\n数据可用状态: AVAILABLE；本地已保存 5 道题包，运行环境和原生评分器仍待适配\n\n1. 基本定位\n在真实仓库中理解需求、定位缺陷、修改代码并验证行为；选取 qutebrowser、Flipt、Navidrome、OpenLibrary、Element 各一题，不以解释修复思路代替代码变更。\n\n2. 评测层级设计\n第一层检查补丁能否应用及目标行为；第二层检查代码检索、编辑、测试和纠错轨迹；第三层由固定版本原生测试判定 resolved。任务结果与 DSHEval 逐标签分数分别记录。\n\n3. 输入和环境\n数据 revision 7ab5114912ba，评分代码 ca10a60a5fca。题包保留基准提交、初始化配置、Dockerfile、测试脚本与解析器；完整仓库及镜像仍须部署，并锁定镜像摘要。每题使用独立容器，初始化不得在宿主执行。\n\n4. 输出与评分\n交付 output/solution.patch 与 output/response.txt。可信评分端应用私有测试补丁，核验全部 fail_to_pass 和 pass_to_pass；不要求补丁与参考实现文字相同，不允许篡改测试。\n\n5. 适配能力\n适配 tool-code、reasoning-planning、loop 和 artifact-delivery；代码执行及测试反馈可直接支持过程标签判分。\n\n6. 不适配情况\n不适合只有文本输出、不能编辑仓库或运行测试的模型；不适合没有隔离环境的真实生产仓库操作。\n\n7. 匹配关键词\nSWE-bench Pro, repository repair, regression tests, coding agent, tool-code, loop, patch\n\n8. 当前局限\n仅为 5 题导入样本，题量有限，不构成完整榜单成绩；上游曾修订测试并提示榜单问题。所附 MIT 许可证仅对应评测框架，原仓库补丁及数据条款仍须核实。未运行 Agent 或官方评测；缺环境或评分器判 UNEVALUABLE。",
@@ -250,7 +442,7 @@
       "availableCaseCount": 5
     },
     {
-      "datasetId": "dataset.taubench/v1",
+      "datasetId": "dataset.tau-bench/v1",
       "name": "τ-bench",
       "description": "数据集: τ-bench\n最突出的测试对象: 多轮需求澄清、业务政策遵循、API 操作和数据库状态核验\n当前输入形态: 5 个逐题 Question Bundle，包含 retail 3 题、airline 2 题\n输出与评分: 用户对话、工具调用和最终业务状态；使用原始参考动作及沟通条件评价\n最适合的 Agent: 客服 Agent、业务 API Agent、多轮任务助理\n数据可用状态: AVAILABLE；本地已保存 5 道题包，运行环境和原生评分器仍待适配\n\n1. 基本定位\nAgent 通过对话逐步获取需求，在业务政策约束下调用工具完成零售或航空任务，重点观察沟通与真实业务操作的结合。\n\n2. 评测层级设计\n第一层检查用户目标和必要沟通是否满足；第二层检查信息澄清、政策执行及工具反馈处理；第三层检查数据库最终状态。\n\n3. 输入和环境\n公开业务政策与工具接口，私有用户指令仅交给用户模拟器。需要同版本官方数据库、用户模拟器及可重置的业务环境，数据库按题内来源哈希初始化。\n\n4. 输出与评分\n保存完整对话、工具返回及 output/response.txt，使用私有参考动作和沟通条件接入原生状态 Judge。标签评分关注 API 使用、规划、闭环及政策边界，不能只匹配最终回复。\n\n5. 适配能力\n适配 API 与业务系统工具、推理与规划、执行闭环、安全与权限边界，以及与模拟用户的信息协作；可观察是否取得必要信息并在允许范围内修改状态。\n\n6. 不适配情况\n不适合单轮静态问答配置；不能将模拟用户的完整背景预先公开给 Agent，也不能在真实业务账号上执行测试操作。\n\n7. 匹配关键词\nτ-bench, retail, airline, user simulator, policy compliance, API, database state\n\n8. 当前局限\n本组是原版 τ-bench 的 5 题历史对照子集，不与 τ²/τ³ 修订任务混报成绩。固定版本见 question.source；缺少用户模拟器、数据库或原生评分器时应判 UNEVALUABLE。",
       "labelIds": [

@@ -76,16 +76,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 是否真正读取了图片内容、是否正确从图中提取了差异表达基因数量、推理过程是否合理、是否仅凭文字猜测。",

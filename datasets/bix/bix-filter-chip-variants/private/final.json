@@ -1,4 +1,4 @@
 {
-  "answer": "Between 40 and 60 inclusive",
-  "rubric": "接受 40 至 60，含端点。须排除 intronic、intergenic 和 UTR 变异，再计算每个样本的平均 CHIP 变异数。"
+  "answer": "50.0",
+  "rubric": "每个样本统计非内含子/基因间/UTR 注释的变异数，取算术平均 = 50.0。接受等价数值。"
 }

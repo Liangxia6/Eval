@@ -58,16 +58,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 是否真正读取了图片、是否从化学结构中正确识别化合物、推理是否合理。",

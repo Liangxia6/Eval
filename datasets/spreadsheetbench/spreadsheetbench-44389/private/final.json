@@ -19,5 +19,5 @@
     "upstreamAnswerSheet": null,
     "referenceSha256": "fa9af6b91c7e3728e8cda284e10bb4f36941c99014b9583c7c239b14d3e44678"
   },
-  "rubric": "读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列 regions 中的目标区域结果作语义比较。需要覆盖全部目标单元格；数值、日期、空值和文本按业务含义比较，不能仅凭文件存在或 Agent 的说明判为正确。题目要求公式时需保留可计算公式，并检查题干明确要求的格式及无关区域。过程和本地层只提供描述性质证据，不绑定固定工具路线。如果无法读取 XLSX 或所需公式结果尚未重算，标记 UNEVALUABLE，不能把缺失缓存当正确空值。此适配不等同官方确定性指标。"
+  "rubric": "成功标准：读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列目标区域作语义比较。Sheet1 的 P2:P7 依次为 \"MMX\"、\"Catch\"、\"KWH,VB\"、\"Amazon\"、\"KWH\"、\"MMX,POK\"，即每行最小正数所在列的列标题，并列值用逗号无空格分隔。以采集的执行证据与授权证据为准，不得因 response.txt 自述成功或复述参考动作而判通过。"
 }

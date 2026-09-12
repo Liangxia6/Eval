@@ -38,12 +38,7 @@
       "仅私有保留 setup/test patch 和测试入口，不向 Agent 暴露被移除的实现",
       "正式运行须从固定基线构建应用掩码后的 Seed，清理历史、补丁原件和字节码；不能直接提供未掩码上游仓库",
       "DSHEval 尚未接通 Harbor F2P/P2P Judge；当前 LLM check 不能替代确定性回归测试"
-    ],
-    "upstreamMetadata": {
-      "repository": "mlflow/mlflow",
-      "base_commit": "93dab383a1a3fc9882ebc32283ad2a05d79ff70f",
-      "test_identity": "test_bedrock_autolog"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -69,16 +64,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/agent.patch",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

@@ -35,16 +35,7 @@
       "参考调用轨迹放入 private/final.json，需原始工具实现和多轮判分器，不能退化为文本函数名匹配。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 6,
-      "taskId": "multi_turn_long_context_150",
-      "split": "long_context",
-      "sourceLine": 151
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -53,7 +44,7 @@
     "collaboration"
   ],
   "task": {
-    "instructions": "This is a stateful, multi-turn BFCL task. Use the provided simulated tools. The controller reveals later user turns and any newly available functions only at their designated round. Do not invent missing parameters or functions. Preserve tool state between rounds.\n\nFirst user turn:\nWanderlust is calling, and I'm mapping out my travel from Rivermist to Stonebrook in the month of October—the skies above must know my next destination! Share with me, if you will, what coin I must trade for a humble economy class seat on the 6th day of October in 2026.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "This is a stateful, multi-turn BFCL task. Use the provided simulated tools. The controller reveals later user turns and any newly available functions only at their designated round. Do not invent missing parameters or functions. Preserve tool state between rounds.\n\nFirst user turn:\nWanderlust is calling, and I'm mapping out my travel from Rivermist to Stonebrook in the month of October—the skies above must know my next destination! Share with me, if you will, what coin I must trade for a humble economy class seat on the 6th day of October in 2026.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -83,44 +74,46 @@
       "protocol": "progressive turns; execute native tools; apply excluded/missed functions; native per-turn state and response/path checks"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 TravelAPI 模拟环境中查询 Rivermist 至 Stonebrook 2026-10-06 的经济舱票价，并按用户要求完成汇率换算与预算上限更新。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 get_flight_cost(travel_from='RMS', travel_to='SBK', travel_date='2026-10-06', travel_class='economy') 查询 2026-10-06 经济舱票价"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到调用 compute_exchange_rate(base_currency='GBP', target_currency='USD', value=15400.0) 将 15400.0 GBP 换算为 USD"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到调用 set_budget_limit(access_token='abc123token', budget_limit=22000.0) 将预算上限更新为 22000.0"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到先将 Rivermist/Stonebrook 解析为机场代码 RMS/SBK（借助 TravelAPI 的 get_nearest_airport_by_city），再以代码、日期与舱位组合查询票价"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到以 get_flight_cost 返回的票价金额（15400.0 GBP）驱动下一轮换汇与预算更新，参数取自实际返回而非编造"
+        },
+        {
+          "id": "op-6",
+          "description": "期望观察到第二轮按用户新增要求执行换汇与预算上限设置，仅使用当轮可用的 TravelAPI 函数，不虚构工具或参数"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并关联可信运行器采集的工具调用轨迹供判分器核对。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，如实说明票价查询结果、汇率换算与预算上限更新情况"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到关联可信运行器采集的工具调用轨迹（get_flight_cost(travel_from='RMS', travel_to='SBK', travel_date='2026-10-06', travel_class='economy')、compute_exchange_rate(base_currency='GBP', target_currency='USD', value=15400.0)、set_budget_limit(access_token='abc123token', budget_limit=22000.0)），供判分器按 ground truth 核对"
         }
       ]
     }

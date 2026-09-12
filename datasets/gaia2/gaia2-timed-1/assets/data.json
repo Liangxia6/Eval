@@ -1,0 +1,21 @@
+{
+  "emails": [
+    {
+      "id": "e1",
+      "sender": "boss",
+      "t": 10
+    },
+    {
+      "id": "e2",
+      "sender": "boss",
+      "t": 100
+    },
+    {
+      "id": "e3",
+      "sender": "boss",
+      "t": 140
+    }
+  ],
+  "boss": "boss",
+  "first_event_t": 7200
+}

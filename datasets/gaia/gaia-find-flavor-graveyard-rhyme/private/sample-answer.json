@@ -1,0 +1,50 @@
+{
+  "input": {
+    "flavors": [
+      {
+        "id": "old",
+        "start_year": 1979
+      },
+      {
+        "id": "new",
+        "start_year": 1990
+      }
+    ],
+    "photos": [
+      {
+        "flavor_id": "old",
+        "headstones": [
+          {
+            "position": "foreground",
+            "lines": [
+              "Wrong final line"
+            ]
+          },
+          {
+            "position": "background",
+            "lines": [
+              "A chilly day",
+              "We sailed away"
+            ]
+          }
+        ]
+      },
+      {
+        "flavor_id": "new",
+        "headstones": [
+          {
+            "position": "background",
+            "lines": [
+              "New rhyme"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "flavor_id": "old",
+    "last_line": "We sailed away"
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

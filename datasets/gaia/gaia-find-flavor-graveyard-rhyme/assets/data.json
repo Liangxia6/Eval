@@ -1,0 +1,44 @@
+{
+  "flavors": [
+    {
+      "id": "old",
+      "start_year": 1979
+    },
+    {
+      "id": "new",
+      "start_year": 1990
+    }
+  ],
+  "photos": [
+    {
+      "flavor_id": "old",
+      "headstones": [
+        {
+          "position": "foreground",
+          "lines": [
+            "A sweet start",
+            "A different end"
+          ]
+        },
+        {
+          "position": "background",
+          "lines": [
+            "A chilly day",
+            "We sailed away"
+          ]
+        }
+      ]
+    },
+    {
+      "flavor_id": "new",
+      "headstones": [
+        {
+          "position": "background",
+          "lines": [
+            "New rhyme"
+          ]
+        }
+      ]
+    }
+  ]
+}

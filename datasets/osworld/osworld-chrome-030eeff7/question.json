@@ -27,16 +27,7 @@
       "这是入门接入子集，不代表 OSWorld 的复杂文档/跨应用全量难度；虚拟机与应用版本仍须固定。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 9,
-      "taskId": "030eeff7-b492-4218-b312-701ec99ee0cc",
-      "split": "chrome",
-      "benchmark": "OSWorld original/Verified, not OSWorld-V2"
-    }
+    ]
   },
   "capabilityLabels": [
     "multimodal",
@@ -45,7 +36,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Can you enable the 'Do Not Track' feature in Chrome to enhance my online privacy?\n\nOperate the evaluator-provisioned OSWorld desktop only. Use the chosen benchmark action interface and observe the application after changes. Guest Linux paths and shortcuts are not macOS host paths or shortcuts.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Can you enable the 'Do Not Track' feature in Chrome to enhance my online privacy?\n\nOperate the evaluator-provisioned OSWorld desktop only. Use the chosen benchmark action interface and observe the application after changes. Guest Linux paths and shortcuts are not macOS host paths or shortcuts.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -74,44 +65,38 @@
       "externalTaskDownloads": false
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 OSWorld 的 Chrome 桌面应用中开启 Do Not Track 设置，并确认该设置持久生效。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到打开 Chrome 设置界面并通过截图观察隐私相关选项中 Do Not Track 开关的位置与初始状态"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到在 Chrome 设置界面中执行操作将「Do Not Track」请求开关置为开启"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到开启后再次观察设置界面，确认开关已变为启用状态；若界面反馈未生效则回到设置页修正"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到设置持久保存：评测器将在 pkill chrome 后以 google-chrome --remote-debugging-port=1337 重启并校验 enable_do_not_track=true，重启后设置须仍然生效"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并关联可信运行器采集的界面操作轨迹与评测器检查结果。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，如实说明 Do Not Track 开启操作与验证结果（已完成或失败）"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到关联可信运行器采集的执行证据与评测器检查结果（enable_do_not_track 期望值为 true），供判分器核对，不因 response.txt 自述成功而判通过"
         }
       ]
     }

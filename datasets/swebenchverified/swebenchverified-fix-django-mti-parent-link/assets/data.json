@@ -1,0 +1,15 @@
+{
+  "parent": "place",
+  "fields": [
+    {
+      "name": "owner",
+      "target": "place",
+      "parent_link": false
+    },
+    {
+      "name": "base",
+      "target": "place",
+      "parent_link": true
+    }
+  ]
+}

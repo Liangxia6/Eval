@@ -32,16 +32,7 @@
       "原生评测器必须执行；LLM 不得只凭网页操作说明或最终文本判断成功。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 7,
-      "taskId": 431,
-      "split": "test",
-      "intentTemplateId": 145
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-web",
@@ -50,7 +41,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Add the product with the lowest per unit price from my open tabs to the shopping cart\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Add the product with the lowest per unit price from my open tabs to the shopping cart\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -85,44 +76,38 @@
       "siteSnapshots": "official pinned benchmark environment snapshots required; not bundled here"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "比较已打开标签页中各商品的单价，把单价最低的商品加入购物车并以购物车页反馈确认。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到浏览器在 __SHOPPING__ 站点打开多个商品标签页，并读取各商品页标注的单价信息。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到对各标签页商品的单价逐项比较，确定单价最低的那件商品（蜡烛类候选之一）作为加购对象。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到在单价最低商品的详情页点击加入购物车按钮完成加购。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到导航到 __SHOPPING__/checkout/cart 购物车页，页面反馈中出现所加购的蜡烛商品（如 'SPAAS White Taper Candles - 4 Pack' 等候选之一），据此确认加购成功。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并使其与可信运行器采集的购物车页面终态相互印证。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到 output/response.txt 被写入，如实说明从打开标签页中选择单价最低商品并加入购物车的结果，并指明所加购的商品名与购物车页面 URL。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到 output/response.txt 与可信运行器采集的浏览器会话终态（/checkout/cart 页面含单价最低的蜡烛商品名）可相互对应，供判分器对照 private/final.json 检查。"
         }
       ]
     }

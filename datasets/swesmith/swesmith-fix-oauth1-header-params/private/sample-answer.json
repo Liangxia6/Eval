@@ -1,0 +1,20 @@
+{
+  "input": {
+    "params": [
+      [
+        "oauth_token",
+        "dummy a+b"
+      ],
+      [
+        "x",
+        "a/b?"
+      ]
+    ],
+    "uri": "https://example.invalid/p?old=1#part"
+  },
+  "output": {
+    "header": "OAuth oauth_token=\"dummy%20a%2Bb\", x=\"a%2Fb%3F\"",
+    "uri": "https://example.invalid/p?old=1&oauth_token=dummy%20a%2Bb&x=a%2Fb%3F#part"
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

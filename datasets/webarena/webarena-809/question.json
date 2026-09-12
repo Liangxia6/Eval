@@ -32,16 +32,7 @@
       "原生评测器必须执行；LLM 不得只凭网页操作说明或最终文本判断成功。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 7,
-      "taskId": 809,
-      "split": "test",
-      "intentTemplateId": 327
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-web",
@@ -50,7 +41,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Create an issue in a11yproject repo with title \"404 for many URLs\". Assign the issue to myself. Set due date to be 2030-1-3\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Create an issue in a11yproject repo with title \"404 for many URLs\". Assign the issue to myself. Set due date to be 2030-1-3\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -85,44 +76,38 @@
       "siteSnapshots": "official pinned benchmark environment snapshots required; not bundled here"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 a11yproject 仓库创建 issue，填写标题、截止日期与指派人并以 issue 页反馈确认。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到浏览器导航到 __GITLAB__ 的 a11yproject/a11yproject.com 仓库并进入新建 issue 页面。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到规划并填写 issue 表单：标题 '404 for many URLs'、截止日期 2030-1-3、指派人设为自己（当前账号 Byte Blaze）。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到提交 issue 表单，成功在 a11yproject 仓库创建该 issue。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到创建后的 issue 详情页反馈三项条件成立：标题精确为 '404 for many URLs'、截止日期显示 'Jan 3, 2030'、指派人含 'Byte Blaze'，据此确认创建成功。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并使其与可信运行器采集的 issue 页面终态相互印证。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到 output/response.txt 被写入，如实说明在 a11yproject 仓库创建 '404 for many URLs' issue 的结果，并指明 issue 页面 URL 与所填字段。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到 output/response.txt 与可信运行器采集的浏览器会话终态（issue 页标题为 '404 for many URLs'、截止日期含 'Jan 3, 2030'、指派人为 'Byte Blaze'）可相互对应，供判分器对照 private/final.json 检查。"
         }
       ]
     }

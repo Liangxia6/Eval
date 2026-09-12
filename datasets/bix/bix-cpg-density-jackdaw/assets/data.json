@@ -1,0 +1,74 @@
+{
+  "chromosomes": [
+    {
+      "chromosome": "chr1",
+      "length_bp": 1000
+    },
+    {
+      "chromosome": "chr2",
+      "length_bp": 800
+    },
+    {
+      "chromosome": "chr3",
+      "length_bp": 1200
+    }
+  ],
+  "cpg_records": [
+    {
+      "id": "a",
+      "chromosome": "chr1",
+      "methylation": 0.95,
+      "age_related": true,
+      "unique": true
+    },
+    {
+      "id": "b",
+      "chromosome": "chr1",
+      "methylation": 0.05,
+      "age_related": true,
+      "unique": true
+    },
+    {
+      "id": "c",
+      "chromosome": "chr1",
+      "methylation": 0.5,
+      "age_related": true,
+      "unique": true
+    },
+    {
+      "id": "d",
+      "chromosome": "chr2",
+      "methylation": 0.91,
+      "age_related": true,
+      "unique": false
+    },
+    {
+      "id": "e",
+      "chromosome": "chr2",
+      "methylation": 0.08,
+      "age_related": true,
+      "unique": true
+    },
+    {
+      "id": "f",
+      "chromosome": "chr3",
+      "methylation": 0.1,
+      "age_related": true,
+      "unique": true
+    },
+    {
+      "id": "g",
+      "chromosome": "chr3",
+      "methylation": 0.09,
+      "age_related": false,
+      "unique": true
+    },
+    {
+      "id": "h",
+      "chromosome": "chr3",
+      "methylation": 0.92,
+      "age_related": true,
+      "unique": true
+    }
+  ]
+}

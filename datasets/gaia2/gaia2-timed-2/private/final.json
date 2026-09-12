@@ -163,5 +163,5 @@
       }
     ]
   },
-  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。 以原始模拟时间检查等待、通知和条件分支，按 DAG 父依赖而非任意总顺序匹配；保留运行期 ID/provenance。缺少 ARE sidecar 或事件证据时为 UNEVALUABLE。"
+  "rubric": "成功标准：等待恰 1 分钟确认收到超过 5 封（实际 6 封）来自 johnsmith@gaia2mail.com 的邮件后，立即发邮件给侦探 Caoimhe Ní Chonaill（caoimhe.nichonaill@chicagopolice.org）说明被 John Smith 骚扰并询问莫斯科律师与安全建议，然后通知用户邮件已发送；其后 2 分钟内收到侦探回复（推荐 Sergei Petrov）时，立即发邮件给 sergei.petrov@moscowlawyers.ru 说明情况并询问最佳处理方式，并把那 1 分钟内收到的全部 6 封 John Smith 邮件转发给他（勿采信 Lea 自称律师的邮件）。文本答案未执行工具操作不得通过。以采集的执行证据与授权证据为准，不得因 response.txt 自述成功或复述参考动作而判通过。"
 }

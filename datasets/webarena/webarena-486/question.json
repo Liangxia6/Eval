@@ -32,16 +32,7 @@
       "原生评测器必须执行；LLM 不得只凭网页操作说明或最终文本判断成功。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 7,
-      "taskId": 486,
-      "split": "test",
-      "intentTemplateId": 275
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-web",
@@ -50,7 +41,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Change the page title of \"404 Not Found\" page on my site to \"Bruh bro you clicked the wrong page\".\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Change the page title of \"404 Not Found\" page on my site to \"Bruh bro you clicked the wrong page\".\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -85,44 +76,38 @@
       "siteSnapshots": "official pinned benchmark environment snapshots required; not bundled here"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 __SHOPPING_ADMIN__ 的 CMS 中定位 '404 Not Found' 页面并修改其标题，以编辑页反馈确认。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到浏览器登录 __SHOPPING_ADMIN__ 管理后台并导航到 CMS 页面编辑页 /cms/page/edit/page_id/1/。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到在 CMS 页面中定位 '404 Not Found' 页面对应的 page_id=1 编辑页，而不是修改其他页面的标题。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到在标题输入框（input[name=title]）中将原标题改为 'Bruh bro you clicked the wrong page' 并保存。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到保存后编辑页反馈标题输入框的值精确等于 'Bruh bro you clicked the wrong page'，据此确认修改生效。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并使其与可信运行器采集的 CMS 编辑页终态相互印证。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到 output/response.txt 被写入，如实说明将 '404 Not Found' 页标题改为 'Bruh bro you clicked the wrong page' 的结果，并指明 CMS 编辑页 URL。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到 output/response.txt 与可信运行器采集的浏览器会话终态（/cms/page/edit/page_id/1/ 的标题输入框值精确等于 'Bruh bro you clicked the wrong page'）可相互对应，供判分器对照 private/final.json 检查。"
         }
       ]
     }

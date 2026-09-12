@@ -29,12 +29,7 @@
       "将 /workspace/ 数据路径映射为 input/，答案映射为 output/answer.txt",
       "capsule 数据未打包，保留 UUID；正式运行前须将对应数据 Seed 到 input/",
       "答案及数值比较规则汇总于 private/final.json；LLM check 不等同于上游确定性 Judge"
-    ],
-    "upstreamMetadata": {
-      "question_id": "bix-6-q5",
-      "record_uuid": "b4ba3afc-74cb-4cbc-ac16-28c5ab048240",
-      "capsule_uuid": "f4dcda89-678d-403d-b155-1483d0071765"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -58,16 +53,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

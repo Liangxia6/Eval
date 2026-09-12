@@ -37,12 +37,7 @@
       "将 /workspace/output.md 映射为 output/output.md",
       "完整参考表合并至 private/final.json；仅额外保留字段级匹配规则 eval_config.json，不向 Agent 暴露。",
       "DSHEval 使用自身 Judge 与证据契约，结果不等同于 Harbor ensemble 分数"
-    ],
-    "upstreamMetadata": {
-      "upstream_query": 17,
-      "evaluator_instance_id": "ws_zh_085",
-      "date_window": "2025-01-01/2025-05-31"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -67,16 +62,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/output.md",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

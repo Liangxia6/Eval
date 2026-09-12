@@ -1,0 +1,13 @@
+{
+  "params": [
+    [
+      "oauth_token",
+      "dummy a+b"
+    ],
+    [
+      "x",
+      "a/b?"
+    ]
+  ],
+  "uri": "https://example.invalid/p?old=1#part"
+}

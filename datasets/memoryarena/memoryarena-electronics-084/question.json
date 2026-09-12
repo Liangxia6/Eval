@@ -50,21 +50,7 @@
       "上游 HF 重建器未结构化恢复总预算/价格限制，故明确原生 reward 的覆盖边界；不伪称它是全约束确定性评分。",
       "输出路径映射至 output/；增加 process/local 描述性证据，不把这些描述当作已采集的事实。",
       "仅完成题包导入；Question Bundle 运行入口、环境及原始评分器仍须接通，缺依赖判 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-specialist-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "datasetRepository": "ZexueHe/memoryarena",
-      "datasetRevision": "da1a37c8b19280e18627ca01cf368195a5e1d92e",
-      "config": "bundled_shopping",
-      "split": "test",
-      "hfId": 84,
-      "category": "electronics_item_24",
-      "stageCount": 6,
-      "releaseStatus": "preview",
-      "licenseStatus": "no dataset/root license declaration found in the selected revisions; redistribution requires clarification"
-    }
+    ]
   },
   "capabilityLabels": [
     "memory",
@@ -73,7 +59,7 @@
     "tool-web"
   ],
   "task": {
-    "instructions": "You are an intelligent Shopping Agent operating in a webshop. Your goal is to purchase a bundle of items that are **technically compatible** and fit the **budget**.\n\n*** GLOBAL RULES ***\n1. **Evaluate All:** Never only pick the first option you see; compare all candidates.\n2. **Total Budget:** All items combined must not exceed $760.\n3. **Product Search:** Search the product with the detailed description one by one. For example, use \"search[Product A]\" but not \"search[Product A, Product B, Product C]\".\n\n4. **Product Purchase: ** You need to buy products on the order of the steps (i.e., Product 1 first, then Product 2, and so on).\n\n----------------------------------------------------------------\nProduct 1:\n### Select Display Panel\n**Goal:** Buy the highest-rated one in available options.\n**Preference:** Pick the highest-rated option among those compatible with the notes.\n**Available Options:**\n- A Sony 48-inch 4K Smart OLED TV with Soundbar and HDMI Cable.\n- A TCL 55-inch 4K Ultra HD Roku Smart LED TV from 2017.\n- A VIZIO 65-Inch OLED Smart TV with 4K UHD and Dolby Vision.\n\nThis is stage 1 of one six-stage MemoryArena shopping case in a simulated store, not a real purchase. Perform only the currently released stage using the store's search/click tools. The trusted controller will release later stages sequentially using the pinned split-step protocol. Preserve allowed memory across stages; do not request future-stage questions or private target products. After all six stages, write an honest completion summary to output/response.txt. Listing product IDs in the summary is not a substitute for executing purchases in the benchmark environment.\n\nDSHEval execution boundary: work only inside the evaluator-provisioned, isolated benchmark workspace and tools. Never operate the user's real accounts or services. Do not access private answers, gold patches, hidden tests, later-session instructions, or online solutions for this case. Use actual tool feedback and verify your result. If a required prerequisite is missing, report UNEVALUABLE and identify it; do not replace execution with a proposed solution or claim success."
+    "instructions": "You are an intelligent Shopping Agent operating in a webshop. Your goal is to purchase a bundle of items that are **technically compatible** and fit the **budget**.\n\n*** GLOBAL RULES ***\n1. **Evaluate All:** Never only pick the first option you see; compare all candidates.\n2. **Total Budget:** All items combined must not exceed $760.\n3. **Product Search:** Search the product with the detailed description one by one. For example, use \"search[Product A]\" but not \"search[Product A, Product B, Product C]\".\n\n4. **Product Purchase: ** You need to buy products on the order of the steps (i.e., Product 1 first, then Product 2, and so on).\n\n----------------------------------------------------------------\nProduct 1:\n### Select Display Panel\n**Goal:** Buy the highest-rated one in available options.\n**Preference:** Pick the highest-rated option among those compatible with the notes.\n**Available Options:**\n- A Sony 48-inch 4K Smart OLED TV with Soundbar and HDMI Cable.\n- A TCL 55-inch 4K Ultra HD Roku Smart LED TV from 2017.\n- A VIZIO 65-Inch OLED Smart TV with 4K UHD and Dolby Vision.\n\nThis is stage 1 of one six-stage MemoryArena shopping case in a simulated store, not a real purchase. Perform only the currently released stage using the store's search/click tools. The trusted controller will release later stages sequentially using the pinned split-step protocol. Preserve allowed memory across stages; do not request future-stage questions or private target products. After all six stages, write an honest completion summary to output/response.txt. Listing product IDs in the summary is not a substitute for executing purchases in the benchmark environment.\n\nDSHEval execution boundary: work only inside the evaluator-provisioned, isolated benchmark workspace and tools. Never operate the user's real accounts or services. Do not access private answers, gold patches, hidden tests, later-session instructions, or online solutions for this case. Use actual tool feedback and verify your result. If a required prerequisite is missing, stop and identify it in output/response.txt; do not replace execution with a proposed solution or claim success."
   },
   "environment": {
     "platform": "portable",
@@ -116,16 +102,6 @@
       "judgeMode": "pin native LLM attribute judge model/settings; --no-llm is a different evaluation mode",
       "environmentReset": "restore simulated store per native stage; never perform real purchases"
     }
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-output",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

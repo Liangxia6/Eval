@@ -1,0 +1,46 @@
+{
+  "locations": [
+    {
+      "zip": "1000",
+      "violent_rate": 3
+    },
+    {
+      "zip": "4000",
+      "violent_rate": 1
+    }
+  ],
+  "apartments": [
+    {
+      "id": "a",
+      "zip": "4000",
+      "price": 1200,
+      "saved": false
+    },
+    {
+      "id": "b",
+      "zip": "4000",
+      "price": 1500,
+      "saved": true
+    },
+    {
+      "id": "c",
+      "zip": "1000",
+      "price": 900,
+      "saved": true
+    }
+  ],
+  "contacts": [
+    {
+      "id": "ds",
+      "occupation": "data scientist"
+    },
+    {
+      "id": "other",
+      "occupation": "teacher"
+    }
+  ],
+  "reply": {
+    "contact_id": "ds",
+    "min_price": 1500
+  }
+}

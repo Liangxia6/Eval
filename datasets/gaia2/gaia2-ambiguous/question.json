@@ -41,14 +41,7 @@
       "保留 ARE 工具调用任务，并要求把最终用户消息镜像到 output/response.txt",
       "scenario 私有保留；原始 oracle 事件 DAG 与最终回复合并至 private/final.json，保留事件时间、父依赖与动态 ID。",
       "GAIA2 ARE MCP sidecar 尚未接入 DSHEval macOS 环境；缺少该服务时本题必须判为 UNEVALUABLE"
-    ],
-    "upstreamMetadata": {
-      "config": "ambiguity",
-      "difficulty": "medium",
-      "source_id": "0160_lz4oktw0o3l9wuwpuwn4x8c653cp1tr6",
-      "scenario_id": "scenario_universe_22_1vo7zp",
-      "revision": "c128283"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -73,16 +66,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

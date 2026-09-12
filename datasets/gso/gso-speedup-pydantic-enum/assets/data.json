@@ -1,0 +1,22 @@
+{
+  "workloads": [
+    {
+      "kind": "int",
+      "values": [
+        1,
+        89,
+        -1,
+        "1",
+        true
+      ]
+    },
+    {
+      "kind": "single",
+      "values": [
+        "anything",
+        null,
+        5
+      ]
+    }
+  ]
+}

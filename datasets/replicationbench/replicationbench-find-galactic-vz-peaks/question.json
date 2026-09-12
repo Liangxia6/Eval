@@ -41,12 +41,7 @@
       "将 /assets 与 /app/resources 映射为 input，将 /app/result.json 映射为 output/result.json",
       "复制 masked paper 与数据说明作为公开输入；Gaia DR2 FITS 大文件须按固定 Hugging Face revision 单独 Seed",
       "保留数值期望与容差于 private；当前 DSHEval LLM check 不替代上游数值 Judge"
-    ],
-    "upstreamMetadata": {
-      "paper_id": "disk_ridges",
-      "task_id": "peak_mean_vz_all",
-      "data_revision": "41626c0d9e4f59cf76838166296e9618201003e3"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -80,23 +75,13 @@
       {
         "source": "assets/download_datasets.py",
         "destination": "input/download_datasets.py",
-        "sha256": "0c5cf6ec37e167097fc3d6e206199aa9557b2f891f825b25ae5cd9b5eda08c36"
+        "sha256": "efd7788533bc3edf2517e517a05cd42ef4284d76ed2d5c7ef3d6509854c0e7db"
       }
     ],
     "setup": {
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/result.json",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

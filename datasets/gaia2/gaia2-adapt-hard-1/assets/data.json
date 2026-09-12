@@ -1,0 +1,24 @@
+{
+  "initial_date": "2024-10-19",
+  "friend": "Ake",
+  "events": [
+    {
+      "id": "a",
+      "date": "2024-10-19"
+    },
+    {
+      "id": "b",
+      "date": "2024-10-17"
+    },
+    {
+      "id": "c",
+      "date": "2024-10-20"
+    }
+  ],
+  "reply": {
+    "can_attend": false,
+    "proposed_date": "2024-10-17",
+    "start": 8,
+    "end": 20
+  }
+}

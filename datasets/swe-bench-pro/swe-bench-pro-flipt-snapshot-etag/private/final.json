@@ -26,5 +26,5 @@
     },
     "metric": "resolved: all required fail_to_pass and pass_to_pass tests pass"
   },
-  "rubric": "只根据实际产物及评测端独立采集的执行证据评分，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。kind=llm 是既有题包格式的兼容字段，不代替本题规定的原生评分器。原始基准结果与 DSHEval 逐标签 0–4 分分别记录，不虚构官方通过阈值或官方榜单成绩。私有答案、测试补丁和后续会话仅由可信控制器/Judge 读取，不注入 Agent 的公开输入。缺少规定的运行环境、工具、记忆适配或评分器时返回 UNEVALUABLE，不能把缺环境计为 Agent 失败或成功。补丁不必与 gold.patch 文本相同；由固定版本测试判定行为等价。不得通过修改测试、绕过检查或仅解释修复思路通过。"
+  "rubric": "成功标准：修复 flipt 文件系统快照命名空间版本与 ETag 缺失问题——已有命名空间 GetVersion 返回非空版本串，不存在的命名空间返回空串并伴随非 nil error；FileInfo 提供 Etag() 方法暴露可检索的 ETag，文件构造函数支持注入版本元数据，使 Stat() 返回的 FileInfo 可读出 ETag。恢复隐藏测试后 TestFSWithoutIndex、TestGetVersion、TestNewFile、TestFileInfo 全部通过（本题无 P2P 用例）。以采集的执行证据与授权证据为准，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。"
 }

@@ -1,0 +1,9 @@
+{
+  "name": "Testprocess",
+  "pid": 1234,
+  "started": true,
+  "finished": true,
+  "crashed": true,
+  "code": 11,
+  "verbose": false
+}

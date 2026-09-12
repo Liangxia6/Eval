@@ -1,0 +1,21 @@
+{
+  "input": {
+    "service": "bedrock-runtime",
+    "logging_disabled": false,
+    "original_error": null,
+    "patch_error": null,
+    "testing": false,
+    "result": {
+      "text": "hello"
+    }
+  },
+  "output": {
+    "calls": 1,
+    "logged": true,
+    "result": {
+      "text": "hello"
+    },
+    "error": null
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

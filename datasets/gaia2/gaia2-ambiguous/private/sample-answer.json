@@ -1,0 +1,54 @@
+{
+  "input": {
+    "saved": [
+      {
+        "id": "a",
+        "price": 1499
+      },
+      {
+        "id": "b",
+        "price": 1500
+      },
+      {
+        "id": "c",
+        "price": 2000
+      }
+    ],
+    "products": [],
+    "emails": [
+      {
+        "id": "e1",
+        "sender": "Astrid",
+        "time": "2024-10-10"
+      },
+      {
+        "id": "e2",
+        "sender": "Astrid",
+        "time": "2024-10-12"
+      },
+      {
+        "id": "e3",
+        "sender": "Bob",
+        "time": "2024-10-14"
+      }
+    ],
+    "saturday": "2024-10-19"
+  },
+  "output": {
+    "saved_ids": [
+      "b",
+      "c"
+    ],
+    "purchase_id": null,
+    "clarify_ids": [],
+    "reply_to": "e2",
+    "event": {
+      "title": "Grocery Trip",
+      "date": "2024-10-19",
+      "start": 14,
+      "end": 16,
+      "location": "Hashbro Farmer's Market"
+    }
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

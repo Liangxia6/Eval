@@ -1,0 +1,25 @@
+{
+  "left": [
+    {
+      "id": 1,
+      "value": 9
+    },
+    {
+      "id": 2,
+      "value": 3
+    }
+  ],
+  "right": [
+    {
+      "id": 2,
+      "value": 3
+    },
+    {
+      "id": 3,
+      "value": 5
+    }
+  ],
+  "original_order": "id",
+  "derived_order": "-value",
+  "projection": "id"
+}

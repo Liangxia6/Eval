@@ -1,0 +1,64 @@
+{
+  "input": {
+    "locations": [
+      {
+        "zip": "1000",
+        "violent_rate": 3
+      },
+      {
+        "zip": "4000",
+        "violent_rate": 1
+      }
+    ],
+    "apartments": [
+      {
+        "id": "a",
+        "zip": "4000",
+        "price": 1200,
+        "saved": false
+      },
+      {
+        "id": "b",
+        "zip": "4000",
+        "price": 1500,
+        "saved": true
+      },
+      {
+        "id": "c",
+        "zip": "1000",
+        "price": 900,
+        "saved": true
+      }
+    ],
+    "contacts": [
+      {
+        "id": "ds",
+        "occupation": "data scientist"
+      },
+      {
+        "id": "other",
+        "occupation": "teacher"
+      }
+    ],
+    "reply": null
+  },
+  "output": {
+    "selected_zip": "4000",
+    "initial_saved_ids": [
+      "a",
+      "b",
+      "c"
+    ],
+    "final_saved_ids": [
+      "a",
+      "b",
+      "c"
+    ],
+    "notified_contacts": [
+      "ds"
+    ],
+    "change_message_to": null,
+    "silent_no_reply": true
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

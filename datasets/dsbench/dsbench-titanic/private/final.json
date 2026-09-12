@@ -9,7 +9,45 @@
     "answerFile": "private/test_answer.csv",
     "nativeEvaluator": "private/evaluate.py",
     "officialPassThreshold": null,
-    "rowAlignment": "same IDs and same order as input/test.csv; validate before invoking upstream scorer"
+    "rowAlignment": "same IDs and same order as input/test.csv; validate before invoking upstream scorer",
+    "answerStats": {
+      "rows": 179,
+      "idRange": [
+        "710",
+        "11"
+      ],
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.4134,
+      "std": 0.4938,
+      "classCounts": {
+        "0": 105,
+        "1": 74
+      },
+      "positiveRate": 0.4134
+    },
+    "answerSample": [
+      {
+        "PassengerId": "710",
+        "Survived": "1"
+      },
+      {
+        "PassengerId": "440",
+        "Survived": "0"
+      },
+      {
+        "PassengerId": "841",
+        "Survived": "0"
+      },
+      {
+        "PassengerId": "721",
+        "Survived": "1"
+      },
+      {
+        "PassengerId": "40",
+        "Survived": "1"
+      }
+    ]
   },
-  "rubric": "只根据实际产物及评测端独立采集的执行证据评分，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。kind=llm 是既有题包格式的兼容字段，不代替本题规定的原生评分器。原始基准结果与 DSHEval 逐标签 0–4 分分别记录，不虚构官方通过阈值或官方榜单成绩。私有答案、测试补丁和后续会话仅由可信控制器/Judge 读取，不注入 Agent 的公开输入。缺少规定的运行环境、工具、记忆适配或评分器时返回 UNEVALUABLE，不能把缺环境计为 Agent 失败或成功。先拒绝缺行、重复 ID、错序、非法预测和非有限值，再运行原生指标。不得用自然语言答案代替预测文件，也不得任意把原始连续指标解释为官方通过/失败。"
+  "rubric": "成功标准：1）用 input/train.csv 与 input/test.csv 建模，交付可重跑的 output/train.py 与 output/submission.csv；2）submission.csv 含 PassengerId,Survived 两列、恰好 179 行，PassengerId 与 input/test.csv 完全一致且同序，Survived 为 0/1 整数生还预测，按 accuracy 越高越好与私有答案对比——Judge 依据 answer.answerStats 核对预测的整体分布与取值范围、依据 answer.answerSample 逐条比对样本行预测；完整指标在环境就绪后由 private/evaluate.py 对照 private/test_answer.csv 计算；3）不得缺行、重复 ID、错序、含非法或非有限值，不以自然语言答案代替预测文件。以采集的执行证据与授权证据为准，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。"
 }

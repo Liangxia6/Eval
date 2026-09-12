@@ -50,16 +50,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 的数学推理是否合理、是否正确判断每个 CFG 的性质（类型/分离/闭合/不可约/维度）。",

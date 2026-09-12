@@ -1,5 +1,0 @@
-# MemoryArena source and limitations
-
-Source: Zexue He et al., MemoryArena; https://github.com/ZexueHe/MemoryArena and https://huggingface.co/datasets/ZexueHe/memoryarena. The selected code revision describes itself as preview. No root project license or dataset license declaration was found in these selected revisions; public availability is not a redistribution license. These local evaluation samples do not grant rights to redistribute the upstream code/data.
-
-Five electronics bundled-shopping chains are retained in full (six stages each). Do not flatten later stages into the first prompt, reset memory between dependent stages, or replace store interaction with product-ID question answering. Use the pinned product database and full candidate pool. The original runner may provide correct-product history; report this configuration. Native HF reconstruction does not restore structured budget/price constraints, and nonexact attribute scoring can use an LLM judge. Keep native reward, additional constraint checks and DSHEval memory/loop scores distinct.

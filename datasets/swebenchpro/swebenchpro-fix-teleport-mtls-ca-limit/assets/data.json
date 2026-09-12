@@ -1,0 +1,16 @@
+{
+  "base": {
+    "MinVersion": "TLS1.2",
+    "ClientCAs": [
+      "old"
+    ],
+    "Verify": true
+  },
+  "trusted": [
+    "root",
+    "leaf"
+  ],
+  "host": [
+    "root"
+  ]
+}

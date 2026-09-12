@@ -1,0 +1,43 @@
+{
+  "emails": [
+    {
+      "id": "0",
+      "sender": "john",
+      "t": 0
+    },
+    {
+      "id": "1",
+      "sender": "john",
+      "t": 5
+    },
+    {
+      "id": "2",
+      "sender": "john",
+      "t": 10
+    },
+    {
+      "id": "3",
+      "sender": "john",
+      "t": 15
+    },
+    {
+      "id": "4",
+      "sender": "john",
+      "t": 20
+    },
+    {
+      "id": "5",
+      "sender": "john",
+      "t": 25
+    }
+  ],
+  "harasser": "john",
+  "detective": "D",
+  "replies": [
+    {
+      "sender": "D",
+      "t": 90,
+      "lawyer": "L"
+    }
+  ]
+}

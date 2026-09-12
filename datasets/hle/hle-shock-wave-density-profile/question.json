@@ -50,16 +50,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 的物理数学推导是否合理、是否正确求解激波密度分布。",

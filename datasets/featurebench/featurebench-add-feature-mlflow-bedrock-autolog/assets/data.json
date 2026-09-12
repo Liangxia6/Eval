@@ -1,0 +1,10 @@
+{
+  "service": "bedrock-runtime",
+  "logging_disabled": false,
+  "original_error": null,
+  "patch_error": "TraceError",
+  "testing": false,
+  "result": {
+    "text": "hello"
+  }
+}

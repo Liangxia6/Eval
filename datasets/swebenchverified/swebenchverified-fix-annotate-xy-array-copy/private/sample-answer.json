@@ -1,0 +1,25 @@
+{
+  "input": {
+    "xy": [
+      1,
+      2
+    ],
+    "mutations": [
+      {
+        "index": 0,
+        "value": 9
+      }
+    ]
+  },
+  "output": {
+    "annotation_xy": [
+      1,
+      2
+    ],
+    "source_xy": [
+      9,
+      2
+    ]
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

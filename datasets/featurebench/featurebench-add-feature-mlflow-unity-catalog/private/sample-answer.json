@@ -1,0 +1,42 @@
+{
+  "input": {
+    "name": "dataset",
+    "tags": [
+      {
+        "key": "owner",
+        "value": "lab"
+      }
+    ],
+    "records": {
+      "rows": "9007199254740993",
+      "bytes": "128",
+      "map": {
+        "01": "value"
+      }
+    },
+    "schema_inputs": [
+      "x"
+    ],
+    "digest": null
+  },
+  "output": {
+    "tags": [
+      [
+        "owner",
+        "lab"
+      ]
+    ],
+    "records": {
+      "rows": 9007199254740993,
+      "bytes": 128,
+      "map": {
+        "01": "value"
+      }
+    },
+    "inputs": [
+      "x"
+    ],
+    "digest": "b277fd623676a525c29b9eb155afc8c9010681814ceafb2d7627f47b9a232576"
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

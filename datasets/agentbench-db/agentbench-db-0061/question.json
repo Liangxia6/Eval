@@ -31,7 +31,7 @@
     ],
     "adaptationChanges": [
       "保留所选 SELECT 题的原题干、完整表格及官方答案；来源行号见 taskPath。导入时执行原始 SQL 并核对官方 label。",
-      "MySQL/Docker 改为只读内存 SQLite；全列 TEXT、NOCASE，数值需显式 CAST，不保证所有 MySQL 语义等价。",
+      "原始 MySQL 环境改为本地只读内存 SQLite；全列 TEXT、NOCASE，数值需显式 CAST，不保证所有 MySQL 语义等价。",
       "表格、工具、使用说明和许可证映射到 input/；答案仅保留于 private/final.json。",
       "交付答案、实际 SQL 与查询结果；使用本地时间预算和 LLM 语义评分，不复现上游轮数、截断协议或官方总分。"
     ]
@@ -64,7 +64,7 @@
       {
         "source": "assets/README.md",
         "destination": "input/README.md",
-        "sha256": "341f8cdbdc0ed58cebeac9f509d4189d4df99cf50ddc263569e2c087a9874283"
+        "sha256": "3a939924df0f2f2092ece5068ca08fa13ed3c9132ff02e2ab71e59938de8e225"
       },
       {
         "source": "assets/LICENSE",
@@ -76,16 +76,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

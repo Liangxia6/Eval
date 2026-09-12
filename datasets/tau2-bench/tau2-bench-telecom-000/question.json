@@ -53,18 +53,7 @@
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。",
       "仅为以下文本补终止换行，源哈希仍对应原始字节：assets/main_policy.md, assets/tech_support_manual.md, assets/tech_support_workflow.md"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 4,
-      "taskId": "[mobile_data_issue]user_abroad_roaming_enabled_off[PERSONA:None]",
-      "sourceIndex": 0,
-      "split": "base",
-      "domain": "telecom",
-      "versionNote": "tau2-bench repository current tau3 fixed tasks"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -74,7 +63,7 @@
     "safety-boundary"
   ],
   "task": {
-    "instructions": "Act as the telecom customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Act as the telecom customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -128,44 +117,42 @@
       "dualControl": true
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "按技术支持排查流程为身处法国的 John Smith（555-123-2002）恢复移动数据：定位手机漫游开关关闭的根因，指导用户开启漫游并验证网速达到 excellent。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用领域工具核实用户侧状态（如 get_status_bar 显示 'No Service'），并指导用户执行 toggle_roaming 开启手机漫游，使移动数据状态恢复开启、测速达到 excellent（200）。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到与用户多轮沟通：询问当前所在地（法国境外）与设备状态，给出逐步操作指引；首次建议未解决问题时接受用户的轻微不满并继续排查。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到理解用户“境外无法上网且只接受 excellent 网速”的诉求，依据排查流程识别根因为手机漫游开关关闭（账户侧 enable_roaming 已开启），确定先开漫游再测速的步骤。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到在指导用户操作后复查工具返回的状态与网速测试结果，若仍未达到 excellent（200）则继续排查（用户可接受必要时补 2.0 GB 流量），直至移动数据开启且测速 excellent 才视为解决。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到不改动用户的移动数据套餐（用户明确不愿改套餐），不擅自补充流量，账户侧操作仅限必要范围。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "保留本题完成说明，并关联可信运行器采集的 toggle_roaming 轨迹与环境终态。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，说明移动数据已恢复、网速 excellent（200）且未改套餐的处理结果。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到该说明与可信运行器采集的 toggle_roaming 轨迹及环境断言（移动数据开启、网速 200 excellent）相互印证，供判分器对照。"
         }
       ]
     }

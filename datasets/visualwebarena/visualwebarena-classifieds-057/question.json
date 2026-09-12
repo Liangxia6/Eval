@@ -32,18 +32,7 @@
       "原生评测器必须执行；LLM 不得只凭网页操作说明或最终文本判断成功。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 8,
-      "taskId": 57,
-      "split": "classifieds",
-      "intentTemplateId": 11,
-      "visualDifficulty": "easy",
-      "reasoningDifficulty": "hard"
-    }
+    ]
   },
   "capabilityLabels": [
     "multimodal",
@@ -53,7 +42,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Add a comment on the two most recently posted blue bikes between $100-150 with the title \"Interested in your bike\" and text \"Is it still available?\".\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback and visual page content; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Add a comment on the two most recently posted blue bikes between $100-150 with the title \"Interested in your bike\" and text \"Is it still available?\".\n\nUse the browser session provisioned for the benchmark. input/browser.json declares the initial site/page configuration; the controller resolves site placeholders to isolated local endpoints. Use live page feedback and visual page content; do not use production sites.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -88,44 +77,42 @@
       "siteSnapshots": "official pinned benchmark environment snapshots required; not bundled here"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "从分类列表中识别价格在 $100-150 的蓝色自行车，确定最近发布的两辆并分别在详情页发布指定评论，以页面反馈确认。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到通过观察商品图片/截图，从 __CLASSIFIEDS__ 列表中识别出蓝色的自行车商品（而非其他颜色或品类）。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到浏览器导航到 __CLASSIFIEDS__ 站点并浏览自行车商品列表，读取各商品的图片与价格信息。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到结合价格与发布时间筛选出价格在 $100-150 区间的蓝色自行车中最近发布的两辆（目标为 item&id=66613 与 item&id=71313），并规划分别评论。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到在每一辆目标自行车的详情页评论区填写标题 'Interested in your bike'、正文 'Is it still available?' 并提交，两个商品页均完成评论发布操作。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到两个目标详情页的页面反馈中评论区均出现标题 'Interested in your bike' 与正文 'Is it still available?'，据此确认两条评论均已发布。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并使其与可信运行器采集的两个商品详情页终态相互印证。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到 output/response.txt 被写入，如实说明在两辆最近发布的蓝色自行车页发布评论的结果，并指明两个商品详情页 URL。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到 output/response.txt 与可信运行器采集的浏览器会话终态（item&id=66613 与 item&id=71313 页评论区均含 'Interested in your bike' 与 'Is it still available?'）可相互对应，供判分器对照 private/final.json 检查。"
         }
       ]
     }

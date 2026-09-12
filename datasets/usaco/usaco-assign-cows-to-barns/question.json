@@ -36,12 +36,8 @@
     "adaptationChanges": [
       "将 /app/solution.py 映射为 output/solution.py",
       "保留上游 20 组隐藏输入输出测试的判分语义，测试资源存放于 private/reference-tests",
-      "DSHEval 尚未接通 Harbor 容器化 USACO Judge；正式分数不得与 Harbor 榜单直接比较"
-    ],
-    "upstreamMetadata": {
-      "upstream_problem": "Sleeping Cows",
-      "cpid": 1068
-    }
+      "使用本地私有测试资源进行语义核验；结果不与 Harbor 榜单直接比较"
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -65,16 +61,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/solution.py",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

@@ -1,0 +1,6 @@
+I need a formula to sum values in a range between two dates where a cell contains a specific search term.
+
+The values to sum are based on whether the corresponding date falls within the given date range and if the associated cell includes the search term.
+ An example of the expected output is provided in the attached file. Apply to all search terms in column H.
+
+The workbook is at `input/workbook.xlsx`. Apply the requested changes to the workbook and save the completed file as `output/result.xlsx`. Preserve unrelated sheets, cells, and formatting. When a formula is requested, write a working formula. Inspect the saved workbook to verify the result.

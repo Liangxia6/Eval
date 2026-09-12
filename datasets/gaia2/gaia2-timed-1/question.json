@@ -38,13 +38,7 @@
       "私有保留 scenario.json；oracle 事件 DAG 和最终回复合并至 private/final.json",
       "保留原始模拟时间、事件依赖 DAG 和动态 ID；不得把模拟邮件/购物动作改为现实世界操作",
       "正式运行需 ARE MCP sidecar 和事件证据；缺失时为 UNEVALUABLE，不能仅凭文本判通过"
-    ],
-    "upstreamMetadata": {
-      "config": "time",
-      "source_id": "0777_y3r2nol0ujohv1z7evrnx8llf1ce5hjh",
-      "scenario_id": "scenario_universe_26_6ko4br",
-      "revision": "c128283"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -69,16 +63,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

@@ -1,0 +1,28 @@
+{
+  "records": [
+    {
+      "source_id": "s1",
+      "project_id": "P1",
+      "country": "示例国甲",
+      "project": "港口甲",
+      "contractor": "示例公司",
+      "start": null,
+      "completion": "2025-03",
+      "event": "commissioned",
+      "overseas": true,
+      "bri": true
+    },
+    {
+      "source_id": "s2",
+      "project_id": "P1",
+      "country": "示例国甲",
+      "project": "港口甲",
+      "contractor": "示例公司",
+      "start": "2022-08",
+      "completion": "2025-03",
+      "event": "commissioned",
+      "overseas": true,
+      "bri": true
+    }
+  ]
+}

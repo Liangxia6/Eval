@@ -48,18 +48,7 @@
       "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 3,
-      "taskId": 0,
-      "sourceIndex": 0,
-      "split": "test",
-      "domain": "airline",
-      "versionNote": "original frozen historical tau-bench"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -69,7 +58,7 @@
     "safety-boundary"
   ],
   "task": {
-    "instructions": "Act as the airline customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Act as the airline customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -117,44 +106,42 @@
       "dualControl": false
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "依据航班预订政策与用户偏好（11am 后出发、价格最低、双证书支付）为 mia_li_3668 完成 2024-05-20 JFK→SEA 单程经济舱预订。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 book_reservation 实际创建预订：user_id=mia_li_3668、JFK→SEA 单程经济舱，航班 HAT136 与 HAT039（2024-05-20），乘客 Mia Li（1990-04-05），支付为 certificate_7504069 抵扣 250 美元并用 credit_card_4421486 补 5 美元，托运 3 件（nonfree_baggages=0）且 insurance=no。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到与模拟用户多轮确认需求：出发不早于 11am EST、直飞优先但可接受一次中转、多选项时取最低价、不买保险、优先用两张证书支付；用户生日取自其档案而非要求用户口述。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到先按 2024-05-20 JFK→SEA、11am 后出发、经济舱等约束搜索并比较直飞与中转航班，再依据两张证书可抵扣金额规划 certificate_7504069（250 美元）加信用卡补差的支付组合。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到对照搜索返回的航班时间与价格筛选候选，若某航班不满足 11am 后出发或价格非最低则更换候选并复核；若支付校验显示仅能使用一张证书，则改用面额较大的证书并以信用卡补足差额。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到仅为 mia_li_3668 本人创建这一笔新预订，不修改该用户既有预订或其他用户的任何数据，证书抵扣与信用卡扣款均只用于本预订。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "保留本题完成说明，并关联可信运行器采集的 book_reservation 调用轨迹与新预订终态。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，如实记录预订结果（用户 mia_li_3668、航班 HAT136/HAT039、支付构成 250+5 美元、行李 3 件、无保险），不虚报成功。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到该说明与可信运行器采集的 book_reservation 参数及预订终态相互印证，供判分器对照。"
         }
       ]
     }

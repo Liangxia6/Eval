@@ -19,5 +19,5 @@
     "upstreamAnswerSheet": null,
     "referenceSha256": "79018555c652afdcf36d962bf84ec3902e735482d4a65367c81d9e99fb1f7da3"
   },
-  "rubric": "读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列 regions 中的目标区域结果作语义比较。需要覆盖全部目标单元格；数值、日期、空值和文本按业务含义比较，不能仅凭文件存在或 Agent 的说明判为正确。题目要求公式时需保留可计算公式，并检查题干明确要求的格式及无关区域。过程和本地层只提供描述性质证据，不绑定固定工具路线。如果无法读取 XLSX 或所需公式结果尚未重算，标记 UNEVALUABLE，不能把缺失缓存当正确空值。此适配不等同官方确定性指标。"
+  "rubric": "成功标准：读取 output/result.xlsx 的实际工作簿内容，与私有 reference.xlsx 及 answer.regions 所列目标区域作语义比较。Students 表的 E2:E7 依次为 33、26、31、41、27、17，即按 A 列学生名动态引用各人名工作表 C2 的年龄；应保留可计算公式。以采集的执行证据与授权证据为准，不得因 response.txt 自述成功或复述参考动作而判通过。"
 }

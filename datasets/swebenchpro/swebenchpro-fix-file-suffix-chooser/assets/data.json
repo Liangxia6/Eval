@@ -1,0 +1,15 @@
+{
+  "version": [
+    6,
+    3,
+    0
+  ],
+  "filters": [
+    "*.txt"
+  ],
+  "mime_extensions": [
+    ".txt",
+    ".text",
+    ".text"
+  ]
+}

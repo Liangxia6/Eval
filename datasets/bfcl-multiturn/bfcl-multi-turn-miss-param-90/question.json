@@ -35,16 +35,7 @@
       "参考调用轨迹放入 private/final.json，需原始工具实现和多轮判分器，不能退化为文本函数名匹配。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 6,
-      "taskId": "multi_turn_miss_param_90",
-      "split": "miss_param",
-      "sourceLine": 91
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -53,7 +44,7 @@
     "collaboration"
   ],
   "task": {
-    "instructions": "This is a stateful, multi-turn BFCL task. Use the provided simulated tools. The controller reveals later user turns and any newly available functions only at their designated round. Do not invent missing parameters or functions. Preserve tool state between rounds.\n\nFirst user turn:\nI need to fill 150 liters of gasoline into my vehicle for today's trip and then start the engine using the standard start mode to ensure everything is operational before departure. How much is that in gallon? Round it to the nearest integer and fill that amount.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "This is a stateful, multi-turn BFCL task. Use the provided simulated tools. The controller reveals later user turns and any newly available functions only at their designated round. Do not invent missing parameters or functions. Preserve tool state between rounds.\n\nFirst user turn:\nI need to fill 150 liters of gasoline into my vehicle for today's trip and then start the engine using the standard start mode to ensure everything is operational before departure. How much is that in gallon? Round it to the nearest integer and fill that amount.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -84,44 +75,54 @@
       "protocol": "progressive turns; execute native tools; apply excluded/missed functions; native per-turn state and response/path checks"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 VehicleControlAPI 与 TwitterAPI 模拟环境中完成加油与启动、城市距离估算、发推与提及操作，并在参数缺失时向用户澄清。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 liter_to_gallon(liter=150.0) 将 150 升换算为加仑，并以 fillFuelTank(fuelAmount=40.0) 按四舍五入后的整数加仑数加油"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到调用 lockDoors(unlock=False, door=['driver', 'passenger', 'rear_left', 'rear_right']) 锁闭四门，pressBrakePedal(pedalPosition=1.0) 踩下刹车，再以 startEngine(ignitionMode='START') 启动发动机"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到调用 get_zipcode_based_on_city(city='San Francisco') 与 get_zipcode_based_on_city(city='Rivermist') 查询两城市邮编，再以 estimate_distance(cityA='94016', cityB='83214') 估算距离"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到调用 post_tweet(content='Excited for my trip from San Francisco to Rivermist!', tags=['#JourneyAhead'], mentions=['@TravelBuddy']) 发布推文"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到调用 mention(tweet_id=10, mentioned_usernames=['@RoadsideAssistance']) 在 post_tweet 返回的推文（tweet_id=10）上提及 @RoadsideAssistance"
+        },
+        {
+          "id": "op-6",
+          "description": "期望观察到按「换算加油量（150 升 → 四舍五入为 40 加仑）→ 加油 → 锁门踩刹车点火」的依赖顺序执行，并用两城市邮编（94016、83214）作为 estimate_distance 的参数"
+        },
+        {
+          "id": "op-7",
+          "description": "期望观察到缺失参数时向用户澄清：@TravelBuddy 句柄缺失的轮次不虚构参数或发推（该轮参考轨迹为空），取得句柄后再发布"
+        },
+        {
+          "id": "op-8",
+          "description": "期望观察到与用户多轮交互：先澄清缺失的 @TravelBuddy 句柄，发布推文后按后续要求对推文执行 mention"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并关联可信运行器采集的逐轮工具调用轨迹供判分器核对。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，如实说明加油启动、距离估算、推文发布与提及的结果"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到关联可信运行器采集的逐轮工具调用轨迹（liter_to_gallon、fillFuelTank、lockDoors、pressBrakePedal、startEngine、get_zipcode_based_on_city、estimate_distance、post_tweet、mention 的实际调用及参数），供判分器按 ground truth 核对"
         }
       ]
     }

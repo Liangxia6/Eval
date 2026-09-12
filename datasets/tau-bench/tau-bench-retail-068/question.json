@@ -48,18 +48,7 @@
       "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 3,
-      "taskId": 68,
-      "sourceIndex": 68,
-      "split": "test",
-      "domain": "retail",
-      "versionNote": "original frozen historical tau-bench"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -69,7 +58,7 @@
     "safety-boundary"
   ],
   "task": {
-    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -117,44 +106,42 @@
       "dualControl": false
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在用户先说错邮编（98178）、纠错为 98187 的情况下定位 noah_ito_3850，查询其最近订单 #W6729841 的实付金额并如实回复。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 find_user_id_by_name_zip（Noah Ito）定位用户，调用 get_user_details 获取 noah_ito_3850 的最近订单，并调用 get_order_details 查询订单 #W6729841 的支付金额。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到向用户询问邮编以定位账户，在用户口述 98178 时按该信息查询；未定位到用户时与用户复核邮编，获得纠正后的 98187。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到理解用户“想知道最近一笔订单实付多少、且不确定下单时间”的诉求，规划身份定位→查用户详情→查订单详情的步骤，并最终以订单 #W6729841 的实付金额作答。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到以 98178 查询无果后，改用用户纠正的 98187 重新调用 find_user_id_by_name_zip 成功定位 noah_ito_3850，再继续查询订单金额。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到仅执行查询类操作获取订单 #W6729841 的金额（829.43），不修改任何订单、用户资料或支付信息。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "保留本题完成说明，并关联可信运行器采集的查询轨迹与最终回复金额。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，明确答复最近订单 #W6729841 的实付金额 829.43。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到该说明与可信运行器采集的两次 find_user_id_by_name_zip（98178/98187）及 get_order_details 轨迹相互印证，供判分器对照。"
         }
       ]
     }

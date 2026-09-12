@@ -1,0 +1,63 @@
+{
+  "input": {
+    "left": [
+      {
+        "id": 1,
+        "value": 9
+      },
+      {
+        "id": 2,
+        "value": 3
+      }
+    ],
+    "right": [
+      {
+        "id": 2,
+        "value": 3
+      },
+      {
+        "id": 3,
+        "value": 5
+      }
+    ],
+    "original_order": "id",
+    "derived_order": "-value",
+    "projection": "id"
+  },
+  "output": {
+    "original_before": [
+      {
+        "id": 1,
+        "value": 9
+      },
+      {
+        "id": 2,
+        "value": 3
+      },
+      {
+        "id": 3,
+        "value": 5
+      }
+    ],
+    "derived": [
+      1,
+      3,
+      2
+    ],
+    "original_after": [
+      {
+        "id": 1,
+        "value": 9
+      },
+      {
+        "id": 2,
+        "value": 3
+      },
+      {
+        "id": 3,
+        "value": 5
+      }
+    ]
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

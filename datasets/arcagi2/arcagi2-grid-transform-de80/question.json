@@ -50,16 +50,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/output.json",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 是否从示例网格正确推断出变换规则、是否正确应用到测试网格。",

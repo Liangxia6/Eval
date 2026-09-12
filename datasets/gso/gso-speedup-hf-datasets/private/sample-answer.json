@@ -1,0 +1,61 @@
+{
+  "input": {
+    "rows": [
+      {
+        "id": 0,
+        "text": "row-0",
+        "value": -2
+      },
+      {
+        "id": 1,
+        "text": "row-1",
+        "value": -1
+      },
+      {
+        "id": 2,
+        "text": "row-2",
+        "value": 0
+      },
+      {
+        "id": 3,
+        "text": "row-3",
+        "value": 1
+      },
+      {
+        "id": 4,
+        "text": "row-4",
+        "value": 2
+      },
+      {
+        "id": 5,
+        "text": "row-5",
+        "value": 3
+      },
+      {
+        "id": 6,
+        "text": "row-6",
+        "value": 4
+      },
+      {
+        "id": 7,
+        "text": "row-7",
+        "value": 5
+      }
+    ],
+    "start": 1,
+    "length": 4
+  },
+  "output": {
+    "selected_rows": 4,
+    "start_index": 1,
+    "end_index": 4,
+    "first_id": 1,
+    "first_text": "row-1",
+    "last_id": 4,
+    "last_text": "row-4",
+    "total_value": 2,
+    "min_value": -1,
+    "max_value": 2
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

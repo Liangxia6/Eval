@@ -69,16 +69,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-workbook",
-        "kind": "llm",
-        "output": "output/result.xlsx",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "Agent 是否读取实际工作簿、理解跨表或公式约束，并验证修改结果。",

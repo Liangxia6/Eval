@@ -2,8 +2,8 @@
 """
 Download ReplicationBench datasets for disk_ridges to /assets directory.
 
-A download failure must FAIL LOUDLY (non-zero exit) so the Docker build fails
-rather than shipping an image whose /assets is missing its data — otherwise the
+A download failure must FAIL LOUDLY (non-zero exit) so local setup fails
+rather than leaving the assets directory missing its data — otherwise the
 task later grades against absent inputs and produces a wrong/empty result with
 no build-time signal. See issue #32.
 """

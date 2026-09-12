@@ -31,16 +31,7 @@
       "仅覆盖 WorkArena-L1，不冒充 WorkArena++ 长流程任务；ServiceNow 实例仍需用户取得授权。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 10,
-      "sourceIndex": 1,
-      "split": "L1",
-      "taskClass": "SortHardwareListTask"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-web",
@@ -49,7 +40,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Sort the \"hardware\" list by the following fields:\n - Assigned to (descending)\n - Acquisition method (descending)\n\nUse only the provisioned WorkArena ServiceNow instance. Complete the real browser workflow; for an order, submit it in the benchmark instance and verify the created request.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Sort the \"hardware\" list by the following fields:\n - Assigned to (descending)\n - Acquisition method (descending)\n\nUse only the provisioned WorkArena ServiceNow instance. Complete the real browser workflow; for an order, submit it in the benchmark instance and verify the created request.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -78,44 +69,38 @@
       "level": "L1"
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "在 WorkArena ServiceNow 的 hardware 列表中完成排序：Assigned to 降序、Acquisition method 降序。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到在 WorkArena ServiceNow 实例中打开 hardware 列表视图，并定位到 Assigned to 与 Acquisition method 两列。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到按目标顺序操作排序控件：先对 Assigned to 列执行降序排序，再对 Acquisition method 列执行降序排序。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到在每次点击排序后根据列表重排反馈核对排序方向，若某一列不是降序则再次点击该列头修正。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到最终页面状态中 hardware 列表按 Assigned to 降序、Acquisition method 降序排列，两个字段的排序方向均正确。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "交付 output/response.txt 完成说明，并与可信运行器采集的排序后列表页面状态相互印证。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到 output/response.txt 已交付，如实区分已完成或失败，并写明 hardware 列表两个字段的排序操作与方向核对结果。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到 response.txt 的结论与可信运行器采集的浏览器会话页面状态（排序后的 hardware 列表顺序）一致，而非仅凭文字自述。"
         }
       ]
     }

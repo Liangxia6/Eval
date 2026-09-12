@@ -1,0 +1,39 @@
+{
+  "airports": [
+    {
+      "code": "A",
+      "country": "MY",
+      "lat": 0,
+      "lon": 0
+    },
+    {
+      "code": "B",
+      "country": "MY",
+      "lat": 0,
+      "lon": 1
+    },
+    {
+      "code": "C",
+      "country": "SG",
+      "lat": 2,
+      "lon": 2
+    }
+  ],
+  "flights": [
+    {
+      "id": "f1",
+      "arrival": "A",
+      "status": "arrived"
+    },
+    {
+      "id": "f1",
+      "arrival": "A",
+      "status": "arrived"
+    },
+    {
+      "id": "f2",
+      "arrival": "B",
+      "status": "cancelled"
+    }
+  ]
+}

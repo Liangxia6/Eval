@@ -48,18 +48,7 @@
       "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 3,
-      "taskId": 0,
-      "sourceIndex": 0,
-      "split": "test",
-      "domain": "retail",
-      "versionNote": "original frozen historical tau-bench"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -69,7 +58,7 @@
     "safety-boundary"
   ],
   "task": {
-    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -117,44 +106,42 @@
       "dualControl": false
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "依据换货政策，为 Yusuf Rossi（邮编 19122）完成订单 #W2378156 中机械键盘与智能恒温器两件商品的换货。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 find_user_id_by_name_zip（Yusuf Rossi、19122）定位用户，调用 get_order_details 读取订单 #W2378156，并调用 exchange_delivered_order_items 将商品 1151293680 与 4983901480 分别换成 7706410293 与 7747408585，支付方式 credit_card_9513926。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到与用户确认换货明细——键盘换成青轴款、恒温器换成兼容 Google Home 的型号，并确保两件商品的换货一次性完成（用户要求所有事项一次解决）。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到先理解替换品的规格约束（键盘：青轴、RGB 背光、全尺寸；恒温器：兼容 Google Home 而非 Apple HomeKit），再通过 get_product_details 核对候选商品属性后确定替换商品 7706410293 与 7747408585。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到若不存在青轴+RGB 背光+全尺寸的键盘，则按用户预先认可的备选（无背光款）更换候选商品并重新核对，而不是擅自选择不符要求的商品或中止换货。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到仅对订单 #W2378156 中用户指定的两件商品发起换货，不更换该订单的其他商品，也不修改其他订单或用户资料。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "保留本题完成说明，并关联可信运行器采集的 exchange_delivered_order_items 轨迹与订单 #W2378156 终态。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，记录订单 #W2378156 两件换货的结果（1151293680→7706410293、4983901480→7747408585、支付方式 credit_card_9513926）。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到该说明与可信运行器采集的换货调用轨迹及订单终态相互印证，供判分器对照。"
         }
       ]
     }

@@ -1,0 +1,19 @@
+{
+  "input": {
+    "request": "local",
+    "local_cluster": "local",
+    "clusters": {
+      "local": {
+        "kind": "local",
+        "addr": "127.0.0.1:6443",
+        "tls": "local-cert"
+      }
+    }
+  },
+  "output": {
+    "addr": "127.0.0.1:6443",
+    "tls": "local-cert",
+    "new_certificate": false
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

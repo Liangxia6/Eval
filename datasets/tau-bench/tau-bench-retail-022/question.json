@@ -48,18 +48,7 @@
       "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。"
-    ],
-    "upstreamMetadata": {
-      "importBatch": "agent-top10-2026-09-10",
-      "runtimeStatus": "requires-environment-adapter",
-      "judgeStatus": "requires-upstream-evaluator",
-      "linkCatalogIndex": 3,
-      "taskId": 22,
-      "sourceIndex": 22,
-      "split": "test",
-      "domain": "retail",
-      "versionNote": "original frozen historical tau-bench"
-    }
+    ]
   },
   "capabilityLabels": [
     "tool-external",
@@ -69,7 +58,7 @@
     "safety-boundary"
   ],
   "task": {
-    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, report UNEVALUABLE and the missing prerequisite; do not simulate success in prose."
+    "instructions": "Act as the retail customer-service agent in the provisioned tau benchmark. Read the domain policy provided in input/ and follow it. The benchmark user simulator will initiate the request and supply information through the conversation. Resolve the request using the provided domain tools; ask for missing information or confirmation as required. Do not read the user simulator's private scenario. Keep agent/user roles separate.\n\nExecution contract: perform this task only in the evaluator-provisioned benchmark environment, never in the host's real accounts, websites, or operating system. Observe tool/environment feedback and verify the requested change. Write a concise, truthful completion summary to output/response.txt. That summary is an evidence artifact, not proof that the task succeeded. If the required benchmark environment, user simulator, or tools are unavailable, stop and state the missing prerequisite in output/response.txt; do not simulate success in prose."
   },
   "environment": {
     "platform": "portable",
@@ -117,44 +106,42 @@
       "dualControl": false
     }
   },
-  "final": {
-    "checks": [
-      {
-        "id": "task-completion",
-        "kind": "llm",
-        "output": "output/response.txt",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
-      "description": "依据实际工具反馈执行任务，不用计划或文字描述代替操作。",
+      "description": "依据地址修改政策，为 ethan_garcia_1261 把用户地址与可改订单地址变更为 101 Highway, New York, NY 10001，并在用户反悔后恢复用户档案原地址。",
       "checkpoints": [
         {
-          "id": "observe",
-          "description": "读取本题隔离环境的初始状态及有效用户指令"
+          "id": "op-1",
+          "description": "期望观察到调用 find_user_id_by_name_zip（Ethan Garcia、80280）定位用户，调用 modify_user_address 将用户地址改为 101 Highway, New York, NY 10001，并调用 modify_pending_order_address 将待处理订单 #W9911714 的配送地址改为同一地址。"
         },
         {
-          "id": "execute",
-          "description": "实际调用工具，依据返回结果继续执行、澄清或纠错"
+          "id": "op-2",
+          "description": "期望观察到用户不愿多透露个人信息时，仅凭姓名与邮编 80280 完成身份定位与确认；在用户表示反悔后回应用户，执行地址恢复。"
         },
         {
-          "id": "verify",
-          "description": "确认目标状态成立，遵循权限边界且不意外修改无关对象"
+          "id": "op-3",
+          "description": "期望观察到先修改用户档案地址，再通过 get_order_details 逐一核对订单 #W4967593、#W9911714、#W5733668 的状态，识别哪些订单地址可改、哪些已发货不可改。"
+        },
+        {
+          "id": "op-4",
+          "description": "期望观察到对已发货或不可改的订单不强行修改而向用户说明原因，仅对可修改的待处理订单 #W9911714 执行 modify_pending_order_address；用户反悔后再次调用 modify_user_address 把用户地址改回 667 Highland Drive, Suite 865, Denver, CO 80280。"
+        },
+        {
+          "id": "op-5",
+          "description": "期望观察到只修改用户 ethan_garcia_1261 本人的档案地址与可改订单，不触碰其他用户或无关订单，恢复操作仅针对用户档案地址、不影响已改好的订单 #W9911714。"
         }
       ]
     },
     "local": {
-      "description": "保留完成说明；真实执行轨迹及环境终态由可信运行器在 Agent 不可写区域保存。",
+      "description": "保留本题完成说明，并关联可信运行器采集的地址修改轨迹与用户/订单终态。",
       "checkpoints": [
         {
-          "id": "summary",
-          "description": "交付 output/response.txt，区分已完成、失败和环境不可评测"
+          "id": "file-1",
+          "description": "期望观察到交付 output/response.txt，说明地址变更范围（用户档案、订单 #W9911714）、不可改订单的原因，以及用户档案地址已恢复为 667 Highland Drive, Suite 865, Denver, CO 80280。"
         },
         {
-          "id": "trusted-state",
-          "description": "关联可信运行器采集的工具轨迹、原生结果文件或最终状态，供上游判分器检查"
+          "id": "file-2",
+          "description": "期望观察到该说明与可信运行器采集的 modify_user_address、modify_pending_order_address 轨迹及终态相互印证，供判分器对照。"
         }
       ]
     }

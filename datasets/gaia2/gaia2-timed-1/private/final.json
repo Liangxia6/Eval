@@ -141,5 +141,5 @@
       }
     ]
   },
-  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。 以原始模拟时间检查等待、通知和条件分支，按 DAG 父依赖而非任意总顺序匹配；保留运行期 ID/provenance。缺少 ARE sidecar 或事件证据时为 UNEVALUABLE。"
+  "rubric": "成功标准：对 Kjersti（kjersti.fjellstad@uit.no）在 2 分钟窗口内的每封来信立即回复 \"OK!\"，间隔 30 秒再回复 \"I HAVE STARTED WORKING ON YOUR TASK!\"，每轮两封发完即通知用户；窗口过后 Kjersti 再次回复（\"Stop.\"）时，在当天首个日程前添加 1 小时日历事件 \"Email Kjersti Again\"（2024-10-15 09:00–10:00，描述 email her again）；并按窗口内 2 封来信下单 2 套 bright 20 片沙画亮粉套装并结账。文本答案未执行工具操作不得通过。以采集的执行证据与授权证据为准，不得因 response.txt 自述成功或复述参考动作而判通过。"
 }

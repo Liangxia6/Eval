@@ -1,0 +1,4 @@
+{
+  "buggy_source": "def display(address): return \"http://\"+address+\"/\"",
+  "submission": "declarative tests only"
+}

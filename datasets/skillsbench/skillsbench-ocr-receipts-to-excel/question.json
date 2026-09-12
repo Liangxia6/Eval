@@ -171,16 +171,6 @@
     },
     "reset": "fresh-workspace"
   },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/stat_ocr.xlsx",
-        "reference": "private/final.json"
-      }
-    ]
-  },
   "evidence": {
     "process": {
       "description": "agent 是否按题目要求使用推理与相应工具完成关键步骤，并对错误或反馈进行修正。",

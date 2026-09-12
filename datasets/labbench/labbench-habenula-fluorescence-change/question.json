@@ -48,7 +48,7 @@
     "adaptationChanges": [
       "带种子的选项打乱由 DSHEval 控制器实现，原始映射在执行前封存并作为评分权威，不信任任何 Agent 提供的映射",
       "路径映射进隔离工作区",
-      "容器依赖与网络沙箱未在离线夹具测试中复现",
+      "本地离线夹具不复现外部网络服务依赖",
       "对错判定改为 LLM 语义判断",
       "证据由 io/tools/local 改为 process/local 两层描述性质要求"
     ]
@@ -111,16 +111,6 @@
         }
       }
     }
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

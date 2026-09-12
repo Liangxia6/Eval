@@ -1,0 +1,51 @@
+{
+  "input": {
+    "initial_date": "2024-10-19",
+    "friend": "Ake",
+    "events": [
+      {
+        "id": "a",
+        "date": "2024-10-19"
+      },
+      {
+        "id": "b",
+        "date": "2024-10-17"
+      },
+      {
+        "id": "c",
+        "date": "2024-10-20"
+      }
+    ],
+    "reply": {
+      "can_attend": false,
+      "proposed_date": "2024-10-17",
+      "start": 8,
+      "end": 20
+    }
+  },
+  "output": {
+    "remaining_events": [
+      {
+        "id": "c",
+        "date": "2024-10-20"
+      }
+    ],
+    "film": {
+      "date": "2024-10-17",
+      "start": 8,
+      "end": 20,
+      "title": "Film Production Day",
+      "attendees": [
+        "Ake"
+      ]
+    },
+    "initial_invitation": {
+      "date": "2024-10-19",
+      "start": 8,
+      "end": 20,
+      "recipient": "Ake"
+    },
+    "status": "rescheduled"
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

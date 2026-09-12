@@ -1,0 +1,1229 @@
+{
+  "excluded_annotations": [
+    "intronic",
+    "intergenic",
+    "UTR"
+  ],
+  "samples": [
+    {
+      "sample_id": "S1",
+      "variants": [
+        {
+          "variant_id": "s1v1",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v2",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v3",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v4",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v5",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v6",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v7",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v8",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v9",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v10",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v11",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v12",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v13",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v14",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v15",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v16",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v17",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v18",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v19",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v20",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v21",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v22",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v23",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v24",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v25",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v26",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v27",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v28",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v29",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v30",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v31",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v32",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v33",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v34",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v35",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v36",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v37",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v38",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v39",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v40",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v41",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v42",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v43",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v44",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v45",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v46",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v47",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v48",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1v49",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s1v50",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s1u1",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u2",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u3",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u4",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u5",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u6",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u7",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u8",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u9",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s1u10",
+          "annotation": "UTR"
+        }
+      ]
+    },
+    {
+      "sample_id": "S2",
+      "variants": [
+        {
+          "variant_id": "s2v1",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v2",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v3",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v4",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v5",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v6",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v7",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v8",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v9",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v10",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v11",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v12",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v13",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v14",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v15",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v16",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v17",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v18",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v19",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v20",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v21",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v22",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v23",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v24",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v25",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v26",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v27",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v28",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v29",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v30",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v31",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v32",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v33",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v34",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v35",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v36",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v37",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v38",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v39",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v40",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v41",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v42",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v43",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v44",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v45",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v46",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v47",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v48",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v49",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v50",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v51",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v52",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v53",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v54",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v55",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v56",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v57",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v58",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s2v59",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2v60",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s2u1",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u2",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u3",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u4",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u5",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u6",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u7",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u8",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u9",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s2u10",
+          "annotation": "UTR"
+        }
+      ]
+    },
+    {
+      "sample_id": "S3",
+      "variants": [
+        {
+          "variant_id": "s3v1",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v2",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v3",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v4",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v5",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v6",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v7",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v8",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v9",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v10",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v11",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v12",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v13",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v14",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v15",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v16",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v17",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v18",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v19",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v20",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v21",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v22",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v23",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v24",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v25",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v26",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v27",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v28",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v29",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v30",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v31",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v32",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v33",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v34",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v35",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v36",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v37",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v38",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v39",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v40",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v41",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v42",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v43",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v44",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v45",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v46",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v47",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v48",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v49",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v50",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v51",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v52",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v53",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v54",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v55",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v56",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v57",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v58",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v59",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v60",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v61",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v62",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v63",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v64",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v65",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v66",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v67",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3v68",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v69",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s3v70",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s3u1",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u2",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u3",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u4",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u5",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u6",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u7",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u8",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u9",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s3u10",
+          "annotation": "UTR"
+        }
+      ]
+    },
+    {
+      "sample_id": "S4",
+      "variants": [
+        {
+          "variant_id": "s4v1",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v2",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v3",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v4",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v5",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v6",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v7",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v8",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v9",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v10",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v11",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v12",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v13",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v14",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v15",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v16",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v17",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v18",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v19",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v20",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v21",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v22",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v23",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v24",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v25",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v26",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v27",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v28",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v29",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v30",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v31",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v32",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v33",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v34",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v35",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v36",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v37",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v38",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v39",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v40",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v41",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v42",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v43",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v44",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v45",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v46",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v47",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v48",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v49",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v50",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v51",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v52",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v53",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v54",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v55",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v56",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v57",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v58",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v59",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v60",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v61",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v62",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v63",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v64",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v65",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v66",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v67",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v68",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v69",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v70",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v71",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v72",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v73",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v74",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v75",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v76",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v77",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v78",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4v79",
+          "annotation": "intronic"
+        },
+        {
+          "variant_id": "s4v80",
+          "annotation": "exonic"
+        },
+        {
+          "variant_id": "s4u1",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u2",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u3",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u4",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u5",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u6",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u7",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u8",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u9",
+          "annotation": "UTR"
+        },
+        {
+          "variant_id": "s4u10",
+          "annotation": "UTR"
+        }
+      ]
+    }
+  ]
+}

@@ -37,12 +37,7 @@
       "将 /workspace 数据路径映射为 input，并将答案路径映射为 output/answer.txt",
       "BixBench capsule 未复制进仓库，正式运行前须按 capsule UUID 作为私有 Seed 接入",
       "标准答案与确定性比较规则保存在 private；当前 DSHEval LLM check 不等同于 Harbor Judge"
-    ],
-    "upstreamMetadata": {
-      "question_id": "bix-30-q1",
-      "record_uuid": "85254e2c-580e-460d-ac69-9457ed46de2b",
-      "capsule_uuid": "3d4eb7bb-4fbc-4300-b79a-3eba7a6221bc"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -66,16 +61,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

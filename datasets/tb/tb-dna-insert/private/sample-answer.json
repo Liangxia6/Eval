@@ -1,0 +1,17 @@
+{
+  "input": {
+    "template": "ACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATGACGTGCAATG",
+    "position": 35,
+    "insert": "AACCGGTT"
+  },
+  "output": {
+    "forward": "AACCGGTTCAATGACGTGCAATGACGTG",
+    "reverse": "CACGTCATTGCACGTCATTG",
+    "nf": 20,
+    "nr": 20,
+    "tm_forward": 60,
+    "tm_reverse": 60,
+    "pairs": 1
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

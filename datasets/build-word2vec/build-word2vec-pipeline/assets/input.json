@@ -1,0 +1,12 @@
+{
+  "texts": [
+    "Hello, World!",
+    "Machine Learning is great",
+    "Python is my favorite programming language",
+    "World-machine tools."
+  ],
+  "stopwords": [
+    "is",
+    "my"
+  ]
+}

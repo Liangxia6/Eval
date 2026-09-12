@@ -114,5 +114,5 @@
     },
     "officialPassThreshold": null
   },
-  "rubric": "只根据实际产物及评测端独立采集的执行证据评分，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。kind=llm 是既有题包格式的兼容字段，不代替本题规定的原生评分器。原始基准结果与 DSHEval 逐标签 0–4 分分别记录，不虚构官方通过阈值或官方榜单成绩。私有答案、测试补丁和后续会话仅由可信控制器/Judge 读取，不注入 Agent 的公开输入。缺少规定的运行环境、工具、记忆适配或评分器时返回 UNEVALUABLE，不能把缺环境计为 Agent 失败或成功。不得删减 rubric 或用笼统整体印象替代逐项评分；保留三维结果及禁用来源扣分。报告正确不自动证明执行了检索工具。"
+  "rubric": "成功标准：按 answer.rubric 的 info_recall/analysis/presentation 三维标准逐项核对英文报告——info_recall：覆盖国家/机构/学科三级政策（如 2018 年国务院办公厅《科学数据管理办法》）、实践案例（GSCloud、GSA、ScienceDB 等仓储；China Scientific Data 截至 2020 年 6 月共享 224 篇数据论文）及 MOST/CAS/NSFC/CAST 等驱动机构；analysis：解释政策演进与机构角色；presentation：完整报告四部分，末节表格含 Policy Name/Issuing Body/Level 三列。信息须早于 2020 年 7 月；依赖禁用文章扣分。报告正确不自动证明执行了检索工具。以采集的执行证据与授权证据为准，不得因口头声称成功、抄写参考答案或伪造轨迹判通过。"
 }

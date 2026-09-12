@@ -1,4 +1,4 @@
 {
-  "answer": "Between 0.74 and 0.77 inclusive",
-  "rubric": "接受 0.74 至 0.77，含端点。须基于全部不良事件生成每位受试者唯一的有序 AESEV，以 patients_seen_cat 有序分数和接种状态作调整，输出 expect_interact_cat 的优势比。"
+  "answer": "0.75",
+  "rubric": "有序 logit 模型的 odds ratio = 0.75，接受范围 [0.74, 0.77]。按 subject 汇总 AE 取最大 AESEV 构造 outcome，patients_seen_cat 按 ordinal 处理，TRTGRP_cat 调整。"
 }

@@ -1,0 +1,31 @@
+{
+  "messages": [
+    {
+      "id": "a",
+      "account": "A",
+      "from": "external",
+      "to": "p",
+      "direction": "inbound",
+      "status": "received",
+      "price": "-0.01"
+    },
+    {
+      "id": "b",
+      "account": "A",
+      "from": "p",
+      "to": "external",
+      "direction": "outbound",
+      "status": "failed",
+      "price": null
+    },
+    {
+      "id": "c",
+      "account": "B",
+      "from": "p",
+      "to": "external",
+      "direction": "outbound",
+      "status": "sent",
+      "price": "-0.02"
+    }
+  ]
+}

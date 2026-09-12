@@ -177,5 +177,5 @@
       }
     ]
   },
-  "rubric": "依据私有 scenario 与 oracle event DAG 检查全部写操作、依赖关系和最终用户消息；只给出文本答案而未执行工具动作不得通过。 以原始模拟时间检查等待、通知和条件分支，按 DAG 父依赖而非任意总顺序匹配；保留运行期 ID/provenance。缺少 ARE sidecar 或事件证据时为 UNEVALUABLE。"
+  "rubric": "成功标准：找出暴力犯罪率最低的区域（邮编 4000）并收藏其中全部 6 处未收藏房源：Liege City Living、Liege City Center、Le Clos des Abbesses（各 $1200）、Liege City View（$1500）、Liege Luxe、Liege City Loft（各 $2000）；向通讯录中全部数据科学家 Kritsana Wongcharee、Nalinee Wongchinda 发一封含房价与位置的邮件，并通知用户已发送；Kritsana 回复要求取消低于 $1500 的房源后，移除 3 处 $1200 房源并经 Messages 告知 Kritsana（+66816876543），无回复则不通知用户。文本答案未执行工具操作不得通过。以采集的执行证据与授权证据为准，不得因 response.txt 自述成功或复述参考动作而判通过。"
 }

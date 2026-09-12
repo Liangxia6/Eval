@@ -1,0 +1,65 @@
+{
+  "input": {
+    "emails": [
+      {
+        "id": "e1",
+        "sender": "boss",
+        "t": 10
+      },
+      {
+        "id": "e2",
+        "sender": "boss",
+        "t": 100
+      },
+      {
+        "id": "e3",
+        "sender": "boss",
+        "t": 140
+      }
+    ],
+    "boss": "boss",
+    "first_event_t": 7200
+  },
+  "output": {
+    "replies": [
+      {
+        "email_id": "e1",
+        "t": 10,
+        "content": "OK!"
+      },
+      {
+        "email_id": "e1",
+        "t": 40,
+        "content": "I HAVE STARTED WORKING ON YOUR TASK!"
+      },
+      {
+        "email_id": "e2",
+        "t": 100,
+        "content": "OK!"
+      },
+      {
+        "email_id": "e2",
+        "t": 130,
+        "content": "I HAVE STARTED WORKING ON YOUR TASK!"
+      }
+    ],
+    "notifications": [
+      {
+        "email_id": "e1",
+        "t": 40
+      },
+      {
+        "email_id": "e2",
+        "t": 130
+      }
+    ],
+    "kit_quantity": 2,
+    "calendar": {
+      "title": "Email Kjersti Again",
+      "start": 3600,
+      "end": 7200,
+      "description": "email her again."
+    }
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

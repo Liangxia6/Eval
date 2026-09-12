@@ -1,0 +1,158 @@
+{
+  "input": {
+    "domains": {
+      "Life": [
+        "A",
+        "B",
+        "C"
+      ],
+      "Health": [
+        "D",
+        "E",
+        "F"
+      ]
+    },
+    "records": [
+      {
+        "family": "Life",
+        "domain": "A",
+        "kind": "reference_work",
+        "id": "A0",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "A",
+        "kind": "reference_work",
+        "id": "A1",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "B",
+        "kind": "reference_work",
+        "id": "B0",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "B",
+        "kind": "reference_work",
+        "id": "B1",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "B",
+        "kind": "reference_work",
+        "id": "B2",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "B",
+        "kind": "reference_work",
+        "id": "B3",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C0",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C1",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C2",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C3",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C4",
+        "year": 2022
+      },
+      {
+        "family": "Life",
+        "domain": "C",
+        "kind": "reference_work",
+        "id": "C5",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "D",
+        "kind": "reference_work",
+        "id": "D0",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "E",
+        "kind": "reference_work",
+        "id": "E0",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "E",
+        "kind": "reference_work",
+        "id": "E1",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "F",
+        "kind": "reference_work",
+        "id": "F0",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "F",
+        "kind": "reference_work",
+        "id": "F1",
+        "year": 2022
+      },
+      {
+        "family": "Health",
+        "domain": "F",
+        "kind": "reference_work",
+        "id": "F2",
+        "year": 2022
+      }
+    ]
+  },
+  "output": {
+    "Life_counts": [
+      2,
+      4,
+      6
+    ],
+    "Health_counts": [
+      1,
+      2,
+      3
+    ],
+    "difference": 1.0
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

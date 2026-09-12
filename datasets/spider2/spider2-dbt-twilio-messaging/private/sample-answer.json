@@ -1,0 +1,80 @@
+{
+  "input": {
+    "messages": [
+      {
+        "id": "a",
+        "account": "A",
+        "from": "x",
+        "to": "p",
+        "direction": "inbound",
+        "status": "received",
+        "price": "-0.01"
+      },
+      {
+        "id": "b",
+        "account": "A",
+        "from": "p",
+        "to": "x",
+        "direction": "outbound",
+        "status": "failed",
+        "price": null
+      },
+      {
+        "id": "c",
+        "account": "B",
+        "from": "p",
+        "to": "x",
+        "direction": "outbound",
+        "status": "sent",
+        "price": "-0.02"
+      }
+    ]
+  },
+  "output": {
+    "phones": [
+      {
+        "account": "A",
+        "phone": "p",
+        "inbound": 1,
+        "outbound": 1,
+        "statuses": {
+          "received": 1,
+          "failed": 1
+        },
+        "spend": "0.01"
+      },
+      {
+        "account": "B",
+        "phone": "p",
+        "inbound": 0,
+        "outbound": 1,
+        "statuses": {
+          "sent": 1
+        },
+        "spend": "0.02"
+      }
+    ],
+    "accounts": [
+      {
+        "account": "A",
+        "inbound": 1,
+        "outbound": 1,
+        "statuses": {
+          "received": 1,
+          "failed": 1
+        },
+        "spend": "0.01"
+      },
+      {
+        "account": "B",
+        "inbound": 0,
+        "outbound": 1,
+        "statuses": {
+          "sent": 1
+        },
+        "spend": "0.02"
+      }
+    ]
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

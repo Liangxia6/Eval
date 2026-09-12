@@ -1,0 +1,159 @@
+{
+  "provenance": "SYNTHETIC_AUTHORING_FIXTURE; not original COVID trial data",
+  "subjects": [
+    {
+      "subject_id": "S01",
+      "expect_interact_cat": 0,
+      "patients_seen_cat": 1,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S02",
+      "expect_interact_cat": 1,
+      "patients_seen_cat": 2,
+      "TRTGRP_cat": 1
+    },
+    {
+      "subject_id": "S03",
+      "expect_interact_cat": 2,
+      "patients_seen_cat": 3,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S04",
+      "expect_interact_cat": 0,
+      "patients_seen_cat": 4,
+      "TRTGRP_cat": 1
+    },
+    {
+      "subject_id": "S05",
+      "expect_interact_cat": 1,
+      "patients_seen_cat": 1,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S06",
+      "expect_interact_cat": 2,
+      "patients_seen_cat": 2,
+      "TRTGRP_cat": 1
+    },
+    {
+      "subject_id": "S07",
+      "expect_interact_cat": 0,
+      "patients_seen_cat": 3,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S08",
+      "expect_interact_cat": 1,
+      "patients_seen_cat": 4,
+      "TRTGRP_cat": 1
+    },
+    {
+      "subject_id": "S09",
+      "expect_interact_cat": 2,
+      "patients_seen_cat": 1,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S10",
+      "expect_interact_cat": 0,
+      "patients_seen_cat": 2,
+      "TRTGRP_cat": 1
+    },
+    {
+      "subject_id": "S11",
+      "expect_interact_cat": 1,
+      "patients_seen_cat": 3,
+      "TRTGRP_cat": 0
+    },
+    {
+      "subject_id": "S12",
+      "expect_interact_cat": 2,
+      "patients_seen_cat": 4,
+      "TRTGRP_cat": 1
+    }
+  ],
+  "adverse_events": [
+    {
+      "subject_id": "S01",
+      "AESEV": 1,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S02",
+      "AESEV": 2,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S03",
+      "AESEV": 1,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S04",
+      "AESEV": 3,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S05",
+      "AESEV": 2,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S06",
+      "AESEV": 1,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S07",
+      "AESEV": 3,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S08",
+      "AESEV": 2,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S09",
+      "AESEV": 1,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S10",
+      "AESEV": 3,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S11",
+      "AESEV": 2,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S12",
+      "AESEV": 1,
+      "AE_TERM": "COVID-19"
+    },
+    {
+      "subject_id": "S03",
+      "AESEV": 3,
+      "AE_TERM": "headache"
+    },
+    {
+      "subject_id": "S08",
+      "AESEV": 1,
+      "AE_TERM": "fever"
+    }
+  ],
+  "model_spec": {
+    "outcome": "per-subject maximum AESEV across all adverse events",
+    "exposure": "expect_interact_cat",
+    "adjustment": [
+      "patients_seen_cat as ordinal score",
+      "TRTGRP_cat"
+    ],
+    "model": "ordered logistic regression",
+    "odds_ratio_reference": 0.75
+  }
+}

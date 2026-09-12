@@ -1,0 +1,35 @@
+{
+  "saved": [
+    {
+      "id": "a",
+      "price": 1499
+    },
+    {
+      "id": "b",
+      "price": 1500
+    }
+  ],
+  "products": [
+    {
+      "id": "p1",
+      "name": "Pressman Chinese Checkers Board Game"
+    },
+    {
+      "id": "p2",
+      "name": "Pressman Chinese Checkers Board Game"
+    }
+  ],
+  "emails": [
+    {
+      "id": "e1",
+      "sender": "Astrid",
+      "time": "2024-10-10"
+    },
+    {
+      "id": "e2",
+      "sender": "Astrid",
+      "time": "2024-10-12"
+    }
+  ],
+  "saturday": "2024-10-19"
+}

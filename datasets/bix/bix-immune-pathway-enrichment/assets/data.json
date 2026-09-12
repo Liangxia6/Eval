@@ -1,0 +1,114 @@
+{
+  "provenance": "SYNTHETIC_AUTHORING_FIXTURE; not original BixBench experimental data",
+  "conditions": [
+    {
+      "id": "C01",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C02",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C03",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C04",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C05",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C06",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C07",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "C08",
+      "is_no_t_cells_control": false
+    },
+    {
+      "id": "CTRL",
+      "is_no_t_cells_control": true
+    }
+  ],
+  "pathways": [
+    {
+      "id": "IMM1",
+      "name": "T-cell activation",
+      "immune_relevant": true
+    },
+    {
+      "id": "IMM2",
+      "name": "Interferon response",
+      "immune_relevant": true
+    },
+    {
+      "id": "MET1",
+      "name": "Generic energy metabolism",
+      "immune_relevant": false
+    }
+  ],
+  "enrichment_results": [
+    {
+      "condition_id": "C01",
+      "pathway_id": "IMM1",
+      "adjusted_p": 0.01,
+      "raw_p": 0.001
+    },
+    {
+      "condition_id": "C01",
+      "pathway_id": "IMM2",
+      "adjusted_p": 0.02,
+      "raw_p": 0.002
+    },
+    {
+      "condition_id": "C02",
+      "pathway_id": "IMM1",
+      "adjusted_p": 0.049,
+      "raw_p": 0.01
+    },
+    {
+      "condition_id": "C03",
+      "pathway_id": "IMM2",
+      "adjusted_p": 0.001,
+      "raw_p": 0.0001
+    },
+    {
+      "condition_id": "C04",
+      "pathway_id": "IMM1",
+      "adjusted_p": 0.05,
+      "raw_p": 0.002
+    },
+    {
+      "condition_id": "C05",
+      "pathway_id": "MET1",
+      "adjusted_p": 0.001,
+      "raw_p": 0.0001
+    },
+    {
+      "condition_id": "C06",
+      "pathway_id": "IMM2",
+      "adjusted_p": 0.06,
+      "raw_p": 0.001
+    },
+    {
+      "condition_id": "C08",
+      "pathway_id": "IMM1",
+      "adjusted_p": 0.5,
+      "raw_p": 0.2
+    },
+    {
+      "condition_id": "CTRL",
+      "pathway_id": "IMM1",
+      "adjusted_p": 1e-05,
+      "raw_p": 1e-06
+    }
+  ]
+}

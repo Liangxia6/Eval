@@ -38,11 +38,7 @@
       "私有保留 setup/test patch 和测试入口；固定基线须先应用掩码并清理历史，不能向 Agent 暴露被移除的实现。",
       "xarray 97f3a746 基线与依赖环境需要在正式运行前作为 Seed 接入；当前 bundle 只完成题面、证据与私有判分契约",
       "DSHEval 尚未接通 Harbor F2P/P2P 确定性 Judge；正式分数不得与 Harbor 榜单直接比较"
-    ],
-    "upstreamMetadata": {
-      "instance_id": "pydata__xarray.97f3a746.test_backends_chunks.fa55f68a.lv1",
-      "xarray_base_commit": "97f3a7465a66638f68129581b658853a3992dd89"
-    }
+    ]
   },
   "capabilityLabels": [
     "artifact-delivery",
@@ -68,16 +64,6 @@
       "kind": "none"
     },
     "reset": "fresh-workspace"
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-answer",
-        "kind": "llm",
-        "output": "output/agent.patch",
-        "reference": "private/final.json"
-      }
-    ]
   },
   "evidence": {
     "process": {

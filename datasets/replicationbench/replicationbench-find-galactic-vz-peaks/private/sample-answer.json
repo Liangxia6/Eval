@@ -1,0 +1,127 @@
+{
+  "input": {
+    "bins": [
+      {
+        "radius": 5,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 0
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 6,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 2
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 7,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 1
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 8,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 0
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 9,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 3
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 10,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 1
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 11,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": 0
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      },
+      {
+        "radius": 12,
+        "components": [
+          {
+            "amplitude": 0.7,
+            "mean_vz": -1
+          },
+          {
+            "amplitude": 0.3,
+            "mean_vz": 20
+          }
+        ]
+      }
+    ]
+  },
+  "output": {
+    "value": [
+      6,
+      9
+    ],
+    "dominant_means": [
+      0,
+      2,
+      1,
+      0,
+      3,
+      1,
+      0,
+      -1
+    ]
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

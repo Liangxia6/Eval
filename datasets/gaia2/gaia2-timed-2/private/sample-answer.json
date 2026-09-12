@@ -1,0 +1,77 @@
+{
+  "input": {
+    "emails": [
+      {
+        "id": "0",
+        "sender": "john",
+        "t": 0
+      },
+      {
+        "id": "1",
+        "sender": "john",
+        "t": 5
+      },
+      {
+        "id": "2",
+        "sender": "john",
+        "t": 10
+      },
+      {
+        "id": "3",
+        "sender": "john",
+        "t": 15
+      },
+      {
+        "id": "4",
+        "sender": "john",
+        "t": 20
+      },
+      {
+        "id": "5",
+        "sender": "john",
+        "t": 25
+      },
+      {
+        "id": "outside",
+        "sender": "john",
+        "t": 60
+      },
+      {
+        "id": "other",
+        "sender": "x",
+        "t": 10
+      }
+    ],
+    "harasser": "john",
+    "detective": "D",
+    "replies": [
+      {
+        "sender": "D",
+        "t": 90,
+        "lawyer": "L"
+      }
+    ]
+  },
+  "output": {
+    "counted_ids": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "detective_message_at": 60,
+    "lawyer": "L",
+    "lawyer_message_at": 90,
+    "forward_ids": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  },
+  "notice": "可信参考实现实际运行的模拟答案；不是被测Agent答案，也不保证与所有真实标签相同"
+}

@@ -26,6 +26,6 @@ JSON response in `output/query-result.json`. Do not edit the input files. You ma
 inspect the schema, execute diagnostic queries, and revise a query after an error.
 
 This is a local adaptation of the original AgentBench v0.2 DBBench SELECT tasks.
-It retains the task's full table; it is not the full MySQL/Docker environment.
+It retains the task's full table; it is not the full upstream MySQL environment.
 It does not claim equivalence to the original AgentBench leaderboard metric.
 The supplied table contents are benchmark fixtures, not verified real-world facts.
