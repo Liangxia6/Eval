@@ -1,0 +1,17 @@
+Vendored sources come from sierra-research/tau-bench (MIT License):
+
+  https://github.com/sierra-research/tau-bench
+  commit: 59a200c6d575d595120f1cb70fea53cef0632f6b (pinned by each Case's
+  question.json source.commit)
+
+Files (kept unmodified except for the package __init__.py placeholders):
+
+  tau_bench/envs/tool.py
+  tau_bench/envs/airline/tools/  (17 files + __init__.py)
+  tau_bench/envs/airline/rules.py
+  tau_bench/envs/retail/tools/   (17 files + __init__.py)
+  tau_bench/envs/retail/rules.py
+
+Upstream data files (users/reservations/flights/orders/products.json) are NOT
+vendored; fetch_data.py downloads them at the pinned commit and verifies the
+sha256 declared in each Case's environment.upstreamConstraints.databaseSeed.

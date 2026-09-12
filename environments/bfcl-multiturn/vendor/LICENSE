@@ -1,0 +1,18 @@
+Vendored sources in this directory come from the gorilla repository
+(Berkeley Function Calling Leaderboard), Apache License 2.0:
+
+  https://github.com/ShishirPatil/gorilla
+  path: berkeley-function-call-leaderboard/bfcl_eval/eval_checker/multi_turn_eval/
+
+Files (kept unmodified except for the package __init__.py placeholders):
+
+  multi_turn_eval/func_source_code/gorilla_file_system.py
+  multi_turn_eval/func_source_code/vehicle_control.py
+  multi_turn_eval/func_source_code/ticket_api.py
+  multi_turn_eval/func_source_code/trading_bot.py
+  multi_turn_eval/func_source_code/travel_booking.py
+  multi_turn_eval/func_source_code/posting_api.py
+  multi_turn_eval/func_source_code/long_context.py
+
+Upstream Apache-2.0 license text:
+https://www.apache.org/licenses/LICENSE-2.0
