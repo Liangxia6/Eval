@@ -81,13 +81,14 @@ function baseRequest(
     runtimeDshHomePath: prepared.runtimeDshHomePath,
     probeOutputPath: prepared.probeOutputPath,
     sourceRunId: `source-${id}`,
+    contentMode: "FULL",
     deadlineMs: 5_000,
     maxOutputBytes: 64 * 1024,
     fixtureBehavior: "attention-success",
   };
 }
 
-test("MVP-SEC-RUN-001: Headless launch uses literal argv, the frozen cwd, and does not inherit the parent environment", async () => {
+test("Headless launch uses literal argv, the frozen cwd, and does not inherit the parent environment", async () => {
   const root = await temporaryDirectory();
   let prepared: PreparedTarget | undefined;
   const previousSentinel = process.env.DSHEVAL_PARENT_SENTINEL;
@@ -116,7 +117,7 @@ test("MVP-SEC-RUN-001: Headless launch uses literal argv, the frozen cwd, and do
       readonly cwd: string;
       readonly environmentNames: readonly string[];
     };
-    assert.deepEqual(audit.argv, ["--profile", "fixture-attention", task]);
+    assert.deepEqual(audit.argv, ["--profile", "fixture-attention", "--", task]);
     assert.equal(audit.cwd, prepared.workspacePath);
     const constructedNames = [
       "DO_NOT_TRACK",
@@ -158,7 +159,7 @@ test("MVP-SEC-RUN-001: Headless launch uses literal argv, the frozen cwd, and do
   }
 });
 
-test("MVP-SEC-RUN-002: argv, cwd, and non-allowlisted environment injection are rejected before spawn", async () => {
+test("argv, cwd, and non-allowlisted environment injection are rejected before spawn", async () => {
   const root = await temporaryDirectory();
   let prepared: PreparedTarget | undefined;
   try {
@@ -209,7 +210,7 @@ test("MVP-SEC-RUN-002: argv, cwd, and non-allowlisted environment injection are 
   }
 });
 
-test("MVP-FI-TARGET-001: a started target's non-zero exit maps to TARGET_FAILED and preserves its Probe", async () => {
+test("a started target's non-zero exit maps to TARGET_FAILED and preserves its Probe", async () => {
   const root = await temporaryDirectory();
   let prepared: PreparedTarget | undefined;
   try {
@@ -238,7 +239,7 @@ test("MVP-FI-TARGET-001: a started target's non-zero exit maps to TARGET_FAILED 
   }
 });
 
-test("MVP-SEC-IDENTITY-001: an unconfirmed formal setpriv or target exec failure is a Harness error", async (context) => {
+test("an unconfirmed formal setpriv or target exec failure is a Harness error", async (context) => {
   const currentUid = process.getuid?.();
   const currentGid = process.getgid?.();
   if (currentUid === undefined || currentGid === undefined) {

@@ -59,7 +59,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nWhat is the identity of the highest AUC optic lobe neuron set?\n\nOptions:\n{options}\n\nWrite your answer (the neuron set name) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
+    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nWhat is the identity of the highest AUC optic lobe neuron set?\n\nOptions:\nA. T2/T3\nB. Ensheathing glia\nC. dFB\nD. C2/C3\nE. Insufficient information to answer the question\n\nWrite your answer (the neuron set name) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
   },
   "environment": {
     "platform": "darwin",
@@ -68,29 +68,6 @@
       "Node.js >=22",
       "image-reading-tool"
     ],
-    "inputs": [
-      {
-        "source": "assets/figure.jpg",
-        "destination": "input/figure.jpg",
-        "sha256": "35d5c2141a9046896287e72328b8088586f34c324285c3559d92acc5c2a70f33"
-      },
-      {
-        "source": "assets/options.json",
-        "destination": "input/options.json",
-        "sha256": "e43945a21693a50d6db97ed53f89bbd4e021293f2506cf954d17de0fe15f7e8c"
-      }
-    ],
-    "setup": {
-      "kind": "shuffle-options",
-      "options": [
-        "Ensheathing glia",
-        "T2/T3",
-        "C2/C3",
-        "Insufficient information to answer the question",
-        "dFB"
-      ],
-      "mappingDestination": "input/letter_mapping.json"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "agent": {
@@ -139,5 +116,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/figure.jpg",
+      "destination": "input/figure.jpg",
+      "sha256": "35d5c2141a9046896287e72328b8088586f34c324285c3559d92acc5c2a70f33",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/options.json",
+      "destination": "input/options.json",
+      "sha256": "e43945a21693a50d6db97ed53f89bbd4e021293f2506cf954d17de0fe15f7e8c",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/letter_mapping.json",
+      "destination": "input/letter_mapping.json",
+      "delivery": "workspace",
+      "sha256": "4230ed399290667d8287a2b9e2f43b57e25a1ea78742dc2fdb2977f99cfc9863"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

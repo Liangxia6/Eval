@@ -1,136 +1,162 @@
+> **2026-09-12 评分链路更新：** 当前接口以 [Evaluation 重构说明](EVALUATION-REFACTOR-20260912.md) 为准。下文出现的 Pack、EvidenceContract、Closure、Gate 和旧评分报告字段均已移除；历史说明保留用于追溯。
+
 # DSHEval 架构
 
-> 单台 VM、模块化单体、单 Run / Case / Attempt。
+> 当前形态：单台 macOS VM、模块化单体、一个 Parent Run 包含多个串行 Case、每个 Case 一个 Attempt 和一个新 DSH Session。
 
 ## 1. 总体结构
 
 ```text
-Target + EvaluationRequest + Catalog
-                  │
-                  ▼
-              Planning
-       冻结 Agent、Label、Dataset、
-       Case、Metric、Environment、Observer
-                  │
-                  ▼
-               Runtime
-          Agent 自主执行任务
-             ┌────┴────┐
-             ▼         ▼
-       Runtime Probe  Environment Observer
-             └────┬────┘
-                  ▼
-        Evidence → Judge → LabelResult
-                  │
-                  ▼
-         Gate → Reset → Storage / Viewer
+Target Inspector ──► AgentStaticSnapshot
+                           │
+Dataset Catalog ───────────┼──► Unified Planner（一次 LLM）
+STANDARD Policy ───────────┘              │
+                                          ▼
+                              Dataset + Case Count
+                                          │
+                    Dataset / Label / Environment / Trace 配置
+                                          │
+                                          ▼
+                                    Batch Runner
+                               ┌──────────┴──────────┐
+                               ▼                     ▼
+                         DSH Session Trace      Environment Observer
+                               └──────────┬──────────┘
+                                          ▼
+                              Evidence → Label Judges
+                                          ▼
+                              Case Gate → Run Aggregate
+                                          ▼
+                         Agent / Run / Case JSON + HTML
 ```
 
-Agent、DSHEval Controller 和 Observer 使用不同权限。Agent 看不到 Ground Truth、Judge、Evidence 和报告目录；Observer 只读环境；Judge 只读已经密封的 Evidence。
+## 2. 三类资产的职责
 
-## 2. 模块
+| 资产 | 可以声明 | 不应该声明 |
+|---|---|---|
+| Dataset | 描述、公开题目、输入资产、既有 Label、可用题量、上游答案或检查材料 | 新建 Label、覆盖通用评分语义、选择 Agent |
+| Label | 能力语义、所需 L1/L2/L3 证据、可用环境组件、评分标准、LLM Judge 提示词 | 具体 Dataset 题目、Environment 实例地址 |
+| Environment | 本次存在的组件、Adapter 配置、采集能力与开关 | Label 分数、Agent 内部 Trace |
+
+Label 与环境组件是多对多关系：一个 Label 可以需要多个组件；一个组件也可以给多个 Label 提供证据。一个组件只使用稳定的组件事实类型，例如 Filesystem 统一为 `FILE`，具体新增、修改、删除保留在事件内容中，不拆成三个组件声明。
+
+## 3. 模块职责
 
 | 模块 | 职责 | 不负责 |
 |---|---|---|
-| `core` | 公共模型、ID、摘要、状态和失败语义 | I/O 和业务编排 |
-| `planning` | 冻结 Agent、加载资产、选择 Dataset、编译计划 | 执行 Agent 或评分 |
-| `runtime` | 准备环境并运行一个 DSH Attempt | 选择 Dataset 或 Judge |
-| `observation` | 采集 Runtime Trace 和独立环境状态 | 控制 Agent 行为 |
-| `evaluation` | 整理 Evidence、执行 Judge、计算 Gate、渲染报告 | 查询运行中的 Agent |
-| `storage` | 追加记录、提交 Artifact、校验摘要 | 重新解释结果 |
-| `platform` | 配置、安全预检、Lease、导出和 Viewer | 业务评分 |
-| `app` | 组合以上模块并驱动唯一主链路 | 定义第二套业务规则 |
+| `planning` | 冻结 Target 静态信息；读取 Catalog；一次 LLM 选择 Dataset 和题量 | 执行题目、生成标签、评分 |
+| `datasets` | 解析 Dataset 描述和真实题目；组合执行所需外部资产 | 决定 Agent 能力 |
+| `runtime` | 创建 Attempt、启动新的 DSH Session、超时/取消和环境复位 | 选择 Dataset、解释分数 |
+| `agent-trace` | 在 DSH 内部或 Session 日志侧捕获关键模型、工具、生命周期和回答事件 | 观测外部环境状态 |
+| `observation` | 运行文件、进程及其他外部环境 Observer，物化标准 Observation | 采集 Agent 思维或控制 Agent 行为 |
+| `evaluation` | 组装 Evidence，逐 Label Judge，形成 CheckResult 和 Gate | 修改原始 Trace/Observer 事实 |
+| `platform` | 配置、安全预检、结果 Bundle、Viewer | 定义 Dataset 或评分标准 |
+| `storage` | 保存不可变记录与 Artifact | 重新计算业务结论 |
+| `app` | CLI、单 Case Workflow 和多 Case Batch 编排 | 定义第二套平行业务规则 |
 
-`app` 是唯一组合根。业务模块只依赖自身和 `core`，避免循环依赖和重复模型。
+## 4. Planner
 
-## 3. 核心组件
-
-| 组件 | 输入 | 输出 |
-|---|---|---|
-| Target Inspector | Agent 路径、Profile、插件、身份 | TargetSnapshot、InspectionSnapshot |
-| Label Registry | LabelId | 唯一 MetricId、证据需求 |
-| Dataset Catalog | 版本化 Pack | Dataset、Case、环境和 Judge 绑定 |
-| Planner | Agent 快照、目标 Label、Catalog | Frozen Plan 或 UNSATISFIABLE |
-| DSH Driver | CasePlan | Attempt 进程事实 |
-| Runtime Probe | DSH 生命周期和工具事件 | Cooperative Trace |
-| Environment Observer | 冻结 Binding、环境事件 | Independent Observation |
-| Evidence Builder | 原始 Observation | Evidence Closure |
-| Judge | Metric、参数、Closure | CheckResult / LabelResult |
-| Gate | 已保存的必需结果 | PASS / FAIL / UNEVALUABLE |
-| Reset Verifier | Reset 后的新观测 | CLEANED / QUARANTINED |
-| Store / Viewer | 已提交记录和 Artifact | JSON、JSONL、HTML |
-
-## 4. Label、Metric 与 Dataset
-
-Label 是跨 Agent 和 Dataset 复用的能力维度。固定 Registry 中每个 Label 只对应一个 Metric：
+Planner 的动态输入是：
 
 ```text
-LabelId ──1:1──► MetricId
-Dataset ──N:N──► Label
-Agent   ──N:N──► Label
+Agent 静态快照
++ Capability Ledger
++ Dataset Catalog（ID、描述、Label、题量和运行条件）
++ Eligibility Index
++ STANDARD Policy
 ```
 
-Dataset 可以提供任务、Case、输入资产和 `metricParameters`，但不能创建临时 Label 或替换 Metric。Planner 根据请求的 Label 选择能够覆盖它们的 Dataset；当前 MVP 只接受一个 Dataset 和一个 Case。
+Planner 只调用一次 LLM，返回 1–4 个 Dataset，每个 Dataset 当前固定选择 2 个 Case，总数不超过 8。程序负责校验 ID、去重、题量边界和总量；所选 Dataset 的 Label 并集成为本次实际需要 Judge 的 Label。
 
-固定 14 个 Label：
+`planning/prompts/standard.json` 是完整提示词结构，运行时注入上述动态数据；`planning/policies.json` 保存数量规则。数量不写死在业务流程里。
 
-| 类别 | Label |
-|---|---|
-| 基础能力 | 推理与规划、Loop、记忆、检索与依据 |
-| 工具能力 | 代码与终端、文档与 PDF、浏览器与网络、数据库与数据处理、API 与业务系统 |
-| 综合能力 | 多模态、产物交付、协作与委派、安全与权限边界、效率与稳定性 |
+## 5. Case 执行与 Session
 
-## 5. 两个关键接口
-
-### Planning
+Parent Run 是一次完整评测；Case 是 Dataset 中的一道题；Attempt 是这道题的一次执行。当前关系是：
 
 ```text
-TargetSnapshot + InspectionSnapshot
-+ requestedLabelIds + Catalog + 当前运行能力
-→ FROZEN(EvaluationPlan, AgentTracePlan, ObservationPlan, EvidenceContracts)
-  或 UNSATISFIABLE(gaps)
+1 Parent Run
+  └─ N Cases
+      └─ 1 Attempt
+          └─ 1 new DSH Session
 ```
 
-统一 Planner 只使用 LLM 选择 Dataset 和题量，不生成或修改 Label；评测标签是所选 Dataset 既有标签的确定性并集。随后由确定性编译器把 Label 的证据要求和 Environment 的 Observer 绑定冻结成运行期计划。
+每题只执行一次，不复用上一题对话历史。当前不是新的 OS 进程级安全身份或全新 VM，只达到 Session 分离；因此“新 Session”不能等价为“安全隔离”。
 
-### Observation
+## 6. Agent Trace 与 Environment Observer
+
+### Agent Trace
+
+Agent Trace 用于回答“Agent 在内部执行了什么”，包括：
+
+- Session、模型请求与响应；
+- 工具名称、完整关键参数、返回正文和错误；
+- 命令、SQL 等实际执行内容；
+- Agent 生命周期、步骤和最终回答；
+- Agent 生成的可交付文件内容或索引。
+
+Native Probe 是我们接入 DSH 的内部采集插件；当 Native Probe 不可用时，Session 日志适配器可以恢复部分同类事实。`assistant/chunk` 是流式输出碎片，不进入结构化索引，最终回答以聚合事件保存；原始流只在 Raw Trace 中按策略保留。
+
+### Environment Observer
+
+Environment Observer 用于回答“Agent 外部的环境实际发生了什么”。Observer 在 Agent 运行窗口内采样，但只在状态变化时写事件：
+
+- Filesystem：文件创建、修改、删除及内容摘要；
+- Process：环境进程、退出和端口变化；
+- Browser：运行状态、活动 URL、标签页变化；
+- Database：服务、Schema、查询摘要和状态变化；
+- External API：请求日志、响应状态和外部副作用；
+- Network、Clipboard、Application、System：对应外部组件变化。
+
+Desktop Observer 因窗口权限、截图隐私和恢复复杂度暂时冻结。
+
+## 7. Evidence 与 Judge
+
+Evidence Builder 不替 Agent 补事实，它把 Agent Trace、最终回答、交付物和外部 Observer 记录组织成可索引证据。每个 Label Judge 只读取该 Label 允许的证据，但当前策略宁可提供完整相关 Trace 索引，也不能因过早裁剪丢掉评分需要的信息。
+
+一次 Case 的调用关系：
 
 ```text
-AgentTracePlan + ObservationPlan + EnvironmentInstance + 只读 Binding
-→ RawObservation + CollectionStatus
+Planner：整个 Parent Run 1 次
+Agent：每个 Case 1 次
+Judge：该 Case 覆盖的每个 Label 各 1 次
 ```
 
-Runtime Probe 按 Agent 生命周期采集 Trace；Environment Observer 只观测文件、进程、浏览器、数据库等环境组件。未采集、读取失败或越出范围必须显式记录，不能解释为“没有变化”。
+结果为 `PASS`、`FAIL` 或 `UNEVALUABLE`。Agent 明确做错且证据充分为 `FAIL`；采集缺失、Judge 异常或运行条件不可确认应为 `UNEVALUABLE`，不能伪装为 Agent 失败。
 
-## 6. 一次评测
+## 8. 结果目录
 
-1. 冻结 Agent、配置和 Dataset/Label/Environment 资产摘要；
-2. 检查插件、工具、DSH 版本、身份和权限；
-3. Planner 选择 Dataset 与题量，程序汇总标签并冻结运行期计划；
-4. 创建 Run、Case、Attempt，完成安全预检；
-5. Seed 环境并采集 Before；
-6. Agent 自主执行，Probe 与 Observer 同步采集；
-7. Agent 结束后 Drain、采集 After，并密封 Evidence；
-8. Judge 保存每个必需结果；
-9. Gate 只根据已保存结果计算一次；
-10. Reset 后独立验证，保存 JSON、JSONL、Artifact 和 HTML。
+```text
+var/evaluation-results/
+└── agents/<agent-id>/runs/<run-id>/
+    ├── target.json
+    ├── run.json
+    ├── report.html
+    └── cases/<case-id>/
+        ├── task.json
+        ├── plan.json
+        ├── execution.json
+        ├── trace/
+        │   ├── index.json
+        │   ├── status.json
+        │   └── raw.jsonl.gz
+        ├── observers/
+        ├── evidence/
+        ├── judge/
+        ├── artifacts/
+        ├── report.json
+        ├── report.html
+        └── manifest.json
+```
 
-## 7. 证据与结果
+`var/` 是运行产物，不提交 Git。内部 `var/batch-runtime/` 只在执行中使用；Case Bundle 成功发布后应清理临时 records、artifacts 和 runtime homes。
 
-- Runtime Trace 解释 Agent 声称和尝试了什么；
-- 独立环境证据验证真实结果；
-- 原始事实、标准化事实和推断事实分别保存；
-- 密封 Evidence 和 Artifact 使用 SHA-256 校验；
-- 明确不满足为 `FAIL`；证据缺失、不可信或 Judge 失败为 `UNEVALUABLE`；全部必需项通过才为 `PASS`；
-- Agent、采集、Judge、基础设施和 Reset 故障分别归因；
-- Reset 失败可以隔离环境，但不能修改已形成的 Agent Verdict。
+## 9. 当前真实边界
 
-## 8. 部署与展示
-
-DSHEval、被测 DSH 和评测环境运行在 VM 内。Viewer 只监听 VM 回环地址，本机通过 SSH 隧道查看 `status.html` 和 `report.html`。页面只展示已提交事实，不运行 Judge，也不是新的证据来源。
-
-## 9. 当前边界
-
-当前代码用 Attention + PyTorch Dataset Pack 和 Fixture 验证完整闭环。Pack 是框架外部内容：复用现有 Judge 与 Observer 时可直接增删；新增判定算法或观测类型时才扩展对应实现注册表。真实 DSH 的 VM 发布验收、PDF/进程 Observer 与 LLM Judge 尚未完成。
-
-暂不实现多 Dataset 调度、并发 Run、Retry、自动 Repair、跨 Label 数值加权、数据库后端和公网服务。新增能力必须有真实 Dataset、调用方和测试，不能预建空 Adapter、Factory 或 Provider。
+- 已跑通真实 DSH 的两题 Demo 和聚合 Run Report；
+- 当前 Case 串行，`caseConcurrency=1`；
+- `--max-cases` 是全局 Smoke 截断，不代表“每个 Dataset 的题量”；完整 STANDARD 不应使用它截断为 2；
+- Planner 对不可执行 Dataset 的硬过滤仍需加强；
+- Agent 仍可能读取 DSHEval 源码或私有评分材料，严格文件系统隔离尚未完成；
+- Browser、Database、External API 等 Adapter 已接入运行窗口，但它们的空状态、PARTIAL 和证据导出仍需端到端验收；
+- Raw Trace 的渐进式披露和体积控制尚未完成。

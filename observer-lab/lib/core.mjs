@@ -43,7 +43,8 @@ export function lines(text) {
   return text.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
 }
 
-export function observation(component, phase, state, errors, startedAt, completedAt, capabilities) {
+export function observation(component, phase, state, errors, startedAt, completedAt, capabilities, runtime = {}) {
+  const capturedCapabilities = [...new Set(runtime.capturedCapabilities ?? (errors.length === 0 ? capabilities : []))].sort();
   const body = {
     schema: "dsheval.observer.snapshot/v1",
     component,
@@ -52,6 +53,11 @@ export function observation(component, phase, state, errors, startedAt, complete
     interval: { startedAt, completedAt },
     completeness: errors.length === 0 ? "COMPLETE" : "PARTIAL",
     capabilities: [...capabilities].sort(),
+    runtime: {
+      status: runtime.status ?? (errors.length === 0 ? "COMPLETE" : "PARTIAL"),
+      capturedCapabilities,
+      reasonCodes: [...new Set(runtime.reasonCodes ?? errors)].sort(),
+    },
     state,
     errors: [...new Set(errors)].sort(),
   };
@@ -136,7 +142,7 @@ export function changeEvent({ component, sequence, before, after, intervalMs, sc
   if (changes.length === 0) return undefined;
   const body = {
     schema: "dsheval.observer.event/v1",
-    eventId: `${scope.caseId ?? "unscoped"}.${component}.${sequence}`,
+    eventId: `${scope.attemptId ?? scope.caseId ?? "unscoped"}.${component}.${sequence}`,
     component,
     sequence,
     observedAt: after.capturedAt,
@@ -153,6 +159,7 @@ export function changeEvent({ component, sequence, before, after, intervalMs, sc
       type: scope.caseId ? "CASE_WINDOW" : "UNSCOPED_WINDOW",
       causality: "NOT_PROVEN_BY_EXTERNAL_OBSERVER",
       ...(scope.caseId ? { caseId: scope.caseId } : {}),
+      ...(scope.attemptId ? { attemptId: scope.attemptId } : {}),
       ...(scope.agentId ? { agentId: scope.agentId } : {}),
       ...(scope.agentPid ? { agentPid: scope.agentPid } : {}),
     },

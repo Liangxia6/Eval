@@ -53,7 +53,7 @@
     },
     {
       "stage": "BUDGET_ALLOCATION",
-      "instruction": "先确定 Dataset 集合，再分配 case_count。主测集获得较多题量，代理/互补集获得较少题量；不填满预算。STANDARD 通常为 1–4 个 Dataset：1 个独立能力族选 1–2 个，2 个能力族选 2–3 个，3 个以上能力族选 3–4 个。若没有足够直接证据，可以少选，不得为了达到默认数量而加入弱匹配。"
+      "instruction": "先确定 Dataset 集合，再严格按照 inputs.policy 分配 case_count，不得自行发明题量。STANDARD 通常为 1–4 个 Dataset：1 个独立能力族选 1–2 个，2 个能力族选 2–3 个，3 个以上能力族选 3–4 个。若没有足够直接证据，可以少选，不得为了达到默认数量而加入弱匹配。"
     },
     {
       "stage": "ANNOTATE_FOR_BENCHMARK",
@@ -88,7 +88,7 @@
     "selected_datasets": [
       {
         "dataset_id": "available_datasets 中的原始 ID",
-        "case_count": 1,
+        "case_count": 2,
         "reason": "不超过 500 字；说明直接/代理能力匹配、label/description 依据和运行限制",
         "match_type": "DIRECT | PROXY | BASELINE",
         "target_capabilities": ["capability ledger 中的原始 capability id"],

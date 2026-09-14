@@ -2,9 +2,9 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { adapters } from "../adapters/index.mjs";
+import { watchChanges } from "../lib/watch.mjs";
 import {
   appendJsonLine,
-  changeEvent,
   diffSnapshots,
   prepareJsonl,
   readJson,
@@ -34,7 +34,6 @@ function positiveInteger(args, name, fallback) {
   return value;
 }
 
-const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 const args = process.argv.slice(2);
 const component = args[0];
@@ -70,36 +69,31 @@ if (!adapter || !action) {
     const durationMs = positiveInteger(args, "--duration-ms", undefined);
     const agentPid = positiveInteger(args, "--agent-pid", undefined);
     const scope = {
+      ...(option(args, "--attempt-id") ? { attemptId: option(args, "--attempt-id") } : {}),
       ...(option(args, "--case-id") ? { caseId: option(args, "--case-id") } : {}),
       ...(option(args, "--agent-id") ? { agentId: option(args, "--agent-id") } : {}),
       ...(agentPid ? { agentPid } : {}),
     };
+    const requiredCapabilities = (option(args, "--required-capabilities") ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort();
+    const statusOutput = option(args, "--status-output");
     await prepareJsonl(output);
     let stopping = false;
     process.once("SIGINT", () => { stopping = true; });
     process.once("SIGTERM", () => { stopping = true; });
-    const started = Date.now();
-    let previous = await adapter.capture({ phase: "BEFORE", config: componentConfig, outputDirectory: path.dirname(output) });
-    let eventCount = 0;
-    console.log(JSON.stringify({ status: "WATCHING", component, output, intervalMs, ...(durationMs ? { durationMs } : {}), scope }));
-    while (!stopping && (durationMs === undefined || Date.now() - started < durationMs)) {
-      await delay(intervalMs);
-      const current = await adapter.capture({ phase: "ACTIVE", config: componentConfig, outputDirectory: path.dirname(output) });
-      const event = changeEvent({
-        component,
-        sequence: eventCount + 1,
-        before: previous,
-        after: current,
-        intervalMs,
-        scope,
-      });
-      previous = current;
-      if (event === undefined) continue;
-      eventCount += 1;
-      await appendJsonLine(output, event);
-      console.log(JSON.stringify({ status: "TRIGGERED", component, sequence: eventCount, changeCount: event.changes.length, output }));
-    }
-    console.log(JSON.stringify({ status: "COMPLETED", component, action, eventCount, output }));
+    const summary = await watchChanges({
+      adapter, component, config: componentConfig, outputDirectory: path.dirname(output),
+      scope, requiredCapabilities, intervalMs, durationMs, shouldStop: () => stopping,
+      onReady: () => console.log(JSON.stringify({ status: "WATCHING", component, output, intervalMs, scope })),
+      onEvent: async (event) => {
+        await appendJsonLine(output, event);
+      },
+    });
+    if (statusOutput) await writeJson(statusOutput, summary);
+    console.log(JSON.stringify(summary));
   } else {
     throw new Error(usage());
   }

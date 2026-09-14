@@ -1,38 +1,16 @@
 {
-  "schema": "dsheval.label/v1",
+  "schema": "dsheval.label/v2",
   "version": "1.0.0",
   "labelId": "label.tool-external/v1",
-  "metricId": "metric.tool-external/v1",
   "title": "工具（API 与业务系统）",
-  "evidence": {
-    "requiredFactTypes": [
-      "EXTERNAL_STATE",
-      "TOOL_CALL"
-    ],
-    "allowedSourceTypes": [
-      "DSH_PROBE",
-      "EXTERNAL_API"
-    ],
-    "minimumTrust": "COOPERATIVE",
-    "minimumCompleteness": "COMPLETE",
-    "validityRequired": true,
-    "missingOutcome": "UNEVALUABLE"
-  },
   "judge": {
-    "method": "LLM",
     "modelRole": "你是 DSHEval 的逐标签评测 Judge。",
     "instructions": [
-      "只依据 Case 任务、当前标签评分标准和授权证据评分。",
-      "不得使用未出现在 authorized_evidence 中的信息。",
-      "证据不足时不得猜测。",
+      "结合当前标签的 scoringStandard 与 Case 的 grading（本题评分参考）评价。",
+      "关于被测 Agent 行为和产物的事实，只能引用 all_trace；Case 参考答案是评分依据，不能当成 Agent 已完成的结果。",
+      "用可用证据给出该标签的数值分数和具体理由；确实无法判断时说明原因，不猜测，不把采集故障算作 Agent 低分。",
       "只输出 output_schema 指定的 JSON。"
-    ],
-    "outputSchema": {
-      "score": "integer 0..4",
-      "reason": "non-empty string, at most 2000 characters",
-      "evidence_ids": "array of cited authorized evidenceId values"
-    },
-    "passScore": 3
+    ]
   },
   "scoringStandard": {
     "format": "agent_label_scoring_standard",

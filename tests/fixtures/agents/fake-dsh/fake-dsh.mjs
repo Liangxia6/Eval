@@ -3,14 +3,14 @@
 /**
  * Fixture 功能：模拟 Attention + PyTorch 数据集需要的最小 DSH Headless 行为。
  * 它写入代码产物并产生 Probe Trace；故障行为由测试显式选择，结果始终标记为 Fixture。
- * 调用方：runtime/target.ts 以 `--profile fixture-attention <task>` 启动本文件。
+ * 调用方：runtime/target.ts 以 `--profile fixture-attention -- <task>` 启动本文件。
  */
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const argv = process.argv.slice(2);
-if (argv.length !== 3 || argv[0] !== "--profile" || argv[1] !== "fixture-attention") {
-  throw new Error("expected: --profile fixture-attention <task>");
+if (argv.length !== 4 || argv[0] !== "--profile" || argv[1] !== "fixture-attention" || argv[2] !== "--") {
+  throw new Error("expected: --profile fixture-attention -- <task>");
 }
 
 const workspace = process.env.DSH_EVAL_WORKSPACE;

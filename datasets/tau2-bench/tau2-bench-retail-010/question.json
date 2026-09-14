@@ -60,16 +60,6 @@
       "isolated benchmark environment",
       "trusted upstream evaluator"
     ],
-    "inputs": [
-      {
-        "source": "assets/policy.md",
-        "destination": "input/policy.md",
-        "sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "required": true,
@@ -129,5 +119,16 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/policy.md",
+      "destination": "input/policy.md",
+      "sha256": "2c9652afbce57d6e087768d37cda64d31c53d50b3e3225cfdb791bac66466467",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

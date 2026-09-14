@@ -30,7 +30,7 @@
       }
     ],
     "adaptationChanges": [
-      "模板以 assets/test-supply.xlsx 提供；先复制 input/test-supply.xlsx 到 output/test-supply.xlsx，再编辑并保存后者",
+      "模板以 input/test-supply.xlsx 提供；先复制 input/test-supply.xlsx 到 output/test-supply.xlsx，再编辑并保存后者",
       "保留原始公开模板、private/final.json 和私有单元格检查；不打包整套上游环境及重复答案工作簿",
       "保留 WEO 数值容差 5%、折旧率相对容差 40% 和 HP 滤波结构检查，不要求所有单元格与 oracle 完全相同",
       "正式运行须接通 LibreOffice 重算及上游 XLSX Judge；外部数据需按指定来源取得，不能用 LLM check 替代"
@@ -58,16 +58,6 @@
       "openpyxl",
       "Internet access to PWT 10.01, IMF WEO April 2025 and ECB"
     ],
-    "inputs": [
-      {
-        "source": "assets/test-supply.xlsx",
-        "destination": "input/test-supply.xlsx",
-        "sha256": "633dc9a157273c9f643c2b267440c57babb4b1cc8b5f1e3ee8e930001834e097"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -97,5 +87,16 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/test-supply.xlsx",
+      "destination": "input/test-supply.xlsx",
+      "sha256": "633dc9a157273c9f643c2b267440c57babb4b1cc8b5f1e3ee8e930001834e097",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

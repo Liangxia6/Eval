@@ -59,10 +59,6 @@
       "sanitized Lightning-AI/pytorch-lightning@126fa6f1bf0dceb03643c59ff4130c701b61aca4 source fixture",
       "pinned upstream dependency environment"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -92,5 +88,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

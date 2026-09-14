@@ -46,16 +46,6 @@
       "Node.js >=22",
       "image-reading-tool"
     ],
-    "inputs": [
-      {
-        "source": "assets/image.jpg",
-        "destination": "input/image.jpg",
-        "sha256": "600de439c08da4be66fc9caabed1fadc81a49477d0c65bd5ed826b50c2c9a582"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -85,5 +75,16 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/image.jpg",
+      "destination": "input/image.jpg",
+      "sha256": "600de439c08da4be66fc9caabed1fadc81a49477d0c65bd5ed826b50c2c9a582",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

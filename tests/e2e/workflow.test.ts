@@ -1,3 +1,5 @@
+import { OpenAiCompatibleLabelJudge } from "../../src/evaluation/llm-label-judge.js";
+import type { EvaluationResult } from "../../src/reporting/types.js";
 /**
  * 测试功能：用 Attention + PyTorch Fixture 跑通唯一纵向链路。
  * 覆盖正常通过、产物不合格、Probe 证据不足，以及 Reset 故障不篡改 Agent 判定。
@@ -21,7 +23,21 @@ import { cleanupRuntimeDshHome } from "../../src/runtime/environment.js";
 
 const REPOSITORY_ROOT = path.resolve(process.cwd());
 const TARGET_ROOT = path.join(REPOSITORY_ROOT, "tests", "fixtures", "agents", "fake-dsh");
-const PACK_PATH = path.join(REPOSITORY_ROOT, "tests", "fixtures", "packs", "attention-pytorch-v1.json");
+const DATASETS_ROOT = path.join(REPOSITORY_ROOT,"tests","fixtures","datasets");
+const CATALOG_PATH = path.join(DATASETS_ROOT,"catalog.json");
+const mockJudge = new OpenAiCompatibleLabelJudge({
+  endpoint:"https://judge.fixture/api",apiKey:"fixture-key",model:"explicit-test-stub",
+  fetchImpl:async(_url,options)=>{
+    const body=JSON.parse(String(options?.body));const prompt=JSON.parse(body.messages[1].content);
+    const entries=prompt.all_trace.entries as Array<{id:string;layer:string;content:{portablePath?:string}}>;
+    const deliverable=entries.find(entry=>entry.layer==="DELIVERY" && entry.content.portablePath==="output/attention.py");
+    const value=prompt.label.labelId==="label.artifact-delivery/v1" && !deliverable?0:3;
+    return new Response(JSON.stringify({choices:[{message:{content:JSON.stringify({
+      status:"SCORED",score:value,reason:"Explicit fixture Judge response; not a real model quality evaluation.",
+      evidence_ids:deliverable?[deliverable.id]:[],
+    })}}]}));
+  },
+});
 
 interface FixtureRun {
   readonly root: string;
@@ -54,7 +70,7 @@ async function runFixture(
       cwd: REPOSITORY_ROOT,
       runId,
       descriptor: fixtureDescriptor(),
-      packRoot: PACK_PATH,
+      datasetsRoot:DATASETS_ROOT,datasetCatalogPath:CATALOG_PATH,labelJudge:mockJudge,
       fixtureMode: true,
       fixtureHooks: { behavior, ...hooks },
       configOverrides: {
@@ -142,7 +158,7 @@ test("plan 把静态观测和 Dataset 目录交给一次统一 Planner", async (
       descriptor: fixtureDescriptor(),
       fixtureMode: true,
       stopAfter: "PLAN",
-      packRoot: PACK_PATH,
+      datasetsRoot:DATASETS_ROOT,datasetCatalogPath:CATALOG_PATH,labelJudge:mockJudge,
       datasetMatcher: {
         select: async (input) => {
           datasetCalls += 1;
@@ -201,7 +217,7 @@ test("plan 把静态观测和 Dataset 目录交给一次统一 Planner", async (
       `${summary.observationPlanId}.json`,
     ), "utf8")) as { sourceRequirements: Array<{ sourceType: string }> };
     assert.deepEqual(tracePlan.sourceRequirements.map((item) => item.sourceType), ["DSH_PROBE"]);
-    assert.deepEqual(observationPlan.sourceRequirements.map((item) => item.sourceType), ["FILESYSTEM"]);
+    assert.equal(observationPlan.sourceRequirements.length,10);
     assert.equal(summary.datasetTestProfile, "STANDARD");
     assert.equal(summary.selectedDatasets?.length, 1);
     assert.equal(summary.totalCaseCount, 1);
@@ -212,114 +228,100 @@ test("plan 把静态观测和 Dataset 目录交给一次统一 Planner", async (
   }
 });
 
-test("Attention Fixture: Planner 到 HTML 报告的完整链路 PASS", { timeout: 20_000 }, async () => {
-  const run = await runFixture("attention-pass", "attention-success");
+test("Dataset Loader -> all trace -> label Judge -> numeric result -> HTML", {timeout:30000},async()=>{
+  const run=await runFixture("attention-score","attention-success");
   try {
-    assert.equal(run.summary.status, "COMPLETED");
-    assert.equal(run.summary.gate, "PASS");
-    assert.equal(run.summary.runState, "FINISHED");
-    assert.equal(run.summary.securityIsolation, "PROCESS_FIXTURE");
-    assert.match(run.summary.caseBundlePath ?? "", /evaluation-results\/agents\/fixture-agent\/runs\/attention-pass\/cases\/attention-pass\.case$/u);
-    const bundleManifest = JSON.parse(
-      await readFile(path.join(run.summary.caseBundlePath!, "manifest.json"), "utf8"),
-    ) as { files: Array<{ path: string }> };
-    assert.ok(bundleManifest.files.some((entry) => entry.path === "trace/raw.jsonl.gz"));
-    assert.ok(bundleManifest.files.some((entry) => entry.path === "observers/filesystem.json"));
-    assert.ok(bundleManifest.files.some((entry) => entry.path === "judge/tool-code.json"));
-    assert.ok(bundleManifest.files.some((entry) => entry.path === "artifacts/deliverables/output/attention.py"));
-    assert.ok(bundleManifest.files.some((entry) => entry.path === "report.json"));
-    const document = await report(run);
-    assert.deepEqual(document.contentDigest, digestValue(document, ["contentDigest"]));
-    const view = document.view as {
-      checks: Array<{ checkId: string; outcome: string }>;
-      reset: { result: string; environmentState: string };
-      plannerMatch: { evaluationLabelIds: string[]; selectedDatasetIds: string[]; selectedLabelIds: string[] };
-      labelEvaluations: Array<{ labelId: string; checkId: string; evaluationMode: string }>;
-      execution: { task: string; terminationKind: string; exitCode: number };
-      trace: { eventCount: number; toolCalls: Array<{ toolName: string; completed: boolean }> };
-      decisionEvidence: Array<{ factType: string }>;
-    };
-    assert.deepEqual(
-      view.checks.map((check) => [check.checkId, check.outcome]).sort(),
-      [
-        ["artifact.attention-code", "PASS"],
-        ["tool.pytorch-execution", "PASS"],
-      ],
-    );
-    assert.equal(view.reset.result, "MATCH");
-    assert.equal(view.reset.environmentState, "CLEANED");
-    assert.deepEqual(view.plannerMatch.selectedDatasetIds, ["dataset.attention-pytorch/v1"]);
-    assert.deepEqual(view.plannerMatch.evaluationLabelIds, [
-      "label.artifact-delivery/v1",
-      "label.tool-code/v1",
-    ]);
-    assert.deepEqual(
-      view.labelEvaluations.map((item) => [item.labelId, item.evaluationMode]),
-      [
-        ["label.artifact-delivery/v1", "OUTPUT_STATE"],
-        ["label.tool-code/v1", "TRACE"],
-      ],
-    );
-    assert.match(view.execution.task, /Attention Is All You Need/u);
-    assert.equal(view.execution.terminationKind, "EXITED");
-    assert.equal(view.execution.exitCode, 0);
-    assert.ok(view.trace.eventCount > 0);
-    assert.deepEqual(view.trace.toolCalls.map((item) => [item.toolName, item.completed]), [
-      ["python", true],
-    ]);
-    assert.deepEqual(
-      view.decisionEvidence.map((item) => item.factType).sort(),
-      ["AGENT_TRACE", "FILE_AFTER", "FILE_DIFF", "PROTOCOL_LIFECYCLE"],
-    );
-    assert.match(
-      await readFile(run.summary.reportHtml!, "utf8"),
-      /scenario\.attention\.pytorch\/v1/,
-    );
-  } finally {
-    await removeFixture(run);
-  }
+    assert.equal(run.summary.status,"COMPLETED",JSON.stringify(run.summary));
+    assert.equal(run.summary.exitCode,0,JSON.stringify(run.summary));
+    assert.equal(run.summary.runState,"FINISHED");
+    const document=await report(run) as unknown as EvaluationResult;
+    assert.deepEqual(document.contentDigest,digestValue(document,["contentDigest"]));
+    assert.equal(document.scores.length,2);assert.ok(document.scores.every(score=>score.score===3));
+    assert.ok(document.scores.every(score=>score.allTraceDigest.value===document.allTrace!.contentDigest.value));
+    assert.equal(document.allTrace!.coverage.length,11);
+    assert.ok(document.allTrace!.entries.some(entry=>entry.layer==="AGENT"));
+    const delivery=document.allTrace!.entries.filter(entry=>entry.layer==="DELIVERY");
+    assert.match(JSON.stringify(delivery),/scaled_dot_product_attention/);
+    assert.match(JSON.stringify(document.case!.grading),/softmax/);
+    assert.equal(document.environmentState,"CLEANED");
+    assert.equal(document.reset?.result,"MATCH");
+    assert.equal("gate" in document,false);assert.equal("view" in document,false);
+    const html=await readFile(run.summary.reportHtml!,"utf8");
+    const output=await readFile(path.join(run.summary.caseBundlePath!,"output","attention.py"),"utf8");
+    assert.match(output,/scaled_dot_product_attention/);
+    assert.match(html,/href="output\/attention.py"/);
+    assert.match(html,/标签维度评分/);assert.match(html,/3.00/);
+    assert.deepEqual(JSON.parse(await readFile(path.join(run.summary.caseBundlePath!,"report.json"),"utf8")),document);
+  } finally {await removeFixture(run);}
 });
-
-test("Attention Fixture: 缺少代码产物只让对应硬检查 FAIL", { timeout: 20_000 }, async () => {
-  const run = await runFixture("attention-missing-artifact", "missing-artifact");
+test("Missing delivery becomes a numeric result from Judge, not a hard gate",{timeout:30000},async()=>{
+  const run=await runFixture("attention-missing","missing-artifact");
   try {
-    assert.equal(run.summary.gate, "FAIL");
-    const view = (await report(run)).view as {
-      checks: Array<{ checkId: string; outcome: string }>;
-    };
-    assert.equal(
-      view.checks.find((check) => check.checkId === "artifact.attention-code")?.outcome,
-      "FAIL",
-    );
-    assert.equal(
-      view.checks.find((check) => check.checkId === "tool.pytorch-execution")?.outcome,
-      "PASS",
-    );
-  } finally {
-    await removeFixture(run);
-  }
+    assert.equal(run.summary.exitCode,0,JSON.stringify(run.summary));
+    assert.equal(run.summary.scores?.find(score=>score.labelId==="label.artifact-delivery/v1")?.score,0);
+    assert.equal(run.summary.scores?.find(score=>score.labelId==="label.tool-code/v1")?.score,3);
+  } finally {await removeFixture(run);}
 });
-
-test("Attention Fixture: Probe 缺结束边界时证据不足而不是 PASS", { timeout: 20_000 }, async () => {
-  const run = await runFixture("attention-incomplete-probe", "missing-probe-stop");
+test("Incomplete Probe still reaches every Judge with coverage metadata",{timeout:30000},async()=>{
+  const run=await runFixture("attention-incomplete","missing-probe-stop");
   try {
-    assert.equal(run.summary.gate, "UNEVALUABLE");
+    assert.equal(run.summary.scores?.length,2,JSON.stringify(run.summary));
+    assert.ok(run.summary.scores?.every(score=>score.status==="SCORED"));
     assert.ok(run.summary.reasonCodes.includes("PROBE_STOP_MISSING"));
-  } finally {
-    await removeFixture(run);
-  }
+  } finally {await removeFixture(run);}
 });
-
-test("Attention Fixture: Reset 验证失败不改变已形成的 PASS Gate", { timeout: 20_000 }, async () => {
-  const run = await runFixture("attention-reset-failure", "attention-success", {
-    afterReset: async (workspacePath) => {
-      await writeFile(path.join(workspacePath, "residue.txt"), "reset residue", "utf8");
-    },
+test("Reset failure does not change previously produced numeric scores",{timeout:30000},async()=>{
+  const run=await runFixture("attention-reset-failure","attention-success",{
+    afterReset:async(workspace)=>{await writeFile(path.join(workspace,"residue.txt"),"residue");},
   });
   try {
-    assert.equal(run.summary.gate, "PASS");
-    assert.notEqual(run.summary.operationalHealth, "HEALTHY");
-  } finally {
-    await removeFixture(run);
-  }
+    assert.ok(run.summary.scores?.every(score=>score.score===3),JSON.stringify(run.summary));
+    assert.equal(run.summary.operationalHealth,"FAILED");
+    assert.equal(run.summary.exitCode,4);
+  } finally {await removeFixture(run);}
 });
+
+for (const scenario of [
+  { name: "adapter-loss", reason: "PROBE_ADAPTER_CAPTURE_INCOMPLETE" },
+  { name: "adapter-truncation", reason: "PROBE_TRUNCATED" },
+  { name: "turn-open", reason: "PROBE_TURN_INCOMPLETE" },
+  { name: "native-stop-unconfirmed", reason: "PROBE_NATIVE_STOP_UNCONFIRMED" },
+]) {
+  test(`Trace ${scenario.name} records coverage uncertainty without blocking Judge`, { timeout: 30000 }, async () => {
+    const runId = `trace-${scenario.name}`;
+    const run = await runFixture(runId, "attention-success", {
+      afterTargetBeforeDrain: async (workspacePath) => {
+        const fixtureRoot = path.resolve(workspacePath, "../../../..");
+        const probeFile = path.join(fixtureRoot, "runtime-homes", runId, `${runId}.case`, `${runId}.attempt`, "probe", "events.jsonl");
+        let records = (await readFile(probeFile, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as {
+          probeSeq: number;
+          kind: string;
+          data: Record<string, unknown> & { event?: { type?: string } };
+          captureDiagnostics?: unknown;
+        });
+        if (scenario.name === "turn-open") {
+          records = records.filter((record) => record.data.event?.type !== "turn/end");
+        } else if (scenario.name === "native-stop-unconfirmed") {
+          const stop = records.find((record) => record.kind === "probe/stop")!;
+          stop.data = { source: "DSHEVAL_NATIVE_ADAPTER", nativeStopObserved: false };
+        } else {
+          records[0]!.captureDiagnostics = {
+            schema: "dsheval.trace-adapter-capture/v1", source: "DSHEVAL_NATIVE_PROBE",
+            truncated: scenario.name === "adapter-truncation",
+            issues: scenario.name === "adapter-loss" ? [{ code: "NATIVE_HASH_INVALID", detail: "test capture integrity failure" }] : [],
+          };
+        }
+        records = records.map((record, probeSeq) => ({ ...record, probeSeq }));
+        await writeFile(probeFile, records.map((record) => JSON.stringify(record)).join("\n") + "\n");
+      },
+    });
+    try {
+      assert.equal(run.summary.scores?.length,2,JSON.stringify(run.summary));
+      assert.ok(run.summary.scores?.every(score=>score.status==="SCORED"));
+      assert.ok(run.summary.reasonCodes.includes(scenario.reason));
+      const document=await report(run) as unknown as EvaluationResult;
+      assert.equal(document.environmentState,"CLEANED");
+      assert.ok(document.allTrace!.coverage.some(status=>status.completeness!=="COMPLETE"));
+    } finally { await removeFixture(run); }
+  });
+}

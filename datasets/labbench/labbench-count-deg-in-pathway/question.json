@@ -41,7 +41,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Read the image file `input/figure.jpg` to answer the following question.\n\nIn panel I, how many differentially expressed genes are involved in the \"negative regulation of protein metabolic process\" pathway?\n\nOptions:\n{options}\n\nWrite your answer (the number) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task."
+    "instructions": "Read the image file `input/figure.jpg` to answer the following question.\n\nIn panel I, how many differentially expressed genes are involved in the \"negative regulation of protein metabolic process\" pathway?\n\nOptions:\nA. 7\nB. 3\nC. 6\nD. 9\nE. Insufficient information to answer the question\nF. 8\n\nWrite your answer (the number) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task."
   },
   "environment": {
     "platform": "darwin",
@@ -50,30 +50,6 @@
       "Node.js >=22",
       "image-reading-tool"
     ],
-    "inputs": [
-      {
-        "source": "assets/figure.jpg",
-        "destination": "input/figure.jpg",
-        "sha256": "8e7ca139f928ff1d3bc103363d6e8ac3a9b5b3c09310664155e7079e3dafc6ef"
-      },
-      {
-        "source": "assets/options.json",
-        "destination": "input/options.json",
-        "sha256": "a8c5b3400afb0ae20f8ed296353f733a3d2773ef21cd64fedafb709f5248fd30"
-      }
-    ],
-    "setup": {
-      "kind": "shuffle-options",
-      "options": [
-        "Insufficient information to answer the question",
-        "8",
-        "6",
-        "3",
-        "7",
-        "9"
-      ],
-      "mappingDestination": "input/letter_mapping.json"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -103,5 +79,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/figure.jpg",
+      "destination": "input/figure.jpg",
+      "sha256": "8e7ca139f928ff1d3bc103363d6e8ac3a9b5b3c09310664155e7079e3dafc6ef",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/options.json",
+      "destination": "input/options.json",
+      "sha256": "a8c5b3400afb0ae20f8ed296353f733a3d2773ef21cd64fedafb709f5248fd30",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/letter_mapping.json",
+      "destination": "input/letter_mapping.json",
+      "delivery": "workspace",
+      "sha256": "c44b9296f327e92752b36281097a5dbff1660e0062c61ee59795b35bafd9250d"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

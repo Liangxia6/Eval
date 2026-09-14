@@ -48,10 +48,6 @@
       "Python/R scientific stack",
       "BixBench capsule 4dceea58-7d66-4576-bfc6-88c026d5b7a9 seeded to input/"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -81,5 +77,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

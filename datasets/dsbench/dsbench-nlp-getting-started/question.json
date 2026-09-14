@@ -78,21 +78,6 @@
       "task-specific pinned runtime",
       "trusted upstream evaluator"
     ],
-    "inputs": [
-      {
-        "source": "assets/train.csv",
-        "destination": "input/train.csv",
-        "sha256": "000b83ed3f6b65bc4a708be31b0dae1fee9bed50e3558ef965655c6aaa537bfe"
-      },
-      {
-        "source": "assets/test.csv",
-        "destination": "input/test.csv",
-        "sha256": "0354b2c1afb5d074446ecdb0390859f170ed1cfd1453797d432c6b3fe6beaf3f"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "required": true,
@@ -145,5 +130,22 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/train.csv",
+      "destination": "input/train.csv",
+      "sha256": "000b83ed3f6b65bc4a708be31b0dae1fee9bed50e3558ef965655c6aaa537bfe",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/test.csv",
+      "destination": "input/test.csv",
+      "sha256": "0354b2c1afb5d074446ecdb0390859f170ed1cfd1453797d432c6b3fe6beaf3f",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

@@ -30,29 +30,9 @@
   "environment": {
     "platform": "portable",
     "timeoutSeconds": 1800,
-    "inputs": [
-      {
-        "source": "assets/input.json",
-        "destination": "input/input.json"
-      }
-    ],
-    "setup": {
-      "kind": "self-contained-dsheval-fixture"
-    },
     "reset": "fresh-workspace",
     "allowedEdits": [
       "solver.py"
-    ]
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-result",
-        "kind": "llm",
-        "output": "solver.py",
-        "reference": "private/final.json",
-        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
-      }
     ]
   },
   "evidence": {
@@ -84,5 +64,22 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/input.json",
+      "destination": "input/input.json",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "solver.py",
+    "criteria": [
+      {
+        "id": "final-result",
+        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
+      }
+    ]
   }
 }

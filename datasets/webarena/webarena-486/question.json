@@ -51,16 +51,6 @@
       "isolated benchmark environment",
       "trusted upstream evaluator"
     ],
-    "inputs": [
-      {
-        "source": "assets/browser.json",
-        "destination": "input/browser.json",
-        "sha256": "5f4933c703b8eb64dcbd7976d223a4c028ecda74c0870dded5b229ded090893b"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "required": true,
@@ -111,5 +101,16 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/browser.json",
+      "destination": "input/browser.json",
+      "sha256": "5f4933c703b8eb64dcbd7976d223a4c028ecda74c0870dded5b229ded090893b",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

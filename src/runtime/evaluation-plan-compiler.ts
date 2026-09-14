@@ -1,17 +1,7 @@
 /**
- * 文件职责：把统一 Planner 已选中的 Dataset、Label 证据要求与 Environment Observer
- * 绑定冻结成执行期 EvaluationPlan、AgentTracePlan、ObservationPlan 和 EvidenceContract。
- *
- * 本模块不选择 Dataset、不定义标签证据规则、也不调用 LLM。ObservationPlan 只是运行期派生物：
- * “采集什么”来自 Label，“怎样采集”来自 Environment。
- *
- * 与其他文件的真实交互：`app/bootstrap.ts` 构造 ExecutionPlanCompiler 并注入产物写能力；
- * `datasets/evaluation-asset.ts` 提供组合后的执行资产，`planning/target.ts` 提供静态检查结果；
- * `runtime` 消费 EvaluationPlan 与 AgentTracePlan，`observation` 只消费环境 ObservationPlan，
- * `evaluation` 使用证据契约判定。
- *
- * 公开接口：PlanningCapabilities、judgeCapabilityDigest、findPlanGaps 与实现
- * EvaluationAssetMatchingPort 的 ExecutionPlanCompiler。
+ * 将选定 Case、环境与 Probe 配置冻结为执行计划。
+ * SourceRequirements 来自环境组件和 Probe，不从标签推导。
+ * 不定义评分标准，不创建证据契约，不调用 Judge。
  */
 import {
   cancelled,
@@ -23,7 +13,6 @@ import type {
   ArtifactCommitMetadata,
   EvaluationAssetMatchingInput,
   EvaluationAssetMatchingPort,
-  JudgeDescriptor,
   OperationContext,
   PlanArtifactMaterializer,
   PortResult,
@@ -47,15 +36,12 @@ import type {
   ArtifactRef,
   AssetIdentifier,
   CasePlan,
-  CheckPlan,
   ConfigSnapshot,
   ContentDigest,
   EvaluationPlan,
-  EvidenceContract,
-  EvaluationPack,
+  CaseExecutionInput,
   InspectionSnapshot,
   IsoDateTime,
-  JsonObject,
   JsonValue,
   ObservationPlan,
   PlanBuildResult,
@@ -64,7 +50,6 @@ import type {
   ScopeRef,
   SensorAdapterDescriptor,
   SourceRequirement,
-  SourceTrust,
   StableId,
   TargetSnapshot,
 } from "../core/models.js";
@@ -94,13 +79,7 @@ interface MaterializedTask {
   readonly inputContentDigests: readonly ContentDigest[];
 }
 
-/** Dataset 声明的 EvidenceContract 及其对应 CheckPlan 编译结果。 */
-interface CompiledContracts {
-  readonly contracts: readonly EvidenceContract[];
-  readonly checkPlans: readonly CheckPlan[];
-}
-
-/** 将 Pack/配置中的未知字段窄化为 JSON 对象。 */
+/** 将 Case/配置中的未知字段窄化为 JSON 对象。 */
 function asObject(value: unknown, fieldName: string): Record<string, JsonValue> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new ContractViolation("INVALID_PLAN_INPUT", `${fieldName} must be an object`);
@@ -108,7 +87,7 @@ function asObject(value: unknown, fieldName: string): Record<string, JsonValue> 
   return value as Record<string, JsonValue>;
 }
 
-/** 将 Pack/配置中的未知字段窄化为 JSON 数组。 */
+/** 将 Case/配置中的未知字段窄化为 JSON 数组。 */
 function asArray(value: unknown, fieldName: string): readonly JsonValue[] {
   if (!Array.isArray(value)) {
     throw new ContractViolation("INVALID_PLAN_INPUT", `${fieldName} must be an array`);
@@ -152,9 +131,9 @@ function inspectionRef(inspection: InspectionSnapshot): Ref<InspectionSnapshot> 
   return refFor(inspection.schema, inspection.inspectionId, inspection.contentDigest);
 }
 
-/** 为 EvaluationPlan 构造 EvaluationPack 引用。 */
-function packRef(pack: EvaluationPack): Ref<EvaluationPack> {
-  return refFor(pack.schema, pack.packId, pack.contentDigest);
+/** 为 EvaluationPlan 构造 CaseExecutionInput 引用。 */
+function executionInputRef(pack: CaseExecutionInput): Ref<CaseExecutionInput> {
+  return refFor(pack.schema, pack.inputId, pack.contentDigest);
 }
 
 /** 创建 PLAN 阶段脱敏 FailureDraft，供 Planner 的取消、拒绝和异常路径复用。 */
@@ -211,10 +190,10 @@ function inspectionVersion(value: JsonValue): string | undefined {
 }
 
 /**
- * 将 Pack 的每项 SourceRequirement 与 Sensor 注册表精确匹配，并检查注册项规范性；
+ * 将 执行输入的每项 SourceRequirement 与 Sensor 注册表精确匹配，并检查注册项规范性；
  * findPlanGaps 调用并合并返回的缺口。
  */
-function registryGapForSensors(
+export function registryGapForSensors(
   requirements: readonly SourceRequirement[],
   sensors: readonly SensorAdapterDescriptor[],
 ): PlanGap[] {
@@ -255,7 +234,10 @@ function registryGapForSensors(
         sensor.sourceType === requirement.sourceType &&
         sensor.implementationId === requirement.sensorImplementationId &&
         sensor.implementationVersion === requirement.sensorImplementationVersion &&
-        digestEquals(sensor.capabilityDigest, requirement.sensorCapabilityDigest),
+        (requirement.requiredCapabilities === undefined
+          ? digestEquals(sensor.capabilityDigest, requirement.sensorCapabilityDigest)
+          : digestEquals(digestValue([...requirement.requiredCapabilities].sort()), requirement.sensorCapabilityDigest) &&
+            requirement.requiredCapabilities.every((capability) => sensor.capabilities.includes(capability))),
     );
     if (exact === undefined) {
       gaps.push(
@@ -263,53 +245,6 @@ function registryGapForSensors(
           "MANDATORY_SENSOR_UNAVAILABLE",
           `Mandatory ${requirement.sourceType} Sensor triple is unavailable`,
           [requirement.sourceRequirementId, requirement.sensorImplementationId],
-        ),
-      );
-    }
-  }
-  return gaps;
-}
-
-/** 计算 Pack Judge 的语义能力摘要；应用注册和 Planner 匹配使用同一算法。 */
-export function judgeCapabilityDigest(judge: JsonObject): ContentDigest {
-  return digestValue({
-    judgeId: judge.judgeId,
-    judgeVersion: judge.version,
-    method: judge.method,
-    deterministic: judge.deterministic,
-    checkType: judge.checkType,
-  });
-}
-
-/** 将 Pack 的 Judge 定义与运行时 Judge 注册表按 ID、版本、确定性和能力摘要精确匹配。 */
-function registryGapForJudges(
-  packJudges: readonly JsonObject[],
-  judges: readonly JudgeDescriptor[],
-): PlanGap[] {
-  const gaps: PlanGap[] = [];
-  if (new Set(judges.map((judge) => judge.judgeId)).size !== judges.length) {
-    gaps.push(gap("JUDGE_REGISTRY_AMBIGUOUS", "Judge registry contains duplicate IDs"));
-  }
-  for (const packJudge of packJudges) {
-    const judgeId = validateVersionedAssetId<"JudgeId">(packJudge.judgeId, "pack judgeId");
-    const judgeVersion = asString(packJudge.version, `${judgeId}.version`);
-    const method = asString(packJudge.method, `${judgeId}.method`);
-    const deterministic = packJudge.deterministic === true;
-    const expectedCapabilityDigest = judgeCapabilityDigest(packJudge);
-    const exact = judges.find(
-      (judge) =>
-        judge.judgeId === judgeId &&
-        judge.judgeVersion === judgeVersion &&
-        judge.method === method &&
-        judge.deterministic === deterministic &&
-        digestEquals(judge.capabilityDigest, expectedCapabilityDigest),
-    );
-    if (exact === undefined) {
-      gaps.push(
-        gap(
-          "MANDATORY_JUDGE_UNAVAILABLE",
-          `Required Judge ${judgeId}@${judgeVersion} is unavailable or drifted`,
-          [judgeId],
         ),
       );
     }
@@ -364,8 +299,8 @@ function capabilityGaps(
   return gaps;
 }
 
-/** 检查冻结 Config 的截止时间、稳定窗口、产物预算和隔离等级能否满足 Pack。 */
-function configGaps(config: ConfigSnapshot, pack: EvaluationPack): PlanGap[] {
+/** 检查冻结 Config 的截止时间、稳定窗口、产物预算和隔离等级能否满足 Case。 */
+function configGaps(config: ConfigSnapshot, pack: CaseExecutionInput): PlanGap[] {
   const gaps: PlanGap[] = [];
   const scenarioExecution = asObject(pack.scenario.execution, "scenario.execution");
   const scenarioDeadline = asPositiveInteger(
@@ -404,67 +339,6 @@ function configGaps(config: ConfigSnapshot, pack: EvaluationPack): PlanGap[] {
   return gaps;
 }
 
-/** 校验 Pack 内单 Dataset、单 Case 的引用关系；不限定具体标签、Judge 或环境类型。 */
-function packApplicabilityGaps(pack: EvaluationPack): PlanGap[] {
-  const gaps: PlanGap[] = [];
-  try {
-    const scenario = asObject(pack.scenario, "evaluationPack.scenario");
-    const environment = asObject(pack.environment, "evaluationPack.environment");
-    const execution = asObject(scenario.execution, "evaluationPack.scenario.execution");
-    const evaluationProfile = asObject(
-      pack.dataset.evaluationProfile,
-      "evaluationPack.dataset.evaluationProfile",
-    );
-    const metricPool = asObject(pack.metricPool, "evaluationPack.metricPool");
-    const unit = pack.resolution.units[0];
-
-    if (
-      unit === undefined ||
-      unit.caseId !== scenario.scenarioId ||
-      unit.environmentId !== environment.environmentId ||
-      unit.datasetId !== validateVersionedAssetId<"DatasetId">(pack.dataset.datasetId) ||
-      unit.judgeAssetId !== validateVersionedAssetId<"JudgeAssetId">(
-        evaluationProfile.judgeAssetId,
-      )
-    ) {
-      gaps.push(
-        gap(
-          "PACK_REFERENCE_MISMATCH",
-          "Selected Dataset, Case, Environment or Judge references do not form one atomic unit",
-        ),
-      );
-    }
-    validateVersionedAssetId(scenario.scenarioId, "scenarioId");
-    validateVersionedAssetId(environment.environmentId, "environmentId");
-    validateVersionedAssetId(pack.dataset.datasetId, "datasetId");
-    validateVersionedAssetId(metricPool.metricPoolId, "metricPoolId");
-
-    /** 旧式或多 Case Pack 形状的字段名注册表。 */
-    const forbiddenCaseFields = ["case", "cases", "casePlan", "casePlans", "scenarios"];
-    if (
-      execution.maxAttempts !== 1 ||
-      pack.resolution.units.length !== 1 ||
-      forbiddenCaseFields.some((field) => Object.hasOwn(scenario, field)) ||
-      forbiddenCaseFields.some((field) => Object.hasOwn(pack as unknown as object, field))
-    ) {
-      gaps.push(
-        gap(
-          "MULTI_CASE_OR_RETRY_UNSUPPORTED",
-          "MVP compiles exactly one Case with maxAttempts=1",
-        ),
-      );
-    }
-  } catch {
-    gaps.push(
-      gap(
-        "EVALUATION_PACK_SHAPE_INVALID",
-        "Evaluation pack applicability or versioned asset identities are invalid",
-      ),
-    );
-  }
-  return gaps;
-}
-
 /**
  * 对全部冻结输入与显式能力做确定性匹配，汇总、去重并排序 PlanGap；
  * ExecutionPlanCompiler.buildPlan 在提交任务产物前调用，测试也直接验证此纯匹配结果。
@@ -473,12 +347,12 @@ export function findPlanGaps(
   input: EvaluationAssetMatchingInput,
   capabilities: PlanningCapabilities,
 ): readonly PlanGap[] {
-  const { targetSnapshot, inspectionSnapshot, evaluationPack, configSnapshot } = input;
+  const { targetSnapshot, inspectionSnapshot, caseInput, configSnapshot } = input;
   const gaps: PlanGap[] = [];
   try {
     validateFrozenDigest(targetSnapshot, "target snapshot");
     validateFrozenDigest(inspectionSnapshot, "inspection snapshot");
-    validateFrozenDigest(evaluationPack, "evaluation pack");
+    validateFrozenDigest(caseInput, "case execution input");
     validateFrozenDigest(configSnapshot, "config snapshot");
   } catch {
     gaps.push(gap("FROZEN_INPUT_DIGEST_INVALID", "A frozen Planning input failed digest validation"));
@@ -545,20 +419,14 @@ export function findPlanGaps(
       gaps.push(gap(code, "A mandatory Runtime Probe capability is unknown or absent"));
     }
   }
-  gaps.push(...packApplicabilityGaps(evaluationPack));
-  gaps.push(...registryGapForSensors(evaluationPack.sourceRequirements, input.sensors));
-  gaps.push(...registryGapForJudges(evaluationPack.judges, input.judges));
+  gaps.push(...registryGapForSensors(caseInput.sourceRequirements, input.sensors));
   gaps.push(...capabilityGaps(capabilities, sessionTraceFallback));
-  gaps.push(...configGaps(configSnapshot, evaluationPack));
+  gaps.push(...configGaps(configSnapshot, caseInput));
 
-  if (evaluationPack.checks.length === 0 ||
-      new Set(evaluationPack.checks.map((check) => check.checkId)).size !== evaluationPack.checks.length) {
-    gaps.push(gap("CHECK_SET_INVALID", "Pack must contain at least one uniquely identified Check"));
-  }
-  if (evaluationPack.sourceRequirements.length === 0 ||
-      new Set(evaluationPack.sourceRequirements.map((source) => source.sourceRequirementId)).size !==
-        evaluationPack.sourceRequirements.length) {
-    gaps.push(gap("SOURCE_SET_INVALID", "Pack must declare at least one uniquely identified observation source"));
+  if (caseInput.sourceRequirements.length === 0 ||
+      new Set(caseInput.sourceRequirements.map((source) => source.sourceRequirementId)).size !==
+        caseInput.sourceRequirements.length) {
+    gaps.push(gap("SOURCE_SET_INVALID", "Case input must declare at least one uniquely identified observation source"));
   }
 
   const unique = new Map<string, PlanGap>();
@@ -660,9 +528,9 @@ async function materializeTask(
   input: EvaluationAssetMatchingInput,
   materializer: PlanArtifactMaterializer,
 ): Promise<PortResult<MaterializedTask>> {
-  const { targetSnapshot, evaluationPack, configSnapshot } = input;
+  const { targetSnapshot, caseInput, configSnapshot } = input;
   const scope = planningScope(targetSnapshot);
-  const scenario = evaluationPack.scenario;
+  const scenario = caseInput.scenario;
   const task = asString(scenario.agentTask, "scenario.agentTask");
   const publicInputs = asArray(scenario.publicInputs, "scenario.publicInputs")
     .map((item, index) => ({ index, value: asObject(item, `publicInputs[${index}]`) }))
@@ -673,22 +541,12 @@ async function materializeTask(
       ),
     );
   const targetVisible = canonicalize({ task, publicInputs: publicInputs.map((inputItem) => inputItem.value) });
-  const hiddenTokens = evaluationPack.judges.flatMap((judge) => {
-    const rules = asObject(judge.ruleParameters, "judge.ruleParameters");
-    return [
-      String(judge.judgeId),
-      ...Object.values(rules)
-        .filter((value): value is string => typeof value === "string")
-        .filter((value) => /^[0-9a-f]{64}$/u.test(value)),
-    ];
-  });
+  const hiddenTokens: string[] = [];
   hiddenTokens.push(
     configSnapshot.artifactRoot,
     configSnapshot.reportRoot,
     configSnapshot.resultRoot,
     configSnapshot.runRoot,
-    "ruleParameters",
-    "evidenceContract",
   );
   if (hiddenTokens.some((token) => token.length > 0 && targetVisible.includes(token))) {
     return rejected(
@@ -725,9 +583,7 @@ async function materializeTask(
   const taskContentDigest = digestBytes(taskBytes);
   const taskId = `agent-task.${digestValue({
     targetSnapshotDigest: targetSnapshot.contentDigest,
-    packDigest: evaluationPack.contentDigest,
-    evaluationRequest: evaluationPack.request,
-    catalogResolution: evaluationPack.resolution,
+    executionInputDigest: caseInput.contentDigest,
     taskContentDigest,
   }).value.slice(0, 24)}`;
   const taskResult = await commitPlanningArtifact(
@@ -825,114 +681,8 @@ async function materializeTask(
   );
 }
 
-/**
- * 为 Dataset 中的每个 Check 编译带语义摘要的 EvidenceContract 与 CheckPlan；
- * compileFrozenPlan 调用，并把注册 Judge 的版本/能力摘要绑定到规则参数。
- */
-function evidenceContracts(
-  input: EvaluationAssetMatchingInput,
-  semanticSeed: ContentDigest,
-): CompiledContracts {
-  const scope = planningScope(input.targetSnapshot);
-  const createdAt = validateIsoDateTime(input.configSnapshot.createdAt);
-  const contracts: EvidenceContract[] = [];
-  const checkPlans: CheckPlan[] = [];
-  const checks = [...input.evaluationPack.checks].sort((left, right) =>
-    left.checkId.localeCompare(right.checkId, "en"),
-  );
-  for (const check of checks) {
-    const judge = input.evaluationPack.judges.find((candidate) => candidate.judgeId === check.judgeId);
-    if (judge === undefined) {
-      throw new ContractViolation("INTERNAL_INVARIANT", `validated Check has no Judge`);
-    }
-    const registryJudge = input.judges.find((candidate) => candidate.judgeId === check.judgeId);
-    if (registryJudge === undefined) {
-      throw new ContractViolation("INTERNAL_INVARIANT", `validated Judge registry entry disappeared`);
-    }
-    const requiredFactTypes = asArray(judge.requiredFactTypes, `${check.checkId}.requiredFactTypes`).map(
-      (value, index) => asString(value, `${check.checkId}.requiredFactTypes[${index}]`),
-    );
-    const allowedSourceTypes = Object.freeze(
-      asArray(judge.allowedSourceTypes, `${check.checkId}.allowedSourceTypes`)
-        .map((value, index) => asString(value, `${check.checkId}.allowedSourceTypes[${index}]`))
-        .sort(),
-    );
-    const minimumTrustValue = asString(judge.minimumTrust, `${check.checkId}.minimumTrust`);
-    if (minimumTrustValue !== "INDEPENDENT" && minimumTrustValue !== "COOPERATIVE" && minimumTrustValue !== "UNVERIFIED") {
-      throw new ContractViolation("INVALID_PLAN_INPUT", `${check.checkId}.minimumTrust is invalid`);
-    }
-    const minimumTrust = minimumTrustValue as SourceTrust;
-    const sourceRules = asObject(judge.ruleParameters, `${check.checkId}.ruleParameters`);
-    const ruleParameters = Object.freeze({
-      ...sourceRules,
-      judgeVersion: registryJudge.judgeVersion,
-      judgeCapabilityDigestValue: registryJudge.capabilityDigest.value,
-    });
-    const timeBoundary = asObject(judge.timeBoundary, `${check.checkId}.timeBoundary`);
-    const semanticFields = {
-      semanticSeed,
-      checkId: check.checkId,
-      requiredFactTypes,
-      allowedSourceTypes,
-      minimumTrust,
-      minimumCompleteness: "COMPLETE",
-      validityRequired: true,
-      timeBoundary,
-      authorizedJudgeId: check.judgeId,
-      ruleParameters,
-      missingOutcome: "UNEVALUABLE",
-    };
-    const semanticDigest = digestValue(semanticFields);
-    const evidenceContractId = validateStableId<"EvidenceContractId">(
-      `evidence-contract.${check.type.toLowerCase().replace("_", "-")}.${semanticDigest.value.slice(0, 16)}`,
-      "evidenceContractId",
-    );
-    const withoutDigest = {
-      schema: "dsheval.mvp.evidence-contract/v1" as const,
-      evidenceContractId,
-      scope,
-      createdAt,
-      producerVersion: input.configSnapshot.dshevalVersion,
-      checkId: check.checkId,
-      requiredFactTypes: Object.freeze(requiredFactTypes),
-      allowedSourceTypes,
-      minimumTrust,
-      minimumCompleteness: "COMPLETE" as const,
-      validityRequired: true,
-      timeBoundary,
-      authorizedJudgeId: check.judgeId,
-      ruleParameters,
-      missingOutcome: "UNEVALUABLE" as const,
-      semanticDigest,
-    };
-    const contract: EvidenceContract = Object.freeze({
-      ...withoutDigest,
-      contentDigest: digestValue(withoutDigest),
-    });
-    contracts.push(contract);
-    checkPlans.push(
-      Object.freeze({
-        checkId: check.checkId,
-        type: check.type,
-        required: check.required,
-        hardGate: check.hardGate,
-        judgeId: check.judgeId,
-        evidenceContractRef: refFor<EvidenceContract>(
-          contract.schema,
-          contract.evidenceContractId,
-          contract.contentDigest,
-        ),
-      }),
-    );
-  }
-  return Object.freeze({
-    contracts: Object.freeze(contracts),
-    checkPlans: Object.freeze(checkPlans),
-  });
-}
-
 /** 从 Scenario pathPolicy 提取并校验稳定排序的允许与禁止路径列表。 */
-function pathLists(pack: EvaluationPack): {
+function pathLists(pack: CaseExecutionInput): {
   readonly allowedPaths: CasePlan["allowedPaths"];
   readonly forbiddenPaths: CasePlan["forbiddenPaths"];
 } {
@@ -968,23 +718,18 @@ function compileFrozenPlan(
   capabilities: PlanningCapabilities,
   materialized: MaterializedTask,
 ): PlanBuildResult {
-  const { targetSnapshot, inspectionSnapshot, evaluationPack, configSnapshot } = input;
+  const { targetSnapshot, inspectionSnapshot, caseInput, configSnapshot } = input;
   const scope = planningScope(targetSnapshot);
-  const execution = asObject(evaluationPack.scenario.execution, "scenario.execution");
+  const execution = asObject(caseInput.scenario.execution, "scenario.execution");
   const scenarioId = validateVersionedAssetId<"ScenarioId">(
-    evaluationPack.scenario.scenarioId,
+    caseInput.scenario.scenarioId,
     "scenarioId",
   );
   const environmentId = validateVersionedAssetId<"EnvironmentDefinitionId">(
-    evaluationPack.environment.environmentId,
+    caseInput.environment.environmentId,
     "environmentId",
   );
-  const checkIds = Object.freeze(
-    [...evaluationPack.checks]
-      .sort((left, right) => left.checkId.localeCompare(right.checkId, "en"))
-      .map((check) => check.checkId),
-  );
-  const pathPolicy = pathLists(evaluationPack);
+  const pathPolicy = pathLists(caseInput);
   const semanticSeed = digestValue({
     targetSnapshotId: targetSnapshot.targetSnapshotId,
     targetFacts: {
@@ -1017,7 +762,7 @@ function compileFrozenPlan(
       limitations: inspectionSnapshot.limitations,
       sourceArtifactIds: inspectionSnapshot.sourceArtifactRefs.map((ref) => String(ref.id)).sort(),
     },
-    packDigest: evaluationPack.contentDigest,
+    executionInputDigest: caseInput.contentDigest,
     executionConfig: {
       runDeadlineMs: configSnapshot.runDeadlineMs,
       caseDeadlineMs: configSnapshot.caseDeadlineMs,
@@ -1036,13 +781,6 @@ function compileFrozenPlan(
         sourceType: sensor.sourceType,
         capabilityDigest: sensor.capabilityDigest,
       })),
-    judgeRegistry: [...input.judges]
-      .sort((left, right) => left.judgeId.localeCompare(right.judgeId, "en"))
-      .map((judge) => ({
-        judgeId: judge.judgeId,
-        judgeVersion: judge.judgeVersion,
-        capabilityDigest: judge.capabilityDigest,
-      })),
     capabilities: {
       ...capabilities,
       observerOperations: [...capabilities.observerOperations].sort(),
@@ -1058,16 +796,15 @@ function compileFrozenPlan(
     casePlanId,
     order: 1,
     scenarioId,
-    datasetId: evaluationPack.resolution.units[0]!.datasetId,
-    labelBindings: evaluationPack.resolution.units[0]!.labelBindings,
+    datasetId: caseInput.datasetId,
+    labelIds: caseInput.labelIds,
     environmentId,
     environmentObserverSourceRequirementId:
-      evaluationPack.resolution.units[0]!.environmentObserverSourceRequirementId,
-    runtimeSourceRequirementId: evaluationPack.resolution.units[0]!.runtimeSourceRequirementId,
-    judgeAssetId: evaluationPack.resolution.units[0]!.judgeAssetId,
+      caseInput.environmentObserverSourceRequirementId,
+    runtimeSourceRequirementId: caseInput.runtimeSourceRequirementId,
     agentTaskArtifactRef: materialized.taskRef,
     visibleInputArtifactRefs: materialized.visibleInputRefs,
-    seedSpec: asObject(evaluationPack.environment.seedSpec, "environment.seedSpec"),
+    seedSpec: asObject(caseInput.environment.seedSpec, "environment.seedSpec"),
     allowedPaths: pathPolicy.allowedPaths,
     forbiddenPaths: pathPolicy.forbiddenPaths,
     deadlineMs: asPositiveInteger(execution.deadlineMs, "scenario.execution.deadlineMs"),
@@ -1076,20 +813,17 @@ function compileFrozenPlan(
       "scenario.execution.stableWindowMs",
     ),
     maxAttempts: 1,
-    checkIds,
   });
-  const compiledContracts = evidenceContracts(input, semanticSeed);
   const planSemanticDigest = digestValue({
     semanticSeed,
     casePlan: {
       casePlanId,
       scenarioId,
       datasetId: casePlan.datasetId,
-      labelBindings: casePlan.labelBindings,
+      labelIds: casePlan.labelIds,
       environmentId,
       environmentObserverSourceRequirementId: casePlan.environmentObserverSourceRequirementId,
       runtimeSourceRequirementId: casePlan.runtimeSourceRequirementId,
-      judgeAssetId: casePlan.judgeAssetId,
       taskContentDigest: materialized.taskContentDigest,
       inputContentDigests: materialized.inputContentDigests,
       seedSpec: casePlan.seedSpec,
@@ -1098,21 +832,11 @@ function compileFrozenPlan(
       deadlineMs: casePlan.deadlineMs,
       stableWindowMs: casePlan.stableWindowMs,
       maxAttempts: 1,
-      checkIds,
     },
-    evidenceContracts: compiledContracts.contracts.map((contract) => contract.semanticDigest),
   });
   const evaluationPlanId = validateStableId<"EvaluationPlanId">(
     `evaluation-plan.${planSemanticDigest.value.slice(0, 24)}`,
     "evaluationPlanId",
-  );
-  const evaluationProfile = asObject(
-    evaluationPack.dataset.evaluationProfile,
-    "evaluationPack.dataset.evaluationProfile",
-  );
-  const gateRule = asObject(
-    evaluationProfile.gateRule,
-    "evaluationPack.dataset.evaluationProfile.gateRule",
   );
   const evaluationWithoutDigest = {
     schema: "dsheval.mvp.evaluation-plan/v1" as const,
@@ -1122,18 +846,14 @@ function compileFrozenPlan(
     producerVersion: configSnapshot.dshevalVersion,
     targetSnapshotRef: snapshotRef(targetSnapshot),
     inspectionRef: inspectionRef(inspectionSnapshot),
-    packRef: packRef(evaluationPack),
-    request: evaluationPack.request,
-    catalogResolution: evaluationPack.resolution,
+    inputRef: executionInputRef(caseInput),
     casePlan,
-    checkPlans: compiledContracts.checkPlans,
     budget: Object.freeze({
       runDeadlineMs: configSnapshot.runDeadlineMs,
       caseDeadlineMs: casePlan.deadlineMs,
       maxArtifactBytes: configSnapshot.maxArtifactBytes,
       maxAttempts: 1,
     }),
-    gateRule,
     exclusions: Object.freeze([
       "PLUGIN_TARGET",
       "MULTI_CASE",
@@ -1149,13 +869,13 @@ function compileFrozenPlan(
   });
 
   const agentTraceSourceRequirements = Object.freeze(
-    evaluationPack.sourceRequirements.filter(
+    caseInput.sourceRequirements.filter(
       (requirement) =>
         requirement.sourceRequirementId === casePlan.runtimeSourceRequirementId,
     ),
   );
   const environmentSourceRequirements = Object.freeze(
-    evaluationPack.sourceRequirements.filter(
+    caseInput.sourceRequirements.filter(
       (requirement) =>
         requirement.sourceRequirementId !== casePlan.runtimeSourceRequirementId,
     ),
@@ -1267,7 +987,6 @@ function compileFrozenPlan(
     evaluationPlan,
     agentTracePlan,
     observationPlan,
-    evidenceContracts: compiledContracts.contracts,
   });
 }
 

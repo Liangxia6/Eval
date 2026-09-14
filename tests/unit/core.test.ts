@@ -35,7 +35,7 @@ import {
 
 const time = "2026-09-01T00:00:00.000Z";
 
-test("MVP-SEC-IDENTITY-001 builds the mandatory setpriv privilege-drop argv", () => {
+test("builds the mandatory setpriv privilege-drop argv", () => {
   assert.equal(LINUX_SETPRIV_PATH, "/usr/bin/setpriv");
   assert.deepEqual(linuxSetprivArguments(1001, 1002, "/usr/bin/node", ["agent.mjs"]), [
     "--reuid=1001",
@@ -53,7 +53,7 @@ test("MVP-SEC-IDENTITY-001 builds the mandatory setpriv privilege-drop argv", ()
   assert.throws(() => linuxSetprivArguments(1001, 1002, "/usr/bin/node", ["bad\0arg"]));
 });
 
-test("MVP-SEC-IDENTITY-001 builds the non-interactive macOS identity-launch argv", () => {
+test("builds the non-interactive macOS identity-launch argv", () => {
   assert.equal(DARWIN_SUDO_PATH, "/usr/bin/sudo");
   assert.deepEqual(darwinSudoArguments(501, 20, "/opt/homebrew/bin/dsh", ["task"]), [
     "-n",
@@ -90,7 +90,7 @@ function attemptScope(suffix = "one") {
   });
 }
 
-test("MVP-UT-CORE-001 canonical JSON and SHA-256 are stable", () => {
+test("canonical JSON and SHA-256 are stable", () => {
   const left = { z: [3, { beta: true, alpha: "值" }], a: -0 };
   const right = { a: 0, z: [3, { alpha: "值", beta: true }] };
   assert.equal(canonicalJson(left), canonicalJson(right));
@@ -102,7 +102,7 @@ test("MVP-UT-CORE-001 canonical JSON and SHA-256 are stable", () => {
   assert.throws(() => withContentDigest(committed), /without contentDigest/u);
 });
 
-test("MVP-UT-CORE-001 invalid JSON values never receive a digest", () => {
+test("invalid JSON values never receive a digest", () => {
   assert.throws(() => canonicalJson({ missing: undefined }), ContractViolation);
   assert.throws(() => canonicalJson([1, , 3]), ContractViolation);
   assert.throws(() => canonicalJson({ infinity: Number.POSITIVE_INFINITY }), ContractViolation);
@@ -112,7 +112,7 @@ test("MVP-UT-CORE-001 invalid JSON values never receive a digest", () => {
   assert.throws(() => canonicalJson(cyclic), ContractViolation);
 });
 
-test("MVP-UT-CORE-002 StableId, Scope and PortablePath validation reject ambiguity", () => {
+test("StableId, Scope and PortablePath validation reject ambiguity", () => {
   assert.equal(validateStableId("run.valid-1"), "run.valid-1");
   assert.throws(() => validateStableId("../run"), /must contain/u);
   assert.throws(() => validateStableId("judge.protocol.integrity/v1"), ContractViolation);
@@ -143,7 +143,7 @@ test("MVP-UT-CORE-002 StableId, Scope and PortablePath validation reject ambigui
   }
 });
 
-test("MVP-UT-CORE-002 cross-attempt Scope is rejected", () => {
+test("cross-attempt Scope is rejected", () => {
   const first = attemptScope("one");
   const same = validateScope({ ...first });
   assert.doesNotThrow(() => assertSameAttemptScope(first, same));
@@ -157,7 +157,7 @@ test("MVP-UT-CORE-002 cross-attempt Scope is rejected", () => {
   );
 });
 
-test("MVP-UT-CORE-003 Ref revision rules and all MVP lifecycle arrows are explicit", () => {
+test("Ref revision rules and all MVP lifecycle arrows are explicit", () => {
   const digest = digestBytes("record");
   assert.doesNotThrow(() =>
     validateRef({ schema: "dsheval.mvp.evidence/v1", id: "evidence-1", digest }),
@@ -202,7 +202,7 @@ test("MVP-UT-CORE-003 Ref revision rules and all MVP lifecycle arrows are explic
   }
 });
 
-test("MVP-CORE-AC-005 failure attribution remains independent of verdicts", () => {
+test("failure attribution remains independent of verdicts", () => {
   const base: Omit<FailureDraft, "category" | "origin" | "actor"> = {
     scope: attemptScope(),
     phase: "JUDGE",

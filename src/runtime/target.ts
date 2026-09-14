@@ -1,3 +1,5 @@
+import { prepareInputLaunch, type InputDeliveryReceipt } from "./input-delivery.js";
+import type { CaseInputFile } from "../datasets/loader.js";
 /**
  * 文件职责：以冻结的命令、身份和环境约束启动目标程序，限额收集输出，并归一化终止结果。
  * 核心流程：校验执行请求，构建最小环境与平台身份启动参数，启动独立进程组，处理回执、取消和超时，最后汇总退出状态及有界输出。
@@ -6,7 +8,7 @@
  */
 import { spawn } from "node:child_process";
 import type { ChildProcessByStdio } from "node:child_process";
-import { lstat } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import type { Readable } from "node:stream";
@@ -28,12 +30,15 @@ export interface TargetExecutionRequest {
   executablePath: string;
   profile: string;
   task: string;
+  inputs?: readonly CaseInputFile[];
   cwd: string;
   runtimeDshHomePath: string;
   /** 可选的共享会话 Home；用于让 Headless Case 出现在常驻 Web UI。 */
   sessionDshHomePath?: string;
   probeOutputPath: string;
   sourceRunId: string;
+  /** Native Probe 内容保存策略；FULL 保留 SQL、命令参数和工具返回正文。 */
+  contentMode: string;
   deadlineMs: number;
   maxOutputBytes: number;
   targetUid?: number;
@@ -44,8 +49,19 @@ export interface TargetExecutionRequest {
   onStarted?: (pid: number) => Promise<void> | void;
 }
 
+/** 将 DSHEval 配置名映射为 Native Probe 接受的稳定值。 */
+function probeContentMode(value: string): "full" | "hash" | "omit" {
+  switch (value.toUpperCase()) {
+    case "FULL": return "full";
+    case "DIGEST": return "hash";
+    case "OMIT": return "omit";
+    default: throw new Error("contentMode must be FULL, DIGEST, or OMIT");
+  }
+}
+
 /** 目标进程完成后返回给工作流的时间、退出信息及截断标记。 */
 export interface TargetExecutionResult {
+  inputDelivery?: InputDeliveryReceipt;
   terminationKind: TargetTerminationKind;
   startedAt: string;
   endedAt: string;
@@ -111,8 +127,7 @@ function buildEnvironment(request: TargetExecutionRequest): NodeJS.ProcessEnv {
     DSH_EVAL_PROBE_OUTPUT: request.probeOutputPath,
     DSH_EVAL_SOURCE_RUN_ID: request.sourceRunId,
     DSH_EVAL_WORKSPACE: request.cwd,
-    // Native Probe 将保留摘要的内容模式命名为 `hash`。
-    DSH_EVAL_CONTENT_MODE: "hash",
+    DSH_EVAL_CONTENT_MODE: probeContentMode(request.contentMode),
     DO_NOT_TRACK: "1",
     DSH_TELEMETRY_MODE: "DISABLED",
     DSH_TELEMETRY_DISABLED: "1",
@@ -160,6 +175,7 @@ export async function executeTarget(
   assertArgument(request.runtimeDshHomePath, "runtimeDshHomePath");
   assertArgument(request.probeOutputPath, "probeOutputPath");
   assertArgument(request.sourceRunId, "sourceRunId");
+  assertArgument(request.contentMode, "contentMode");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(request.profile)) {
     throw new Error("profile must be a StableId-like argv value");
   }
@@ -243,7 +259,14 @@ export async function executeTarget(
   let escalation: NodeJS.Timeout | undefined;
 
   const environment = buildEnvironment(request);
-  const targetArguments = ["--profile", request.profile, request.task];
+  const inputLaunch = await prepareInputLaunch(request.runtimeDshHomePath,request.inputs ?? []);
+  if(inputLaunch) {
+    environment.DSH_EVAL_ATTACHMENT_MANIFEST=inputLaunch.manifestPath;
+    environment.DSH_EVAL_INPUT_RECEIPT=inputLaunch.receiptPath;
+    environment.DSH_EVAL_TARGET_EXECUTABLE=request.executablePath;
+  }
+  const targetArguments = ["--profile", request.profile,
+    ...(inputLaunch ? ["--patch",inputLaunch.patchPath] : []), "--", request.task];
   const identityLaunch = request.targetUid === undefined
     ? undefined
     : identityLaunchCommand(
@@ -411,8 +434,20 @@ export async function executeTarget(
     (identityLaunchUnconfirmed
       ? new Error("identity launch or target exec could not be confirmed")
       : undefined);
+  let inputDelivery: InputDeliveryReceipt | undefined;
+  if(inputLaunch) {
+    try {
+      const receipt=JSON.parse(await readFile(inputLaunch.receiptPath,"utf8"));
+      if(!["SUBMITTED","FAILED"].includes(receipt.status) || !Array.isArray(receipt.attachments)) throw new Error("Invalid input receipt");
+      inputDelivery=receipt;
+    } catch {
+      inputDelivery={status:"FAILED",attachments:[],reason:"DSH_INPUT_SUBMISSION_UNCONFIRMED"};
+    }
+    if(inputDelivery?.status==="FAILED" && terminationKind!=="CANCELLED" && terminationKind!=="TIMED_OUT") terminationKind="HARNESS_ERROR";
+  }
   return {
     terminationKind,
+    ...(inputDelivery ? {inputDelivery} : {}),
     startedAt,
     endedAt: new Date().toISOString(),
     ...(closed.code === null ? {} : { exitCode: closed.code }),

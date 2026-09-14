@@ -57,16 +57,6 @@
       "XLSX reading and editing tool",
       "Excel-compatible formula recalculation engine when output contains formulas"
     ],
-    "inputs": [
-      {
-        "source": "assets/workbook.xlsx",
-        "destination": "input/workbook.xlsx",
-        "sha256": "a9534f243553db67127086ebbe8484ef61e9fba2d016139cf48e881cbf77cc74"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -100,5 +90,16 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/workbook.xlsx",
+      "destination": "input/workbook.xlsx",
+      "sha256": "a9534f243553db67127086ebbe8484ef61e9fba2d016139cf48e881cbf77cc74",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

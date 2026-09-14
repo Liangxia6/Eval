@@ -33,7 +33,7 @@ async function fixture(): Promise<ViewerFixture> {
   return { temporary, runRoot, reportRoot, runId: "viewer-run-1" };
 }
 
-test("MVP-PLAT-VIEW-001 loopback Viewer follows status and settles on the final report", async () => {
+test("loopback Viewer follows status and settles on the final report", async () => {
   const local = await fixture();
   const viewer = await startViewer({
     runRoot: local.runRoot,
@@ -95,7 +95,7 @@ test("MVP-PLAT-VIEW-001 loopback Viewer follows status and settles on the final 
   }
 });
 
-test("MVP-SEC-VIEW-001 Viewer rejects symlinks and never serves their target bytes", async () => {
+test("Viewer rejects symlinks and never serves their target bytes", async () => {
   const local = await fixture();
   const outside = path.join(local.temporary, "outside.html");
   await writeFile(outside, "TOP-SECRET-OUTSIDE-VIEWER", "utf8");
@@ -137,7 +137,7 @@ test("MVP-SEC-VIEW-001 Viewer rejects symlinks and never serves their target byt
   }
 });
 
-test("MVP-SEC-VIEW-002 Viewer API and CLI accept only strict loopback-safe parameters", async () => {
+test("Viewer API and CLI accept only strict loopback-safe parameters", async () => {
   const local = await fixture();
   try {
     const base = {
@@ -224,7 +224,7 @@ test("MVP-SEC-VIEW-002 Viewer API and CLI accept only strict loopback-safe param
   }
 });
 
-test("MVP-PLAT-VIEW-002 close releases the selected loopback port", async () => {
+test("close releases the selected loopback port", async () => {
   const local = await fixture();
   try {
     const first = await startViewer({

@@ -171,7 +171,7 @@ async function writeBundle(root, directory, record, count, catalogEntry) {
   const title = titleFor(directory, record.sample_id, count);
   const bundleRoot = path.join(root, directory, title);
   const privateRoot = path.join(bundleRoot, "private");
-  const assetsRoot = path.join(bundleRoot, "assets");
+  const assetsRoot = path.join(bundleRoot, "input");
   await mkdir(privateRoot, { recursive: true });
 
   const metadata = record.metadata ?? {};
@@ -198,7 +198,7 @@ async function writeBundle(root, directory, record, count, catalogEntry) {
       }
       const contents = typeof asset.content === "string" ? asset.content : json(asset.content);
       await writeFile(path.join(assetsRoot, asset.name), contents, "utf8");
-      inputs.push({ source: `assets/${asset.name}`, destination: asset.destination, sha256: sha256(contents) });
+      inputs.push({ source: `input/${asset.name}`, destination: asset.destination, sha256: sha256(contents) });
       names.add(asset.name);
       destinations.add(asset.destination);
     }
@@ -215,8 +215,8 @@ async function writeBundle(root, directory, record, count, catalogEntry) {
       writeFile(path.join(assetsRoot, "options.json"), options, "utf8"),
     ]);
     inputs.push(
-      { source: "assets/memory.json", destination: "input/memory.json", sha256: sha256(memory) },
-      { source: "assets/options.json", destination: "input/options.json", sha256: sha256(options) },
+      { source: "input/memory.json", destination: "input/memory.json", sha256: sha256(memory) },
+      { source: "input/options.json", destination: "input/options.json", sha256: sha256(options) },
     );
     instructions = `Read the supplied conversation memory from \`input/memory.json\` and the candidate responses from \`input/options.json\`.\n\n${instructions}`;
   }
@@ -303,7 +303,14 @@ async function writeBundle(root, directory, record, count, catalogEntry) {
     answer: record.reference_answer.ground_truth,
     rubric: rubricFor(record),
   };
+  question.inputs = inputs.map(input=>({...input,delivery:"workspace"}));
+  delete question.environment.inputs;
+  delete question.environment.setup;
+  question.grading={reference:"private/final.json",expectedOutputPath:output,
+    criteria:question.final.checks.map(({kind,hardGate,reference,output,...criteria})=>criteria)};
+  delete question.final;
   await Promise.all([
+    writeFile(path.join(bundleRoot,"prompt.md"),question.task.instructions+"\n","utf8"),
     writeFile(path.join(bundleRoot, "question.json"), json(question), "utf8"),
     writeFile(path.join(privateRoot, "final.json"), json(final), "utf8"),
   ]);

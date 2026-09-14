@@ -61,10 +61,6 @@
       "Node.js >=22",
       "GAIA2 ARE MCP service"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -94,5 +90,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

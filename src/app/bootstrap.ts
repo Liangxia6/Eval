@@ -8,7 +8,7 @@
  * ApplicationServices；具体实现来自 planning、observation、platform 和 storage。
  *
  * 公开接口：版本号、Bootstrap 输入/服务类型、两类边界错误、Port 结果转换、
- * Run ID/TargetDescriptor 构造、应用组装和 Judge Registry 构造。
+ * Run ID/TargetDescriptor 构造、应用组装。
  */
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -32,35 +32,25 @@ import {
   withContentDigest,
 } from "../core/models.js";
 import {
-  BUILT_IN_JUDGES,
-  judgeDescriptors,
-  type JudgeImplementation,
-} from "../evaluation/judging.js";
-import { loadLabelJudgeDeclarations } from "../evaluation/llm-label-judge.js";
-import {
   FILE_SENSOR_DESCRIPTOR,
   FileEnvironmentSensor,
   type EnvironmentSensor,
-} from "../observation/environment.js";
+} from "../../observer-lab/adapters/filesystem/binding.js";
 import {
   PROCESS_SENSOR_DESCRIPTOR,
   ProcessEnvironmentSensor,
-} from "../observation/process.js";
-import { LAB_SENSOR_DESCRIPTORS } from "../observation/lab.js";
+} from "../../observer-lab/adapters/process/binding.js";
+import { LAB_SENSOR_DESCRIPTORS } from "../observation/collection.js";
 import {
   PROBE_CAPABILITIES,
   PROBE_CAPABILITY_DIGEST,
   PROBE_IMPLEMENTATION_ID,
   PROBE_IMPLEMENTATION_VERSION,
-} from "../observation/runtime.js";
+} from "../agent-trace/reader.js";
 import {
   ExecutionPlanCompiler,
   type PlanningCapabilities,
 } from "../runtime/evaluation-plan-compiler.js";
-import {
-  JsonEvaluationCatalog,
-  type EvaluationCatalogPort,
-} from "../evaluation/evaluation-asset.js";
 import { freezeConfig, type MvpConfigValues } from "../platform/config.js";
 import { checkLocalServices, type HealthCheckResult } from "../platform/services.js";
 import { FileArtifactStore } from "../storage/artifacts.js";
@@ -91,7 +81,6 @@ export interface BootstrapInput {
   readonly configFile?: string;
   readonly configOverrides?: Partial<MvpConfigValues>;
   /** 真实评测时注册外部 Label Judge；Fixture 和底层集成测试可省略。 */
-  readonly labelsRoot?: string;
   readonly signal?: AbortSignal;
 }
 
@@ -102,10 +91,8 @@ export interface ApplicationServices {
   readonly artifacts: FileArtifactStore;
   readonly health: HealthCheckResult;
   readonly sensors: readonly SensorAdapterDescriptor[];
-  readonly catalog: EvaluationCatalogPort;
   /** 将已选 Dataset/Label/Environment 冻结为运行期对象；不调用 LLM，也不做选集决策。 */
   readonly planCompiler: EvaluationAssetMatchingPort;
-  readonly judges: readonly JudgeImplementation[];
   readonly fileSensor: EnvironmentSensor;
   readonly processSensor: ProcessEnvironmentSensor;
   readonly operation: (actor: FailureActor, label: string) => OperationContext;
@@ -256,9 +243,7 @@ export async function bootstrapApplication(input: BootstrapInput): Promise<Appli
     workspace: config.workspaceRoot,
     runtimeHome: config.runtimeDshHomeRoot,
   });
-  const labelJudges = input.labelsRoot === undefined
-    ? Object.freeze([])
-    : await loadLabelJudgeDeclarations(path.resolve(input.labelsRoot));
+
   const startupRecovery = health.checks.find((check) => check.name === "startup-recovery");
   if (startupRecovery?.status === "FAIL") {
     throw new Error(`STARTUP_RECOVERY_REQUIRED: ${startupRecovery.detail}`);
@@ -325,18 +310,10 @@ export async function bootstrapApplication(input: BootstrapInput): Promise<Appli
     artifacts,
     health,
     sensors: Object.freeze([probeDescriptor, FILE_SENSOR_DESCRIPTOR, PROCESS_SENSOR_DESCRIPTOR, ...LAB_SENSOR_DESCRIPTORS]),
-    catalog: new JsonEvaluationCatalog(),
     planCompiler: new ExecutionPlanCompiler(planningCapabilities),
-    judges: Object.freeze([...BUILT_IN_JUDGES, ...labelJudges]),
     fileSensor: new FileEnvironmentSensor(),
     processSensor: new ProcessEnvironmentSensor(),
     operation,
   };
 }
 
-/** 返回当前真正注册的 Judge 能力，Planner 不再把 Dataset 声明误当成可执行实现。 */
-export function registeredJudgeDescriptors(
-  judges: readonly JudgeImplementation[] = BUILT_IN_JUDGES,
-) {
-  return judgeDescriptors(judges);
-}

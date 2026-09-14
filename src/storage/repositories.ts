@@ -85,21 +85,23 @@ type UnknownRecord = Readonly<Record<string, unknown>>;
 /** 可跨 Run 保存、因此不要求 record.scope 的少量配置类 schema。 */
 const SCOPELESS_SCHEMAS = new Set([
   "dsheval.mvp.target-descriptor/v1",
-  "dsheval.mvp.evaluation-pack/v1",
+  "dsheval.case-execution-input/v1",
   "dsheval.mvp.config/v1",
 ]);
 
 /** 不可变 schema 到其主键字段的白名单，也是 Repository 支持的 schema 目录。 */
 const ID_FIELDS: Readonly<Record<string, string>> = {
+  "dsheval.all-trace/v1":"traceId",
+  "dsheval.label-score/v1":"scoreId",
+  "dsheval.result/v1":"reportId",
   "dsheval.mvp.target-descriptor/v1": "targetId",
   "dsheval.mvp.target-snapshot/v1": "targetSnapshotId",
   "dsheval.mvp.inspection/v1": "inspectionId",
-  "dsheval.mvp.evaluation-pack/v1": "packId",
+  "dsheval.case-execution-input/v1": "inputId",
   "dsheval.mvp.config/v1": "configId",
   "dsheval.mvp.evaluation-plan/v1": "evaluationPlanId",
   "dsheval.mvp.agent-trace-plan/v1": "agentTracePlanId",
   "dsheval.mvp.observation-plan/v1": "observationPlanId",
-  "dsheval.mvp.evidence-contract/v1": "evidenceContractId",
   "dsheval.mvp.control-event/v1": "controlEventId",
   "dsheval.mvp.seed-manifest/v1": "seedManifestId",
   "dsheval.mvp.security-preflight/v1": "preflightId",
@@ -112,14 +114,6 @@ const ID_FIELDS: Readonly<Record<string, string>> = {
   "dsheval.mvp.file-diff/v1": "diffId",
   "dsheval.mvp.process-snapshot/v1": "processSnapshotId",
   "dsheval.mvp.process-diff/v1": "processDiffId",
-  "dsheval.mvp.evidence/v1": "evidenceId",
-  "dsheval.mvp.evidence-bundle/v1": "bundleId",
-  "dsheval.mvp.evidence-closure/v1": "closureId",
-  "dsheval.mvp.judgement/v1": "judgementId",
-  "dsheval.mvp.finding/v1": "findingId",
-  "dsheval.mvp.check-result/v1": "checkResultId",
-  "dsheval.mvp.gate/v1": "gateDecisionId",
-  "dsheval.mvp.report/v1": "reportId",
   "dsheval.mvp.artifact/v1": "artifactId",
   "dsheval.mvp.failure/v1": "failureId",
   "dsheval.mvp.lifecycle-event/v1": "eventId",
@@ -347,7 +341,7 @@ function deepFreeze<T>(value: T): Readonly<T> {
 /** 将版本化 schema 转成稳定目录名，并先校验 schema 格式。 */
 function schemaKind(schema: string): string {
   validateSchemaId(schema);
-  const match = /^dsheval\.mvp\.([a-z0-9-]+)\/v1$/u.exec(schema);
+  const match = /^dsheval\.(?:mvp\.)?([a-z0-9-]+)\/v1$/u.exec(schema);
   if (match?.[1] === undefined) {
     throw new ContractViolation("INVALID_SCHEMA", "schema cannot be routed to a record kind");
   }
@@ -551,16 +545,6 @@ export class FileRepository implements RepositoryPort {
       }
       return Object.freeze({ schema, id, digest });
     }
-    if (schema === "dsheval.mvp.gate/v1") {
-      const siblings = await readdir(dirname(path), { withFileTypes: true });
-      const otherGate = siblings.find(
-        (entry) => entry.name.endsWith(".json") && entry.name !== `${id}.json`,
-      );
-      if (otherGate !== undefined) {
-        throw new ContractViolation("IMMUTABILITY_CONFLICT", "the run already has its unique GateDecision");
-      }
-      await this.#validateGateCommitOrder(raw);
-    }
     await atomicCreateImmutable(path, canonicalJson(raw));
     const eventFile = EVENT_FILES[schema];
     if (eventFile !== undefined) {
@@ -691,7 +675,7 @@ export class FileRepository implements RepositoryPort {
     return refForProjection(next);
   }
 
-  /** 不可变记录提交前核对分区 Scope、Gate 输入形状及其全部非 Artifact Ref。 */
+  /** 不可变记录提交前核对分区 Scope 及其全部非 Artifact Ref。 */
   async #validateRecordScopeAndRefs(record: UnknownRecord): Promise<void> {
     const schema = String(record.schema);
     if (SCOPELESS_SCHEMAS.has(schema)) {
@@ -707,252 +691,12 @@ export class FileRepository implements RepositoryPort {
     } else {
       this.#assertPartitionScope(record.scope);
     }
-    if (schema === "dsheval.mvp.gate/v1") {
-      if (record.runId !== this.#runId) {
-        throw new ContractViolation("SCOPE_MISMATCH", "GateDecision runId differs from its partition");
-      }
-      if (!Array.isArray(record.inputCheckResultRefs) || record.inputCheckResultRefs.length === 0) {
-        throw new ContractViolation("INVALID_INPUT", "GateDecision requires at least one saved CheckResult Ref");
-      }
-      const ids = new Set<string>();
-      for (const item of record.inputCheckResultRefs) {
-        const ref = validateRef(item, { lifecycle: false, fieldName: "inputCheckResultRef" });
-        if (ref.schema !== "dsheval.mvp.check-result/v1" || ids.has(ref.id)) {
-          throw new ContractViolation("INVALID_INPUT", "GateDecision CheckResult Refs must be unique CheckResults");
-        }
-        ids.add(ref.id);
-      }
-    }
     if (record.scope !== undefined) {
       await this.#validateReferences(record, validateScope(record.scope));
     }
   }
 
-  /** GateDecision 落盘前读取当前 Run/Attempt/Environment/Reset 状态，强制终结事实先提交。 */
-  async #validateGateCommitOrder(gate: UnknownRecord): Promise<void> {
-    const gateScope = validateScope(gate.scope, "GateDecision scope");
-    if (gateScope.runId !== this.#runId) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "GateDecision scope must identify the current run partition",
-      );
-    }
-
-    const run = await this.#readCurrentProjectionForGate(
-      "dsheval.mvp.run/v1",
-      this.#runId,
-      "EvaluationRun",
-    );
-    assertScopeCompatible(gateScope, run.scope);
-    if (run.state !== "FINALIZING") {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "GateDecision can only be committed while the current EvaluationRun is FINALIZING",
-      );
-    }
-
-    const environment = await this.#readUniqueCurrentProjectionForGate(
-      "dsheval.mvp.environment/v1",
-      "EnvironmentInstance",
-    );
-    const environmentScope = validateScope(environment.scope, "EnvironmentInstance scope");
-    if (environmentScope.runId !== this.#runId) {
-      throw new ContractViolation(
-        "SCOPE_MISMATCH",
-        "EnvironmentInstance does not belong to the current run",
-      );
-    }
-    assertScopeCompatible(gateScope, environmentScope);
-    if (
-      environment.state !== "CLEANED" &&
-      environment.state !== "QUARANTINED" &&
-      environment.state !== "CLEANUP_FAILED"
-    ) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "GateDecision requires a terminal EnvironmentInstance",
-      );
-    }
-
-    const resetVerification = await this.#readOptionalUniqueImmutableForGate(
-      "dsheval.mvp.reset-verification/v1",
-      "ResetVerification",
-    );
-    if (resetVerification === undefined) {
-      if (
-        environment.state !== "QUARANTINED" &&
-        environment.state !== "CLEANUP_FAILED"
-      ) {
-        throw new ContractViolation(
-          "GATE_COMMIT_ORDER",
-          "A clean Environment requires exactly one ResetVerification before GateDecision",
-        );
-      }
-      const failureRefs = Array.isArray(environment.failureRefs)
-        ? environment.failureRefs
-        : [];
-      let explicitResetFailure = false;
-      for (const value of failureRefs) {
-        const failureRef = validateRef(value, {
-          lifecycle: false,
-          fieldName: "EnvironmentInstance.failureRef",
-        });
-        if (failureRef.schema !== "dsheval.mvp.failure/v1") continue;
-        const failure = await this.#readRef(failureRef) as unknown as UnknownRecord;
-        if (
-          (failure.phase === "RESET" || failure.phase === "RESET_VERIFY") &&
-          (failure.category === "ENVIRONMENT_FAILURE" ||
-            failure.category === "OBSERVATION_FAILURE" ||
-            failure.category === "CLEANUP_FAILURE")
-        ) {
-          explicitResetFailure = true;
-        }
-      }
-      if (!explicitResetFailure) {
-        throw new ContractViolation(
-          "GATE_COMMIT_ORDER",
-          "A missing ResetVerification requires an explicit Reset or verification FailureRecord",
-        );
-      }
-      return;
-    }
-
-    const resetScope = validateScope(resetVerification.scope, "ResetVerification scope");
-    if (resetScope.runId !== this.#runId) {
-      throw new ContractViolation(
-        "SCOPE_MISMATCH",
-        "ResetVerification does not belong to the current run",
-      );
-    }
-    assertScopeCompatible(gateScope, resetScope);
-    await this.#validateReferences(resetVerification, resetScope);
-    if (!Number.isSafeInteger(environment.resetGeneration) || Number(environment.resetGeneration) < 1) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "GateDecision requires EnvironmentInstance resetGeneration >= 1",
-      );
-    }
-
-    const environmentRef = validateRef(resetVerification.environmentInstanceRef, {
-      lifecycle: true,
-      fieldName: "ResetVerification.environmentInstanceRef",
-    });
-    if (
-      environmentRef.schema !== "dsheval.mvp.environment/v1" ||
-      environmentRef.id !== environment.aggregateId
-    ) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "ResetVerification must identify the current EnvironmentInstance",
-      );
-    }
-    if (
-      !Number.isSafeInteger(resetVerification.resetGeneration) ||
-      resetVerification.resetGeneration !== environment.resetGeneration
-    ) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        "ResetVerification generation must match the current EnvironmentInstance",
-      );
-    }
-  }
-
-  /** 按已知聚合 ID 读取 Gate 顺序校验所需的 current 投影。 */
-  async #readCurrentProjectionForGate(
-    schema: LifecycleAggregateSchema,
-    id: StableId,
-    label: string,
-  ): Promise<Readonly<LifecycleProjectionBase> & UnknownRecord> {
-    const path = await this.#projectionCurrentPath(schema, id);
-    if ((await existingLstat(path)) === undefined) {
-      throw new ContractViolation("GATE_COMMIT_ORDER", `${label} current projection is missing`);
-    }
-    return this.#readAndVerifyCurrentProjectionForGate(path, schema, label, `${id}.json`);
-  }
-
-  /** 在当前 Run 中读取某 schema 唯一的 current 投影，用于定位 Attempt/Environment。 */
-  async #readUniqueCurrentProjectionForGate(
-    schema: LifecycleAggregateSchema,
-    label: string,
-  ): Promise<Readonly<LifecycleProjectionBase> & UnknownRecord> {
-    const directory = await ensureSafeDirectory(await this.#partitionDirectory(), [
-      "records",
-      schemaKind(schema),
-    ]);
-    const candidates = (await readdir(directory, { withFileTypes: true })).filter(
-      (entry) => entry.name.endsWith(".json") && !/\.r[0-9]+\.json$/u.test(entry.name),
-    );
-    if (candidates.length !== 1 || candidates[0] === undefined) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        `${label} requires exactly one current projection; found ${candidates.length}`,
-      );
-    }
-    return this.#readAndVerifyCurrentProjectionForGate(
-      join(directory, candidates[0].name),
-      schema,
-      label,
-      candidates[0].name,
-    );
-  }
-
-  /** Gate 辅助读取器：核对 current 文件名、投影身份、revision、摘要和分区 Scope。 */
-  async #readAndVerifyCurrentProjectionForGate(
-    path: string,
-    schema: LifecycleAggregateSchema,
-    label: string,
-    fileName?: string,
-  ): Promise<Readonly<LifecycleProjectionBase> & UnknownRecord> {
-    const record = await this.#readJson(path);
-    const projection = record as unknown as LifecycleProjectionBase;
-    const identity = projectionIdentity(projection);
-    if (identity.schema !== schema || (fileName !== undefined && fileName !== `${identity.id}.json`)) {
-      throw new ContractViolation(
-        "EVIDENCE_INTEGRITY",
-        `${label} current projection identity does not match its storage location`,
-      );
-    }
-    if (!Number.isSafeInteger(projection.revision) || projection.revision < 0) {
-      throw new ContractViolation("EVIDENCE_INTEGRITY", `${label} has an invalid revision`);
-    }
-    verifyProjectionDigest(projection);
-    this.#assertPartitionScope(projection.scope);
-    return record as Readonly<LifecycleProjectionBase> & UnknownRecord;
-  }
-
-  /** 读取至多一个指定 schema 的不可变记录，供 Gate 检查可选 ResetVerification。 */
-  async #readOptionalUniqueImmutableForGate(
-    schema: string,
-    label: string,
-  ): Promise<UnknownRecord | undefined> {
-    const directory = await ensureSafeDirectory(await this.#partitionDirectory(), [
-      "records",
-      schemaKind(schema),
-    ]);
-    const candidates = (await readdir(directory, { withFileTypes: true })).filter((entry) =>
-      entry.name.endsWith(".json"),
-    );
-    if (candidates.length === 0) return undefined;
-    if (candidates.length !== 1 || candidates[0] === undefined) {
-      throw new ContractViolation(
-        "GATE_COMMIT_ORDER",
-        `${label} requires exactly one committed record; found ${candidates.length}`,
-      );
-    }
-    const record = await this.#readJson(join(directory, candidates[0].name));
-    const identity = immutableIdentity(record);
-    if (identity.schema !== schema || candidates[0].name !== `${identity.id}.json`) {
-      throw new ContractViolation(
-        "EVIDENCE_INTEGRITY",
-        `${label} identity does not match its storage location`,
-      );
-    }
-    verifyImmutableDigest(record);
-    this.#assertPartitionScope(record.scope);
-    return record;
-  }
-
-  /** 解析并读取记录内所有非 Artifact Ref，验证目标摘要及与 owner 的 Scope 兼容性。 */
+/** 解析并读取记录内所有非 Artifact Ref，验证目标摘要及与 owner 的 Scope 兼容性。 */
   async #validateReferences(value: unknown, ownerScope: ScopeRef): Promise<void> {
     const refs: Ref[] = [];
     collectRefs(value, refs);

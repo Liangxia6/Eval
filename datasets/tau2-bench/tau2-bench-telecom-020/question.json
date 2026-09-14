@@ -52,7 +52,7 @@
       "本批不调用 Agent 或用户模拟器；分别报告原版和修订版，不混报官方分数。",
       "新增 output/response.txt 完成说明及 process/local 两层描述性证据，不改变原始任务目标。",
       "尚未接通本项目的原生运行环境和确定性 Judge；LLM 检查不能代替原指标，缺依赖为 UNEVALUABLE。",
-      "仅为以下文本补终止换行，源哈希仍对应原始字节：assets/main_policy.md, assets/tech_support_manual.md, assets/tech_support_workflow.md"
+      "仅为以下文本补终止换行，源哈希仍对应原始字节：input/main_policy.md, input/tech_support_manual.md, input/tech_support_workflow.md"
     ]
   },
   "capabilityLabels": [
@@ -73,26 +73,6 @@
       "isolated benchmark environment",
       "trusted upstream evaluator"
     ],
-    "inputs": [
-      {
-        "source": "assets/main_policy.md",
-        "destination": "input/main_policy.md",
-        "sha256": "dde1c5d65d680e1f733863f7eab379fa045360f43dfa4c4cc8fe0b82fd7d1be6"
-      },
-      {
-        "source": "assets/tech_support_manual.md",
-        "destination": "input/tech_support_manual.md",
-        "sha256": "aaa9139ff05a692cfa7ac5499541f7a08d5850d185abb78547c79b82c627835a"
-      },
-      {
-        "source": "assets/tech_support_workflow.md",
-        "destination": "input/tech_support_workflow.md",
-        "sha256": "415ae6ba307116802cf4d68b1fbc6a5c610fe9428bc14175e72c23b57db1bac9"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "required": true,
@@ -156,5 +136,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/main_policy.md",
+      "destination": "input/main_policy.md",
+      "sha256": "dde1c5d65d680e1f733863f7eab379fa045360f43dfa4c4cc8fe0b82fd7d1be6",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/tech_support_manual.md",
+      "destination": "input/tech_support_manual.md",
+      "sha256": "aaa9139ff05a692cfa7ac5499541f7a08d5850d185abb78547c79b82c627835a",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/tech_support_workflow.md",
+      "destination": "input/tech_support_workflow.md",
+      "sha256": "415ae6ba307116802cf4d68b1fbc6a5c610fe9428bc14175e72c23b57db1bac9",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

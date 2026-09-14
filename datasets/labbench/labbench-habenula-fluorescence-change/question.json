@@ -59,7 +59,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nUsing panel c, which section of the ventral habenula of the \"shock\" brain exhibited the greatest change in fluorescence over the post-behavioral change period?\n\nOptions:\n{options}\n\nWrite your answer (the section name) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
+    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nUsing panel c, which section of the ventral habenula of the \"shock\" brain exhibited the greatest change in fluorescence over the post-behavioral change period?\n\nOptions:\nA. Left\nB. Right\nC. Insufficient information to answer the question\nD. Anterior\nE. Posterior\n\nWrite your answer (the section name) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
   },
   "environment": {
     "platform": "darwin",
@@ -68,29 +68,6 @@
       "Node.js >=22",
       "image-reading-tool"
     ],
-    "inputs": [
-      {
-        "source": "assets/figure.jpg",
-        "destination": "input/figure.jpg",
-        "sha256": "483e6f02431790d34d1414cdf4b4640661ddb9d69110d96857cb96078355e8ef"
-      },
-      {
-        "source": "assets/options.json",
-        "destination": "input/options.json",
-        "sha256": "aeb8d7e87741ad60aefae12bc27bbb5195eeae6a4692d53c29a8069499b1964b"
-      }
-    ],
-    "setup": {
-      "kind": "shuffle-options",
-      "options": [
-        "Left",
-        "Right",
-        "Anterior",
-        "Insufficient information to answer the question",
-        "Posterior"
-      ],
-      "mappingDestination": "input/letter_mapping.json"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "agent": {
@@ -139,5 +116,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/figure.jpg",
+      "destination": "input/figure.jpg",
+      "sha256": "483e6f02431790d34d1414cdf4b4640661ddb9d69110d96857cb96078355e8ef",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/options.json",
+      "destination": "input/options.json",
+      "sha256": "aeb8d7e87741ad60aefae12bc27bbb5195eeae6a4692d53c29a8069499b1964b",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/letter_mapping.json",
+      "destination": "input/letter_mapping.json",
+      "delivery": "workspace",
+      "sha256": "9bda7ba4311f4b726f9777fd518629bb2cbd083cc5404dacec7f8ea0e7cd49ae"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

@@ -1,29 +1,33 @@
+> **2026-09-12 评分链路更新：** 当前接口以 [Evaluation 重构说明](EVALUATION-REFACTOR-20260912.md) 为准。下文出现的 Pack、EvidenceContract、Closure、Gate 和旧评分报告字段均已移除；历史说明保留用于追溯。
+
 # DSHEval 公共契约
 
 > 本文只定义跨模块共享的数据与接口；架构和流程见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
-## 1. MVP 范围
+## 1. 当前 MVP 范围
 
-MVP 只实现一条可重复运行的 Attention + PyTorch 任务纵向闭环：
+MVP 已实现一条真实 DSH 的多 Case 纵向闭环：
 
 ```text
 FULL_AGENT
 → 冻结 DSH Headless Target
 → 统一 Planner 根据 Agent 静态观测与 Dataset 描述选择 Dataset
-→ 单 Run / 单 Case / 单 Attempt
-→ Seed 工作区环境
-→ Runtime Probe + File Sensor Before
-→ 执行论文讲解与代码任务
-→ Drain Probe + File Sensor After
-→ Artifact / Response / Tool Judge
+→ 一个 Parent Run 展开多个不重复 Case
+→ 每个 Case 一个 Attempt 和一个新 DSH Session
+→ Seed 工作区并启动 Agent Trace 与 Environment Observer
+→ 执行 Dataset 中解析出的真实题目
+→ Drain Trace，采集环境 After 并收集最终回答与交付物
+→ 每个 Label 分别调用一次 LLM Judge
 → Reset + File Sensor 独立验证
-→ PASS / FAIL / UNEVALUABLE Gate
-→ JSON 报告 + 静态 HTML
+→ Case Gate + Parent Run 聚合
+→ Agent / Run / Case JSON、压缩 Trace、Artifact 与静态 HTML
 ```
 
-固定约束：单 VM、全局最多一个活动 Run、每 Run 恰好一个 Case、每 Case 恰好一个 Attempt、`maxAttempts=1`、无自动 Retry。仅支持本地 JSON/JSONL/Artifact 存储，不依赖数据库或网络服务。
+固定约束：单 VM、每个 Case 恰好一个 Attempt、`maxAttempts=1`、无自动 Retry。当前 `STANDARD` Policy 选择 1–4 个 Dataset，每个 Dataset 2 个 Case，最多 8 个 Case；当前串行执行，`caseConcurrency=1`。Planner 对整个 Parent Run 只调用一次 LLM；Judge 对每个 Case 覆盖的每个 Label 各调用一次。仅使用本地 JSON/JSONL/Artifact 存储，不依赖数据库后端。
 
-以下能力标记 `DEFERRED`：插件 Target、PostgreSQL/HTTP/Browser Sensor、多个 Case/Attempt、自动 Retry、Gap Planner、Repair Agent、Multi-Agent 专项、LLM Judge、分布式执行、Web API。MVP 只保留 Sensor/Check 注册接口，未来增加实现不改变主流程。
+以下能力仍标记 `DEFERRED`：严格文件系统/OS 身份隔离、Case 并行、自动 Retry、Gap Planner、Repair Agent、分布式执行、数据库存储后端和 Web API。Desktop Observer 暂时冻结。Browser、Database、External API 等外部 Adapter 已进入运行窗口，但其状态、空事件和标签证据的完整端到端接入仍需验收。
+
+当前安全等级只允许写作 `SESSION_SEPARATED`：新 Session 能隔离对话历史，但不能声称 Agent 已无法读取 DSHEval 源码、结果目录或 Dataset 私有评分材料。
 
 ## 2. 表达与版本规则
 
@@ -146,9 +150,9 @@ Gate 每 Run 只提交一次，时序固定为 CheckResults 已提交且 Reset/V
 
 | Category | MVP 语义 |
 |---|---|
-| `INPUT_VALIDATION` | Descriptor、Config、Pack 非法；不创建 Run |
+| `INPUT_VALIDATION` | Descriptor、Config 或外部评测资产非法；不创建 Run |
 | `TARGET_RESOLUTION/TARGET_INTEGRITY` | Target 无法冻结或运行前发生变化 |
-| `PLAN_UNSATISFIABLE` | Probe、File Sensor、Judge、权限或 Pack 缺失 |
+| `PLAN_UNSATISFIABLE` | Probe、Environment Observer、Judge、权限或执行条件缺失 |
 | `PLATFORM_SECURITY_FAILURE` | 真实身份、路径或隔离预检失败；不计 Agent 分 |
 | `ENVIRONMENT_FAILURE` | Prepare、Seed、Reset 或 Cleanup 失败 |
 | `TARGET_EXECUTION/TIMEOUT/CANCELLED` | Agent 执行事实；证据可信时仍可 Judge |
@@ -172,15 +176,15 @@ TargetDescriptor、scope-less EvaluationPack 和调用级 ConfigSnapshot 都直�
 |---|---|
 | `TargetDescriptor` / `dsheval.mvp.target-descriptor/v1` | `targetId/targetType='FULL_AGENT'/sourceRoot/dshExecutable/dshHome/profile/targetIdentity` |
 | `TargetSnapshot` / `dsheval.mvp.target-snapshot/v1` | `targetSnapshotId/targetId/sourceManifestRef/dshExecutablePath/dshPackageVersion?/dshEntrypointDigest/dshHomeManifestRef/profile/profileManifestRef/lockfileRef/effectiveConfigRef/driverFingerprint/platform/secretRefNames` |
-| `InspectionSnapshot` / `dsheval.mvp.inspection/v1` | `inspectionId/targetSnapshotRef/dshVersionStatus/profile/probeConfigured/probeSchema/probeOrderStatus/headlessDriverStatus/toolSchemas/permissionPreset/sandboxMode/limitations/sourceArtifactRefs` |
-| `EvaluationRequest` / `dsheval.mvp.evaluation-request/v1` | `requestId/requestedLabelIds/preferredDatasetIds/excludeCaseIds`；LabelId 必须来自固定 Registry，Dataset ID 只能作为覆盖候选的消歧 Pin |
+| `InspectionSnapshot` / `dsheval.mvp.inspection/v1` | `inspectionId/targetSnapshotRef/dshVersionStatus/profile/pluginCatalog/probeConfigured/probeSchema/probeOrderStatus/headlessDriverStatus/toolSchemas/toolDelta/permissionPreset/sandboxMode/limitations/sourceArtifactRefs`；插件包含版本、描述、来源和角色，工具以同版本 `dsh-base` 为基线标记 `NATIVE/ADDED` |
+| `EvaluationRequest` / `dsheval.mvp.evaluation-request/v1` | `requestId/requestedLabelIds/preferredDatasetIds/excludeCaseIds`；这是 Planner 已选中 Dataset 后编译单个 Case 的内部请求，`requestedLabelIds` 来自该 Dataset 的既有标签，不是一次独立的 Agent 打标签结果 |
 | `CatalogResolution` / `dsheval.mvp.catalog-resolution/v1` | `requestId/selectedLabelIds/selectedDatasetIds/units/contentDigest`；Unit=`caseId/datasetId/labelBindings/environmentId/environmentObserverSourceRequirementId/runtimeSourceRequirementId/judgeAssetId/checkIds` |
-| `EvaluationPack` / `dsheval.mvp.evaluation-pack/v1` | `packId/version/request/resolution/dataset/metricPool/scenario/checks/judges/environment/sourceRequirements/contentDigest` |
+| `EvaluationPack` / `dsheval.mvp.evaluation-pack/v1` | `packId/version/request/resolution/dataset/metricPool/scenario/checks/judges/environment/sourceRequirements/contentDigest`；它是程序由 Dataset、Label、Environment 和 Trace 配置编译出的内部不可变对象，不对应外部 `packs/` 目录，也不是 Dataset 的存储格式 |
 | `ConfigSnapshot` / `dsheval.mvp.config/v1` | `configId/invocationId/targetRoot/runRoot/artifactRoot/reportRoot/resultRoot/workspaceRoot/runtimeDshHomeRoot/runDeadlineMs/caseDeadlineMs/stableWindowMs/stableMaxWaitMs/maxArtifactBytes/contentMode/allowedModelEndpoints/minimumIsolationLevel/rendererVersion/fieldSources/platform/nodeVersion/dshevalVersion/secretRefNames/createdAt/contentDigest` |
 | `EvaluationPlan` / `dsheval.mvp.evaluation-plan/v1` | `evaluationPlanId/targetSnapshotRef/inspectionRef/packRef/request/catalogResolution/casePlan/checkPlans/budget/gateRule/exclusions/semanticDigest/status='FROZEN'`；不可满足时不提交 Plan |
 | `AgentTracePlan` / `dsheval.mvp.agent-trace-plan/v1` | `agentTracePlanId/evaluationPlanRef/casePlanId/sourceRequirements/lifecyclePolicy/contentPolicy/semanticDigest`；只允许 Agent Trace 来源（当前为 `DSH_PROBE`） |
 | `ObservationPlan` / `dsheval.mvp.observation-plan/v1` | `observationPlanId/evaluationPlanRef/casePlanId/sourceRequirements/boundaryPolicy/stablePolicy/contentPolicy/semanticDigest`；只允许环境 Observer 来源，不包含 `DSH_PROBE` |
-| `EvidenceContract` / `dsheval.mvp.evidence-contract/v1` | `evidenceContractId/checkId/requiredFactTypes/allowedSourceTypes/minimumTrust/minimumCompleteness/validityRequired/timeBoundary/authorizedJudgeId/ruleParameters/missingOutcome='UNEVALUABLE'/semanticDigest`；ruleParameters 来自 Dataset Pack，永不进入 AgentTask |
+| `EvidenceContract` / `dsheval.mvp.evidence-contract/v1` | `evidenceContractId/checkId/requiredFactTypes/allowedSourceTypes/minimumTrust/minimumCompleteness/validityRequired/timeBoundary/authorizedJudgeId/ruleParameters/missingOutcome='UNEVALUABLE'/semanticDigest`；通用证据和评分语义来自 Label，题目特定参数来自 Dataset Case，私有规则永不进入 AgentTask |
 
 `CasePlan` 精确字段：`casePlanId/order=1/scenarioId/datasetId/labelBindings/environmentId/environmentObserverSourceRequirementId/runtimeSourceRequirementId/judgeAssetId/agentTaskArtifactRef/visibleInputArtifactRefs/seedSpec/allowedPaths/forbiddenPaths/deadlineMs/stableWindowMs/maxAttempts=1/checkIds`。
 
@@ -263,15 +267,11 @@ Artifact 一旦 COMMITTED 不可修改或覆盖；相同 ID/摘要重放返回�
 
 输入：TargetSnapshot、InspectionSnapshot、`datasets/catalog.md` 和测试规模。统一 Planner 只调用一次 LLM 选择 Dataset 与题量；程序再从 `datasets/`、`labels/`、`trace/`、`environments/` 组合 Case、证据要求、Judge、Agent Trace 和 Environment Observer，生成 EvaluationPlan、AgentTracePlan、ObservationPlan、EvidenceContract，或 `PLAN_UNSATISFIABLE`。
 
-当前 Attention Pack 的匹配：
+LabelId 来自 `labels/` 中的 14 个 JSON。Dataset 只声明题目、输入资产和既有标签；Label 声明证据要求、评分标准与 Judge 提示词；Environment 声明组件到 Observer 的实现绑定。Planner 不生成标签，运行期计划必须冻结精确 Sensor ID/version/capabilityDigest。
 
-| Check | Scenario/Environment | Source | Judge |
-|---|---|---|---|
-| Artifact | Attention 代码产物 | FILESYSTEM Before/After | ArtifactPresentJudge |
-| Response | 论文讲解回答 | DSH_PROBE | ResponsePresentJudge |
-| Tool | Python/PyTorch 执行记录 | DSH_PROBE | ToolCompletedJudge |
+一个 Label 可以声明多个环境组件，一个环境组件也可以被多个 Label 同时使用。组件事实类型保持稳定：Filesystem 使用统一 `FILE`，具体创建、修改、删除放在事件动作字段；Process、Browser、Database 和 External API 同理，不把每种动作伪装成独立组件。
 
-LabelId 来自 `labels/` 中的 14 个 JSON。Dataset 只声明题目和标签；Label 声明证据要求、评分标准与 Judge 提示词；Environment 声明组件到 Observer 的实现绑定。Planner 不生成标签，运行期计划必须冻结精确 Sensor ID/version/capabilityDigest。
+Planner 先对整个 Parent Run 产生一次 DatasetSelection；Batch 再为每个选中 Dataset 的每个 `caseIndex` 构造内部 EvaluationRequest 和 EvaluationPack。外部不存在需要手工维护的 `packs/` 目录。
 
 扩展约束：新增 Dataset 不改源码；新增标签方法只增加 Label JSON；只有新增真实观测能力时才实现并注册新的 `SensorAdapterDescriptor`。
 

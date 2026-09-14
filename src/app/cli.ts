@@ -26,6 +26,7 @@ import {
   type WorkflowSummary,
 } from "./workflow.js";
 import { runEvaluationBatch } from "./batch.js";
+import { preparePluginTarget } from "./plugins.js";
 
 /** report 命令没有显式限制时使用的最大读取字节数。 */
 const DEFAULT_MAX_ARTIFACT_BYTES = 1_048_576;
@@ -39,8 +40,9 @@ export type CliCommand =
       readonly command: TargetCommandName;
       readonly target: string;
       readonly fixture: boolean;
+      /** 从 dsheval.ai 解析并仅注入这些插件；可重复或使用逗号分隔。 */
+      readonly plugins?: readonly string[];
       /** 只供 DSHEval 自测 Fixture 使用；真实运行从 datasets/labels/environments 组合。 */
-      readonly fixturePackRoot?: string;
       readonly datasetCatalogPath?: string;
       readonly datasetsRoot?: string;
       readonly labelsRoot?: string;
@@ -93,7 +95,7 @@ class CliUsageError extends Error {
 /** 后面必须紧跟一个值的命令行选项。 */
 const VALUE_OPTIONS = new Set([
   "--target",
-  "--fixture-pack",
+  "--plugin",
   "--dataset-catalog",
   "--datasets",
   "--labels",
@@ -114,15 +116,17 @@ const VALUE_OPTIONS = new Set([
 const BOOLEAN_OPTIONS = new Set(["--fixture", "--stop-after-case"]);
 
 /** 将选项序列解析为唯一键值表，并拒绝未知、重复或危险值。 */
-function parseOptions(argv: readonly string[]): ReadonlyMap<string, string | true> {
-  const options = new Map<string, string | true>();
+function parseOptions(
+  argv: readonly string[],
+): ReadonlyMap<string, string | true | readonly string[]> {
+  const options = new Map<string, string | true | readonly string[]>();
   for (let index = 0; index < argv.length; index += 1) {
     const name = argv[index];
     if (name === undefined || (!VALUE_OPTIONS.has(name) && !BOOLEAN_OPTIONS.has(name))) {
       throw new CliUsageError("unknown or misplaced CLI option");
     }
-    if (options.has(name)) throw new CliUsageError("CLI options may be supplied only once");
     if (BOOLEAN_OPTIONS.has(name)) {
+      if (options.has(name)) throw new CliUsageError("CLI options may be supplied only once");
       options.set(name, true);
       continue;
     }
@@ -136,7 +140,19 @@ function parseOptions(argv: readonly string[]): ReadonlyMap<string, string | tru
     ) {
       throw new CliUsageError("a CLI option is missing its value");
     }
-    options.set(name, value);
+    if (name === "--plugin") {
+      const prior = options.get(name);
+      const values = Array.isArray(prior) ? [...prior] : [];
+      for (const item of value.split(",")) {
+        const normalized = item.trim();
+        if (normalized.length === 0) throw new CliUsageError("--plugin cannot contain an empty name");
+        values.push(normalized);
+      }
+      options.set(name, Object.freeze(values));
+    } else {
+      if (options.has(name)) throw new CliUsageError("CLI options may be supplied only once");
+      options.set(name, value);
+    }
     index += 1;
   }
   return options;
@@ -144,7 +160,7 @@ function parseOptions(argv: readonly string[]): ReadonlyMap<string, string | tru
 
 /** 确认当前命令只使用它允许的选项集合；parseCliArgs 调用。 */
 function assertOnly(
-  options: ReadonlyMap<string, string | true>,
+  options: ReadonlyMap<string, string | true | readonly string[]>,
   allowed: ReadonlySet<string>,
 ): void {
   if ([...options.keys()].some((name) => !allowed.has(name))) {
@@ -153,14 +169,28 @@ function assertOnly(
 }
 
 /** 读取必填字符串选项，缺失时转换为 CliUsageError。 */
-function required(options: ReadonlyMap<string, string | true>, name: string): string {
+function required(
+  options: ReadonlyMap<string, string | true | readonly string[]>,
+  name: string,
+): string {
   const value = options.get(name);
   if (typeof value !== "string") throw new CliUsageError("a required CLI option is missing");
   return value;
 }
 
+/** 读取可重复的插件名称选项；未指定时返回 undefined。 */
+function optionalPlugins(
+  options: ReadonlyMap<string, string | true | readonly string[]>,
+): readonly string[] | undefined {
+  const value = options.get("--plugin");
+  return Array.isArray(value) && value.length > 0 ? value : undefined;
+}
+
 /** 读取可选字符串选项；布尔项和缺失项都返回 undefined。 */
-function optional(options: ReadonlyMap<string, string | true>, name: string): string | undefined {
+function optional(
+  options: ReadonlyMap<string, string | true | readonly string[]>,
+  name: string,
+): string | undefined {
   const value = options.get(name);
   return typeof value === "string" ? value : undefined;
 }
@@ -197,12 +227,12 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
 
   const allowed = new Set([
     "--target",
+    "--plugin",
     "--config",
     "--run-id",
     "--fixture",
   ]);
   if (command === "plan" || command === "run") {
-    allowed.add("--fixture-pack");
     allowed.add("--dataset-catalog");
     allowed.add("--datasets");
     allowed.add("--labels");
@@ -228,7 +258,6 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
   if (fixtureBehavior !== undefined && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(fixtureBehavior)) {
     throw new CliUsageError("--fixture-behavior must be a stable token");
   }
-  const fixturePackRoot = optional(options, "--fixture-pack");
   const datasetCatalogPath = optional(options, "--dataset-catalog");
   const datasetsRoot = optional(options, "--datasets");
   const labelsRoot = optional(options, "--labels");
@@ -242,10 +271,8 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
   const runId = optional(options, "--run-id");
   const selectedCaseId = optional(options, "--case");
   const maxCasesText = optional(options, "--max-cases");
+  const plugins = optionalPlugins(options);
   const stopAfterCase = options.get("--stop-after-case") === true;
-  if (fixturePackRoot !== undefined && !fixture) {
-    throw new CliUsageError("--fixture-pack is only available with --fixture");
-  }
   if (fixture && (selectedCaseId !== undefined || maxCasesText !== undefined || stopAfterCase)) {
     throw new CliUsageError("batch Case controls are only available for a real run");
   }
@@ -253,7 +280,7 @@ export function parseCliArgs(argv: readonly string[]): CliCommand {
     command,
     target: required(options, "--target"),
     fixture,
-    ...(fixturePackRoot === undefined ? {} : { fixturePackRoot }),
+    ...(plugins === undefined ? {} : { plugins }),
     ...(datasetCatalogPath === undefined ? {} : { datasetCatalogPath }),
     ...(datasetsRoot === undefined ? {} : { datasetsRoot }),
     ...(labelsRoot === undefined ? {} : { labelsRoot }),
@@ -274,7 +301,9 @@ async function executeTargetCommand(
   command: Extract<CliCommand, { readonly command: TargetCommandName }>,
   cwd: string,
 ): Promise<WorkflowSummary> {
-  const descriptor = await loadTargetDescriptor(path.resolve(cwd, command.target));
+  const originalDescriptor = await loadTargetDescriptor(path.resolve(cwd, command.target));
+  const preparedPlugins = await preparePluginTarget(originalDescriptor, command.plugins ?? []);
+  const descriptor = preparedPlugins?.descriptor ?? originalDescriptor;
   const controller = new AbortController();
   /** 将一次 SIGINT 转换为当前 Workflow 的取消请求。 */
   const cancel = (): void => controller.abort();
@@ -285,7 +314,6 @@ async function executeTargetCommand(
       descriptor,
       fixtureMode: command.fixture,
       signal: controller.signal,
-      ...(command.fixturePackRoot === undefined ? {} : { packRoot: command.fixturePackRoot }),
       ...(command.datasetCatalogPath === undefined ? {} : { datasetCatalogPath: command.datasetCatalogPath }),
       ...(command.datasetsRoot === undefined ? {} : { datasetsRoot: command.datasetsRoot }),
       ...(command.labelsRoot === undefined ? {} : { labelsRoot: command.labelsRoot }),
@@ -303,6 +331,11 @@ async function executeTargetCommand(
           ? { stopAfter: "PLAN" as const }
           : {}),
     };
+    if (preparedPlugins !== undefined) {
+      for (const plugin of preparedPlugins.selection.plugins) {
+        process.stderr.write(`[dsheval:plugin] selected ${plugin.name} (#${plugin.rank}) -> ${plugin.packageName}\n`);
+      }
+    }
     if (command.command === "run" && !command.fixture) {
       return await runEvaluationBatch({
         ...workflowInput,
@@ -315,6 +348,7 @@ async function executeTargetCommand(
     return await runEvaluationWorkflow(workflowInput);
   } finally {
     process.off("SIGINT", cancel);
+    await preparedPlugins?.cleanup();
   }
 }
 

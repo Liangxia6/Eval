@@ -59,7 +59,7 @@
     "artifact-delivery"
   ],
   "task": {
-    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nIn panel D, for how many of the steps was the response to stimulus greater in the ASAP2f R414Q than the ASAP2f L146G S147T R414Q?\n\nOptions:\n{options}\n\nWrite your answer (the number) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
+    "instructions": "Read the image file `input/figure.jpg` to answer the following multiple-choice question.\n\nIn panel D, for how many of the steps was the response to stimulus greater in the ASAP2f R414Q than the ASAP2f L146G S147T R414Q?\n\nOptions:\nA. 3\nB. 1\nC. 4\nD. 5\nE. Insufficient information to answer the question\nF. 0\nG. 6\nH. 2\n\nWrite your answer (the number) to `output/answer.txt`.\n\nYou have up to 20 minutes (1200 seconds). Do not use online solutions or hints specific to this task.\n"
   },
   "environment": {
     "platform": "darwin",
@@ -68,32 +68,6 @@
       "Node.js >=22",
       "image-reading-tool"
     ],
-    "inputs": [
-      {
-        "source": "assets/figure.jpg",
-        "destination": "input/figure.jpg",
-        "sha256": "1c1c2ec80cb076993e35427e2842c651c7da6e25705f3949711419163f558220"
-      },
-      {
-        "source": "assets/options.json",
-        "destination": "input/options.json",
-        "sha256": "ed4f7854597901b3c59eb486a220150de524c7e38b4c8f50874c5e543032f133"
-      }
-    ],
-    "setup": {
-      "kind": "shuffle-options",
-      "options": [
-        "2",
-        "5",
-        "Insufficient information to answer the question",
-        "6",
-        "0",
-        "4",
-        "1",
-        "3"
-      ],
-      "mappingDestination": "input/letter_mapping.json"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "agent": {
@@ -142,5 +116,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/figure.jpg",
+      "destination": "input/figure.jpg",
+      "sha256": "1c1c2ec80cb076993e35427e2842c651c7da6e25705f3949711419163f558220",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/options.json",
+      "destination": "input/options.json",
+      "sha256": "ed4f7854597901b3c59eb486a220150de524c7e38b4c8f50874c5e543032f133",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/letter_mapping.json",
+      "destination": "input/letter_mapping.json",
+      "delivery": "workspace",
+      "sha256": "de3d8045d5f54004197365bb04a8d94e3014ed97a69ea6d46506d327fde287d9"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

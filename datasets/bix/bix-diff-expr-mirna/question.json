@@ -56,10 +56,6 @@
       "Python/R scientific stack",
       "BixBench capsule input"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -89,5 +85,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

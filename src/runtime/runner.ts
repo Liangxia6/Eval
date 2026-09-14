@@ -119,7 +119,7 @@ export function createRuntimeProjectionGraph(input: {
     failureRefs: [] as readonly Ref<FailureRecord>[],
     casePlanId: validateStableId<"CasePlanId">(input.casePlanId, "casePlanId"),
     attemptId,
-    checkResultRefs: [],
+    scoreRefs: [],
   }) as EvaluationCase;
   const attempt = withProjectionDigest({
     schema: "dsheval.mvp.attempt/v1" as const,

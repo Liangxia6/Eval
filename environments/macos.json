@@ -43,6 +43,7 @@
       }
     },
     "desktop": {
+      "enabled": true,
       "type": "desktop",
       "observerAdapter": "dsheval.macos-desktop-sensor",
       "sourceRequirement": {
@@ -53,7 +54,7 @@
         "sensorCapabilityDigest": {"algorithm":"sha256","byteLength":77,"value":"34feb6a1678b1e609b61d9318193f504f5f36adb5565e13a78cd33cc9b5762fa"},
         "requiredCapabilities": ["FRONTMOST_APPLICATION","SCREENSHOT","VISIBLE_APPLICATIONS","WINDOW_TITLES"],
         "resourceBinding": "environment.desktop",
-        "mandatory": true,
+        "mandatory": false,
         "minimumTrust": "INDEPENDENT",
         "contentMode": "STRUCTURED",
         "maxBytes": 4194304,
@@ -107,8 +108,8 @@
         "sourceType": "NETWORK",
         "sensorImplementationId": "dsheval.macos-network-sensor",
         "sensorImplementationVersion": "1.0.0",
-        "sensorCapabilityDigest": {"algorithm":"sha256","byteLength":77,"value":"27458e1d99c01abfb5fbbcefaac781f03ac021f2b55fc55fd50a4c6cf588b4b2"},
-        "requiredCapabilities": ["ESTABLISHED_CONNECTIONS","LISTENING_PORTS","TCP_ENDPOINTS","UDP_ENDPOINTS"],
+        "sensorCapabilityDigest": {"algorithm":"sha256","byteLength":51,"value":"84bf4bce55cffd6edad1ca7f2fc9d4a530e7a7a36607a0ce6ec0590a9f5634cd"},
+        "requiredCapabilities": ["LISTENING_PORTS","TCP_ENDPOINTS","UDP_ENDPOINTS"],
         "resourceBinding": "environment.network",
         "mandatory": true,
         "minimumTrust": "INDEPENDENT",

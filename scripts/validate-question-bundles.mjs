@@ -154,7 +154,7 @@ function checkpoints(value, field) {
 async function validateBundle(root, labels) {
   const files = await walkFiles(root);
   const question = await jsonFile(await localPath(root, "question.json"));
-  fields(question, ["schema", "id", "version", "title", "matching", "source", "capabilityLabels", "task", "environment", "final", "evidence"], [], "question");
+  fields(question, ["schema", "id", "version", "title", "matching", "source", "capabilityLabels", "task", "environment", "inputs", "grading", "evidence"], [], "question");
   requireValue(question.schema === "dsheval.question/v1", "question.schema: expected dsheval.question/v1");
   requireValue(/^\d+\.\d+\.\d+$/u.test(string(question.version, "question.version")), "question.version: expected semantic version");
   requireValue(slugPattern.test(string(question.title, "question.title")) && question.title === path.basename(root), "question.title: must equal bundle directory slug");
@@ -188,18 +188,18 @@ async function validateBundle(root, labels) {
     "task.instructions: must not instruct the agent to write the judge verdict UNEVALUABLE");
 
   const environment = question.environment;
-  fields(environment, ["platform", "timeoutSeconds", "dependencies", "inputs", "setup", "reset"], ["upstreamConstraints"], "environment");
+  fields(environment, ["platform", "timeoutSeconds"], ["dependencies", "reset", "upstreamConstraints", "allowedEdits"], "environment");
   requireValue(["darwin", "portable"].includes(environment.platform), "environment.platform: expected darwin or portable");
   requireValue(Number.isSafeInteger(environment.timeoutSeconds) && environment.timeoutSeconds > 0, "environment.timeoutSeconds: expected positive integer");
-  strings(environment.dependencies, "environment.dependencies");
-  requireValue(environment.reset === "fresh-workspace", "environment.reset: expected fresh-workspace");
+  strings(environment.dependencies ?? [], "environment.dependencies");
   if (environment.upstreamConstraints !== undefined) object(environment.upstreamConstraints, "environment.upstreamConstraints");
   const sources = new Set();
   const destinations = new Set();
   let inputBytes = 0;
-  for (const input of array(environment.inputs, "environment.inputs")) {
-    fields(input, ["source", "destination", "sha256"], [], "environment.inputs entry");
-    portablePath(input.source, "input.source", "assets");
+  for (const input of array(question.inputs, "question.inputs")) {
+    fields(input, ["source", "destination", "delivery"], ["sha256"], "question.inputs entry");
+    requireValue(["workspace","chat-attachment"].includes(input.delivery),"unsupported input delivery");
+    portablePath(input.source, "input.source", "input");
     portablePath(input.destination, "input.destination", "input");
     requireValue(!sources.has(input.source), `duplicate input source ${input.source}`);
     const normalizedDestination = input.destination.normalize("NFC").toLocaleLowerCase("en");
@@ -207,52 +207,24 @@ async function validateBundle(root, labels) {
       const previous = value.normalize("NFC").toLocaleLowerCase("en");
       return previous === normalizedDestination || previous.startsWith(`${normalizedDestination}/`) || normalizedDestination.startsWith(`${previous}/`);
     }), `duplicate or overlapping input destination ${input.destination}`);
-    requireValue(hashPattern.test(input.sha256), `input ${input.source}: invalid SHA-256`);
+    requireValue(input.sha256 === undefined || hashPattern.test(input.sha256), `input ${input.source}: invalid SHA-256`);
     const bytes = await readFile(await localPath(root, input.source));
-    requireValue(createHash("sha256").update(bytes).digest("hex") === input.sha256, `input ${input.source}: SHA-256 mismatch`);
+    requireValue(input.sha256 === undefined || createHash("sha256").update(bytes).digest("hex") === input.sha256, `input ${input.source}: SHA-256 mismatch`);
     sources.add(input.source);
     destinations.add(input.destination);
     inputBytes += bytes.length;
   }
-  for (const file of files.filter((file) => file.startsWith("assets/"))) {
+  for (const file of files.filter((file) => file.startsWith("input/"))) {
     requireValue(sources.has(file), `undeclared public asset ${file}`);
   }
-  const setup = object(environment.setup, "environment.setup");
-  if (setup.kind === "none") fields(setup, ["kind"], [], "environment.setup");
-  else if (setup.kind === "shuffle-options") {
-    fields(setup, ["kind", "options", "mappingDestination"], [], "environment.setup");
-    strings(setup.options, "environment.setup.options", true);
-    portablePath(setup.mappingDestination, "environment.setup.mappingDestination", "input");
-    requireValue(!destinations.has(setup.mappingDestination), "setup.mappingDestination overwrites a declared input");
-  } else throw new Error(`environment.setup: unsupported kind ${String(setup.kind)}`);
-
-  fields(question.final, ["checks"], [], "final");
-  const checkIds = new Set();
-  for (const check of array(question.final.checks, "final.checks", true)) {
-    fields(check, ["id", "kind", "output", "reference"], ["prompt"], "final.checks entry");
-    requireValue(slugPattern.test(string(check.id, "check.id")) && !checkIds.has(check.id), "check.id: invalid or duplicate");
-    checkIds.add(check.id);
-    requireValue(check.kind === "llm", "check.kind: expected llm for this bundle format");
-    portablePath(check.output, "check.output", "output");
-    portablePath(check.reference, "check.reference", "private");
-    requireValue(check.reference === "private/final.json", "check.reference: expected private/final.json");
-    requireValue(question.task.instructions.includes(check.output), `task.instructions: missing output contract ${check.output}`);
-    if (check.prompt !== undefined) string(check.prompt, "check.prompt");
-  }
+  object(question.grading,"grading");
+  portablePath(question.grading.reference,"grading.reference","private");
   const final = await jsonFile(await localPath(root, "private/final.json"));
-  fields(final, ["answer", "rubric"], [], "private/final.json");
-  requireValue(final.answer !== null && (typeof final.answer !== "string" || final.answer.trim().length > 0), "private/final.json.answer: empty answer");
-  string(final.rubric, "private/final.json.rubric");
-  requireValue(!/UNEVALUABLE|上游判分器|不代替|kind=llm|原生评分器|官方通过阈值|官方榜单|兼容字段/u.test(final.rubric),
-    "private/final.json.rubric: must state case-specific success criteria without legacy upstream-evaluator boilerplate");
+  object(final, "private grading reference");
   fields(question.evidence, ["process", "local"], [], "evidence");
   checkpoints(question.evidence.process, "evidence.process");
   checkpoints(question.evidence.local, "evidence.local");
-  const evidenceText = JSON.stringify(question.evidence);
-  for (const check of question.final.checks) {
-    requireValue(evidenceText.includes(path.posix.basename(check.output)),
-      `evidence: expected checkpoints to mention the final output ${check.output}`);
-  }
+
   return { inputCount: sources.size, inputBytes };
 }
 

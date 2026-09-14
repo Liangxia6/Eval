@@ -3,7 +3,11 @@ Read the image file `input/figure.jpg` to answer the following multiple-choice q
 What is the identity of the highest AUC optic lobe neuron set?
 
 Options:
-{options}
+A. T2/T3
+B. Ensheathing glia
+C. dFB
+D. C2/C3
+E. Insufficient information to answer the question
 
 Write your answer (the neuron set name) to `output/answer.txt`.
 

@@ -2,6 +2,8 @@
 
 公开数据集目录，整理时间：2026-09-03。
 
+> 本文仅是候选 Benchmark 调研资料，不是 DSHEval 的运行时 Dataset Catalog，也不定义题目、标签或 Judge 格式。真正可执行的数据必须先转换到 `datasets/` 约定结构，并在 `datasets/catalog.md` 中声明描述、Label、题量和运行条件；只有 Loader、Environment Adapter、Observer 和 Judge 均满足时才能进入 Planner 的可选集合。
+
 共 36 个数据集：记忆 11 个、Deep Research 13 个、搜索 12 个。
 
 ## 记忆

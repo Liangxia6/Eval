@@ -54,10 +54,6 @@
       "isolated benchmark environment",
       "trusted upstream evaluator"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "required": true,
@@ -121,5 +117,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

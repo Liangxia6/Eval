@@ -1,4 +1,4 @@
-/** 测试职责：验证统一 Planner 只运行一次，随后串行展开并执行多个 Case。 */
+/** 测试职责：验证统一 Planner 只运行一次，随后不重复地执行多个 Case。 */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
@@ -49,8 +49,6 @@ function baseSummary(runId: string): WorkflowSummary {
 test("Batch 只规划一次，并为每个 Case 复用冻结选择", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-batch-"));
   const calls: RunWorkflowInput[] = [];
-  let activeCases = 0;
-  let maximumActiveCases = 0;
   try {
     const summary = await runEvaluationBatch({
       cwd: root,
@@ -59,9 +57,6 @@ test("Batch 只规划一次，并为每个 Case 复用冻结选择", async () =>
       workflowRunner: async (input) => {
         calls.push(input);
         if (input.stopAfter === "PLAN") return baseSummary("batch-run");
-        activeCases += 1;
-        maximumActiveCases = Math.max(maximumActiveCases, activeCases);
-        await new Promise((resolve) => setTimeout(resolve, 5));
         const current = input.executionCase!;
         const bundle = path.join(root, "agents", "agent.batch-test", "runs", current.resultRunId, "cases", current.resultCaseId);
         await mkdir(bundle, { recursive: true });
@@ -70,14 +65,13 @@ test("Batch 只规划一次，并为每个 Case 复用冻结选择", async () =>
           command: "run",
           status: "COMPLETED",
           runId: input.runId!,
-          gate: "PASS",
+          scores: [],dimensions: [],
           operationalHealth: "HEALTHY",
           securityIsolation: "SESSION_SEPARATED",
           caseBundlePath: bundle,
           dshSessionIds: [`session-${current.caseIndex + 1}`],
           exitCode: 0,
         };
-        activeCases -= 1;
         return result;
       },
     });
@@ -85,14 +79,17 @@ test("Batch 只规划一次，并为每个 Case 复用冻结选择", async () =>
     assert.equal(calls.filter((call) => call.stopAfter === "PLAN").length, 1);
     assert.deepEqual(calls.slice(1).map((call) => call.executionCase?.caseIndex), [0, 1, 2, 3]);
     assert.ok(calls.slice(1).every((call) => call.precomputedDatasetSelection?.model === "planner-test"));
-    assert.equal(maximumActiveCases, 3);
-    assert.equal(summary.caseConcurrency, 3);
     assert.deepEqual(summary.caseResults.map((item) => item.dshSessionIds), [["session-1"], ["session-2"], ["session-3"], ["session-4"]]);
-    assert.equal(summary.gate, "PASS");
+    assert.deepEqual(summary.dimensions, []);
     assert.equal(summary.runSummaryPath, path.join(root, "agents", "agent.batch-test", "runs", "batch-run", "run.json"));
+    assert.equal(summary.reportHtml, path.join(root, "agents", "agent.batch-test", "runs", "batch-run", "report.html"));
     const persisted = JSON.parse(await readFile(summary.runSummaryPath!, "utf8")) as { runId: string; caseResults: unknown[] };
     assert.equal(persisted.runId, "batch-run");
     assert.equal(persisted.caseResults.length, 4);
+    const report = await readFile(summary.reportHtml!, "utf8");
+    assert.match(report, /DSHEval 完整 Run 报告/u);
+    assert.match(report, /attention-pytorch\.case-1/u);
+    assert.match(report, /attention-pytorch\.case-4/u);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

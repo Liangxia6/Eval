@@ -50,31 +50,6 @@
     "dependencies": [
       "Python >=3.9 with standard-library sqlite3"
     ],
-    "inputs": [
-      {
-        "source": "assets/table.json",
-        "destination": "input/table.json",
-        "sha256": "04f18c7dce23dd28c1694838ce3f37765eaff34de8bbbaa2fbde62e59fd8a481"
-      },
-      {
-        "source": "assets/db_tool.py",
-        "destination": "input/db_tool.py",
-        "sha256": "164692a2be37d1b257b675b135cedef4e26634fead158db56f4ac4d78d274918"
-      },
-      {
-        "source": "assets/README.md",
-        "destination": "input/README.md",
-        "sha256": "3a939924df0f2f2092ece5068ca08fa13ed3c9132ff02e2ab71e59938de8e225"
-      },
-      {
-        "source": "assets/LICENSE",
-        "destination": "input/LICENSE",
-        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -112,5 +87,34 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/table.json",
+      "destination": "input/table.json",
+      "sha256": "04f18c7dce23dd28c1694838ce3f37765eaff34de8bbbaa2fbde62e59fd8a481",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/db_tool.py",
+      "destination": "input/db_tool.py",
+      "sha256": "164692a2be37d1b257b675b135cedef4e26634fead158db56f4ac4d78d274918",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/README.md",
+      "destination": "input/README.md",
+      "sha256": "3a939924df0f2f2092ece5068ca08fa13ed3c9132ff02e2ab71e59938de8e225",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/LICENSE",
+      "destination": "input/LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

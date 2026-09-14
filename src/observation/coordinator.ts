@@ -1,7 +1,7 @@
 /**
  * 文件职责：构造观察来源与 ObservationSession，并以统一规则推进基线、激活、排空、封存或失败状态。
  * 核心流程：冻结 Probe/File 来源描述，创建双来源 Session，校验每次状态迁移，封存时验证六项完成账本和已提交的采集状态。
- * 与其他文件的真实交互：读取 observation/runtime.ts 与 observation/sensors/file.ts 的实现身份；依赖 core/models.ts 构造摘要和状态迁移；由 app/workflow.ts 持久化返回结果。
+ * 与其他文件的真实交互：读取 agent-trace/reader.ts 与 observer-lab/adapters/filesystem/sensor.ts 的实现身份；依赖 core/models.ts 构造摘要和状态迁移；由 app/workflow.ts 持久化返回结果。
  * 公开接口：来源与 Session 输入类型、来源/Session 构造函数、生命周期迁移函数、迟到记录诊断，以及完成账本构造函数。
  */
 import {
@@ -31,17 +31,17 @@ import {
   FILE_SENSOR_CAPABILITY_DIGEST,
   FILE_SENSOR_IMPLEMENTATION_ID,
   FILE_SENSOR_IMPLEMENTATION_VERSION,
-} from "./sensors/file.js";
+} from "../../observer-lab/adapters/filesystem/sensor.js";
 import {
   PROCESS_SENSOR_CAPABILITY_DIGEST,
   PROCESS_SENSOR_IMPLEMENTATION_ID,
   PROCESS_SENSOR_IMPLEMENTATION_VERSION,
-} from "./sensors/process.js";
+} from "../../observer-lab/adapters/process/sensor.js";
 import {
   PROBE_CAPABILITY_DIGEST,
   PROBE_IMPLEMENTATION_ID,
   PROBE_IMPLEMENTATION_VERSION,
-} from "./runtime.js";
+} from "../agent-trace/reader.js";
 
 /** MVP 封存协议要求的六项完成证明及其规范顺序。 */
 const LEDGER_ORDER = [

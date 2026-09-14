@@ -9,6 +9,7 @@
       "excludeExecutableContains": ["/dsh", "/dsheval"]
     },
     "desktop": {
+      "enabled": true,
       "windowTitles": true,
       "screenshot": false
     },

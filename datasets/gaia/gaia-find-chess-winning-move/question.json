@@ -52,36 +52,10 @@
     "dependencies": [
       "Python 3.10+"
     ],
-    "inputs": [
-      {
-        "source": "assets/board.png",
-        "destination": "input/board.png",
-        "sha256": "daaa417b9746471ec313c3233bb63175908d49de0859b5bce99431392e45efd8"
-      },
-      {
-        "source": "assets/data.json",
-        "destination": "input/data.json",
-        "sha256": "4afa9ad427193755e1822e41183d6d3b14520f49c29b4f23ba5dd17e3b1a328a"
-      }
-    ],
-    "setup": {
-      "kind": "copy-public-inputs"
-    },
     "reset": "fresh-workspace",
     "allowedEdits": [
       "output/**",
       "work/**"
-    ]
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-result",
-        "kind": "llm",
-        "output": "output/answer.txt",
-        "reference": "private/final.json",
-        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
-      }
     ]
   },
   "evidence": {
@@ -113,5 +87,29 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/board.png",
+      "destination": "input/board.png",
+      "sha256": "daaa417b9746471ec313c3233bb63175908d49de0859b5bce99431392e45efd8",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/data.json",
+      "destination": "input/data.json",
+      "sha256": "4afa9ad427193755e1822e41183d6d3b14520f49c29b4f23ba5dd17e3b1a328a",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/answer.txt",
+    "criteria": [
+      {
+        "id": "final-result",
+        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
+      }
+    ]
   }
 }

@@ -1,65 +1,182 @@
-# DSHEval 测试说明
+> **2026-09-12 评分链路更新：** 当前接口以 [Evaluation 重构说明](EVALUATION-REFACTOR-20260912.md) 为准。下文出现的 Pack、EvidenceContract、Closure、Gate 和旧评分报告字段均已移除；历史说明保留用于追溯。
 
-> 目标：证明 Attention MVP 闭环正确、失败不失真；Fixture 结果不冒充真实 VM 验收。
+# DSHEval 测试与 VMmac 单步调试
 
-## 1. 发布门禁
+## 1. 自动测试
 
 ```bash
-pnpm run verify
+pnpm run check
+pnpm test
 ```
 
-`pnpm run verify` 等价于 `pnpm run check && pnpm test`，本地与 CI（`.github/workflows/ci.yml`）使用同一入口。
+自动测试用于验证类型、契约、Planner 结果校验、Dataset Loader、Trace 解析、Observer 物化、Judge/Gate、Case Bundle 和 Fixture。自动测试不能代替真实 DSH、真实模型与 VM 环境验收。
 
-当前自动化共 104 项，必须全部通过。测试不访问公网，不需要模型 API Key。
+## 2. VMmac 基础环境
 
-## 2. 测试层次
+进入 VM 后先设置执行环境：
 
-| 层次 | 验证内容 |
+```bash
+export PATH=/opt/homebrew/Cellar/node@22/22.23.2_1/bin:/opt/homebrew/Cellar/node@22/22.23.2_1/lib/node_modules/corepack/shims:/opt/homebrew/bin:/usr/bin:/bin
+set -a
+source ~/.dsh/.env
+set +a
+cd /Users/dsheval/Projects/dsheval
+pnpm run build
+```
+
+`/opt/homebrew/bin` 不能省略：读取 DSH Session Archive 需要 `zstd`。真实评测还需要 `DEEPSEEK_API_KEY`，或分别设置 `DSHEVAL_PLANNER_API_KEY` 和 `DSHEVAL_JUDGE_API_KEY`。
+
+## 3. 单步一：静态观测
+
+```bash
+node dist/src/app/cli.js inspect \
+  --target config/targets/real-dsh.json \
+  --config config/macos-vm.json \
+  --run-id inspect-real-01
+```
+
+检查输出：
+
+- `fixture` 必须为 `false`；
+- Target 是真实 DSH `headless` Profile；
+- 插件、工具、权限、Probe 状态和 limitation 与当前 VM 一致；
+- 该步骤不再输出“Agent 标签选择”。
+
+## 4. 单步二：统一 Planner
+
+```bash
+node dist/src/app/cli.js plan \
+  --target config/targets/real-dsh.json \
+  --dataset-catalog datasets/catalog.md \
+  --datasets datasets \
+  --labels labels \
+  --trace trace/dsh-runtime.json \
+  --environment environments/macos.json \
+  --test-profile STANDARD \
+  --config config/macos-vm.json \
+  --run-id plan-real-01
+```
+
+检查输出：
+
+- Planner API 只调用一次；
+- `selectedDatasets` 中 ID 必须来自 Catalog 且不重复；
+- 每个 Dataset 当前 `caseCount=2`；
+- 总题量不超过 `planning/policies.json` 的边界；
+- `selectedLabelIds` 是所选 Dataset 标签的程序化并集；
+- Dataset 的运行条件和 Adapter/Judge 状态不能被 Prompt 文案误判为已满足。
+
+需要调试 Planner Prompt 时，只打开项目现有的 Planner Debug 环境变量，并以 CLI 打印出的最终请求为准；静态快照、Catalog、Eligibility 和 Policy 都应是运行时注入数据，不得手工复制成固定 Prompt。
+
+## 5. 单步三：两题 Smoke Run
+
+```bash
+export DSHEVAL_DEBUG_ERRORS=1
+node dist/src/app/cli.js run \
+  --target config/targets/real-dsh.json \
+  --dataset-catalog datasets/catalog.md \
+  --datasets datasets \
+  --labels labels \
+  --trace trace/dsh-runtime.json \
+  --environment environments/macos.json \
+  --test-profile STANDARD \
+  --config config/macos-vm.json \
+  --run-id standard-smoke-01 \
+  --max-cases 2
+```
+
+`--max-cases 2` 是对整个 Parent Run 的全局截断，只适合 Smoke Test。它不会让“每个选中 Dataset 都执行 2 题”。完整 STANDARD 运行时删除该参数：
+
+```bash
+node dist/src/app/cli.js run \
+  --target config/targets/real-dsh.json \
+  --dataset-catalog datasets/catalog.md \
+  --datasets datasets \
+  --labels labels \
+  --trace trace/dsh-runtime.json \
+  --environment environments/macos.json \
+  --test-profile STANDARD \
+  --config config/macos-vm.json \
+  --run-id standard-full-01
+```
+
+## 6. 运行中观察什么
+
+CLI 应依次打印：
+
+```text
+planning
+starting 1/N: <case-id>
+finished 1/N: <case-id> (...)
+starting 2/N: <case-id>
+...
+```
+
+当前 `caseConcurrency=1`。每个 Case 应在 DSH Web 页面中出现一个新会话，自动收到该 Case 的真实题目，并显示工具调用和最终回答；上一题对话历史不应进入下一题。
+
+框架状态 `COMPLETED` 只表示流程跑完，不代表 Agent 通过。CLI 退出码的重点语义：
+
+| 退出码 | 含义 |
 |---|---|
-| Unit | Digest、Scope、Label 选择、File Diff、Judge、Gate、HTML 转义 |
-| Contract | 模块依赖、Port 返回、Probe/File Sensor 契约 |
-| Integration | Repository、Artifact、工作区、Target 子进程、Reset、Viewer |
-| E2E Fixture | Attention Pack 从 Planner 到报告的完整链路 |
-| VM 验收 | 真实 DSH、真实模型、OS 身份和网络隔离；不由 Fixture 代替 |
+| `0` | 流程完成且 Gate PASS |
+| `1` | 流程完成但 Gate FAIL |
+| `2` | PLAN_UNSATISFIABLE |
+| `3` | Gate UNEVALUABLE |
+| `4` | 基础设施或 Workflow 失败 |
+| `130` | 用户取消 |
 
-## 3. Attention E2E Fixture
+## 7. 结果审查
 
-| 场景 | 预期 |
-|---|---|
-| 生成 `output/attention.py`、提交有效回答并完成 Python 工具调用 | 两项 Check PASS，Gate PASS |
-| 缺少代码产物 | Artifact Check FAIL，Gate FAIL |
-| Probe 缺少结束边界 | 相关证据不足，Gate UNEVALUABLE |
-| Reset 独立验证失败 | 已形成的 Agent Gate 不变，Operational Health 降级 |
+```text
+var/evaluation-results/agents/<agent-id>/runs/<run-id>/
+├── target.json
+├── run.json
+├── report.html
+└── cases/<case-id>/
+    ├── task.json
+    ├── plan.json
+    ├── execution.json
+    ├── trace/{index.json,status.json,raw.jsonl.gz}
+    ├── observers/*.json
+    ├── evidence/*.json
+    ├── judge/*.json
+    ├── artifacts/
+    ├── report.json
+    ├── report.html
+    └── manifest.json
+```
 
-Fixture 进程在 `tests/fixtures/agents/fake-dsh/`，必须显式传入 `--fixture` 和 `--fixture-behavior`。报告会标记 `PROCESS_FIXTURE`。
+逐项检查：
 
-## 4. 关键不变量
+1. `task.json` 是从选中 Dataset 的真实题目字段解析出来的，不是旧 Attention/Mem 固化 Prompt；
+2. `execution.json` 有 Session ID、Agent 最终回答、stdout/stderr 和终止状态；
+3. `trace/index.json` 有关键工具参数与结果，但没有大量 `assistant/chunk`；
+4. `artifacts/` 包含 Agent 实际交付物及可读内容；
+5. `observers/` 中存在本题需要的组件事件和运行状态；
+6. 每个 Dataset Label 都有独立 `evidence/<label>.json` 和 `judge/<label>.json`；
+7. Case `report.html` 展示本题全过程，Run 根目录 `report.html` 展示全部已执行 Case；
+8. `manifest.json` 中每个文件的大小和 SHA-256 可复核。
 
-- Trace 只解释执行过程；文件 Observer 独立验证代码产物。
-- 缺失、无效或不可信的证据不能 PASS。
-- Agent、Collector、Judge、Environment 和 Infrastructure 故障分别归因。
-- Judge 实现缺失或抛错产生 `JUDGE_FAILURE + UNEVALUABLE`。
-- Gate 只消费计划声明且已经保存的完整 CheckResult 集合，并且每个 Run 只计算一次。
-- Reset 失败不能修改已经保存的 CheckResult 或 Gate。
-- Pack、Evidence、Artifact 与报告摘要被篡改后必须拒绝读取。
-- Target argv、cwd、环境变量、路径和 Secret 都必须通过安全边界测试。
+`var/` 不提交 Git。重新测试使用新的 `run-id`，不要覆盖不可变 Case Bundle。
 
-## 5. Pack 扩展测试
+## 8. 2026-09-10 真实 Demo 基线
 
-新增 Dataset Pack 时至少增加：
+已完成运行：`standard-e2e-20260910-1800`。
 
-1. Pack 摘要和交叉引用校验；
-2. Label 选择到 Check/Judge 的确定性测试；
-3. 每个新 Judge 的 PASS、FAIL、UNEVALUABLE 测试；
-4. 一个完整 Fixture 或真实 VM Case；
-5. 如果引入新 Observer，增加 Binding、读取失败和信任级别测试。
+- Planner 选择 4 个 Dataset，每个 2 题，共计划 8 题；Smoke 参数只执行前 2 题；
+- 两题各创建一个真实 DSH Session；
+- Case 1 流程完成、Gate FAIL；Case 2 流程完成、Gate PASS；
+- Parent Run 流程状态 `COMPLETED`、运行健康 `HEALTHY`、聚合 Gate `FAIL`；
+- 结果证明全链路可运行，也暴露出 Dataset 可执行性过滤和 Agent 访问私有评分材料的问题。
 
-只复用现有 Judge/Observer 的新 Pack 不应修改 Workflow。
+## 9. 下一轮验收重点
 
-## 6. 真实 VM 尚需验证
+- 不可执行 Dataset 在 LLM 之前被硬过滤；
+- Agent 无法读取 DSHEval 源码、结果目录和 Dataset 私有评分文件；
+- Browser、Database、External API Observer 的 `COMPLETE/PARTIAL/UNAVAILABLE/IDLE` 均能进入 Case Bundle；
+- Raw Trace 体积下降，但 SQL、命令参数、工具返回正文、错误、最终回答和交付物不丢失；
+- 完整 STANDARD 确实对每个选中 Dataset 执行 2 个不同 Case，并只执行一次。
 
-- DSH `0.1.1-rc.2` 的真实 Headless/Probe 事件；
-- PyTorch 在 VM 中真实执行并由 Trace 记录成功结果；
-- `dsheval` 与 `dshagent` 的 OS 身份隔离；
-- 网络默认拒绝和允许的模型端点；
-- 本机经 SSH 隧道查看 VM 内的 `status.html` / `report.html`。
+## Observer 变化采集回归
+
+pnpm test 同时运行 TypeScript 测试和 observer-lab/tests/*.test.mjs。新增测试覆盖无变化不写证据、临时文件创建后删除、结束前最后采集、中途失败不被覆盖，以及真实文件变化进入证据与 Judge 授权闭包。外部服务在隔离测试中显式标记未启用；真实 VM 组件状态另行记录。

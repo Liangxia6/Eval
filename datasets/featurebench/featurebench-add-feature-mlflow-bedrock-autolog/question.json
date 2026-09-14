@@ -59,10 +59,6 @@
       "sanitized mlflow/mlflow@93dab383a1a3fc9882ebc32283ad2a05d79ff70f source fixture",
       "pinned upstream dependency environment"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -92,5 +88,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

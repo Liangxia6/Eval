@@ -61,26 +61,6 @@
       "Python scientific stack",
       "Gaia DR2 FITS private seed"
     ],
-    "inputs": [
-      {
-        "source": "assets/paper_masked.json",
-        "destination": "input/paper_masked.json",
-        "sha256": "66e28d446e64a7f210532e6f5068aa924db53d842c2b4a632b050a4e9e2c2b63"
-      },
-      {
-        "source": "assets/dataset_info.json",
-        "destination": "input/dataset_info.json",
-        "sha256": "7d6b02403e48b8d806d65f34ea1dae0ad68f22ad29fae9fad636dd59cade822c"
-      },
-      {
-        "source": "assets/download_datasets.py",
-        "destination": "input/download_datasets.py",
-        "sha256": "efd7788533bc3edf2517e517a05cd42ef4284d76ed2d5c7ef3d6509854c0e7db"
-      }
-    ],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -110,5 +90,28 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/paper_masked.json",
+      "destination": "input/paper_masked.json",
+      "sha256": "66e28d446e64a7f210532e6f5068aa924db53d842c2b4a632b050a4e9e2c2b63",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/dataset_info.json",
+      "destination": "input/dataset_info.json",
+      "sha256": "7d6b02403e48b8d806d65f34ea1dae0ad68f22ad29fae9fad636dd59cade822c",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/download_datasets.py",
+      "destination": "input/download_datasets.py",
+      "sha256": "efd7788533bc3edf2517e517a05cd42ef4284d76ed2d5c7ef3d6509854c0e7db",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

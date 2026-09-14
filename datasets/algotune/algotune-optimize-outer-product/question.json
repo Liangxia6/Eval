@@ -60,10 +60,6 @@
       "SciPy",
       "pinned AlgoTune CPU/judge environment"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace",
     "upstreamConstraints": {
       "agent": {
@@ -71,7 +67,7 @@
         "memory_mb": 8192
       },
       "verifier": {
-        "timeout_sec": 10800.0
+        "timeout_sec": 10800
       }
     }
   },
@@ -102,5 +98,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

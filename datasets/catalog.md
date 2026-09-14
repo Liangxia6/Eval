@@ -540,6 +540,79 @@
         "label.tool-web/v1"
       ],
       "availableCaseCount": 5
+    },
+    {
+      "datasetId": "dataset.memory-accurate-recall/v1",
+      "name": "Memory Accurate Recall",
+      "description": "轻量记忆检索专题：从短上下文中定位单一事实并给出证据。适配 MemoryAgentBench Accurate Retrieval，Python 标准库即可运行。",
+      "labelIds": [
+        "label.memory/v1",
+        "label.reasoning-planning/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.memory-conflict-update/v1",
+      "name": "Memory Conflict Update",
+      "description": "轻量记忆更新专题：区分旧记录与后续事实，按时间顺序回答当前有效值。适配 MemoryAgentBench Conflict Resolution 与 LongMemEval knowledge-update。",
+      "labelIds": [
+        "label.memory/v1",
+        "label.reasoning-planning/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.memory-temporal-reasoning/v1",
+      "name": "Memory Temporal Reasoning",
+      "description": "轻量时间记忆专题：根据事件日期和有效区间判断指定时点的状态。适配 LongMemEval temporal-reasoning，依赖仅为 Python 标准库。",
+      "labelIds": [
+        "label.memory/v1",
+        "label.reasoning-planning/v1"
+      ],
+      "availableCaseCount": 2
+    },
+    {
+      "datasetId": "dataset.memory-preference/v1",
+      "name": "Memory Preference",
+      "description": "轻量偏好记忆专题：从用户长期偏好中选择满足约束的推荐或计划。适配 PersonaMem 的偏好回忆形式，不需要联网。",
+      "labelIds": [
+        "label.memory/v1",
+        "label.reasoning-planning/v1"
+      ],
+      "availableCaseCount": 2
+    },
+    {
+      "datasetId": "dataset.retrieval-hotpot-evidence/v1",
+      "name": "Retrieval Hotpot Evidence",
+      "description": "轻量多跳检索专题：在随题提供的候选段落中完成 bridge/comparison 推理，并返回支持证据。适配 HotpotQA，标准库即可运行。",
+      "labelIds": [
+        "label.reasoning-planning/v1",
+        "label.retrieval-grounding/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.collaboration-aws-travel/v1",
+      "name": "Collaboration AWS Travel",
+      "description": "轻量协作规划专题：拆分航班、住宿和改签取消任务，按依赖、预算和确认边界合并结果。改编 AWS multi-agent collaboration scenarios，使用本地模拟工具。",
+      "labelIds": [
+        "label.collaboration/v1",
+        "label.reasoning-planning/v1",
+        "label.tool-external/v1"
+      ],
+      "availableCaseCount": 3
+    },
+    {
+      "datasetId": "dataset.ops-agentops-reliability/v1",
+      "name": "Ops AgentOps Reliability",
+      "description": "轻量运维可靠性专题：处理超时、畸形响应、限流退避和提示注入边界，要求记录重试与停止条件。适配 AgentOps-Bench 风格，依赖仅为标准库。",
+      "labelIds": [
+        "label.efficiency-reliability/v1",
+        "label.reasoning-planning/v1",
+        "label.safety-boundary/v1",
+        "label.tool-external/v1"
+      ],
+      "availableCaseCount": 4
     }
   ]
 }

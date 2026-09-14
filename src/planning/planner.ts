@@ -25,18 +25,7 @@ export interface DatasetTestPolicy {
   readonly maxTotalCases: number;
 }
 
-/** 数量是可调整的运行策略；提示词只解释三种规模的取舍方式。 */
-export const DATASET_TEST_POLICIES: Readonly<Record<DatasetTestProfile, DatasetTestPolicy>> =
-  Object.freeze({
-    STANDARD: Object.freeze({
-      profile: "STANDARD",
-      minDatasets: 1,
-      maxDatasets: 8,
-      minCasesPerDataset: 1,
-      maxCasesPerDataset: 10,
-      maxTotalCases: 60,
-    }),
-  });
+const POLICY_SCHEMA = "dsheval.dataset-test-policies/v1";
 
 /** Dataset 团队交给统一 Planner 的只读目录投影，不包含题目正文。 */
 export interface DatasetCandidate {
@@ -88,6 +77,7 @@ export interface OpenAiCompatibleDatasetMatcherOptions {
   readonly model: string;
   readonly timeoutMs?: number;
   readonly promptRoot?: string;
+  readonly policyFile?: string;
   readonly fetchImpl?: typeof fetch;
   readonly now?: () => number;
   /** 调试只观察请求体；API Key 永远不会传入。 */
@@ -112,9 +102,10 @@ function sortedUniqueLabels(values: readonly LabelId[], field: string): readonly
 }
 
 /** 本地只过滤题量不足候选；候选与 Agent 的适配判断全部留给统一 Planner。 */
-function prepareSelection(input: DatasetSelectionInput): PreparedDatasetSelection {
-  const policy = DATASET_TEST_POLICIES[input.profile];
-  if (policy === undefined) throw new Error(`Unknown Dataset test profile: ${String(input.profile)}`);
+function prepareSelection(
+  input: DatasetSelectionInput,
+  policy: DatasetTestPolicy,
+): PreparedDatasetSelection {
   const datasetIds = new Set<string>();
   const candidates: DatasetCandidate[] = [];
   for (const [index, candidate] of input.availableDatasets.entries()) {
@@ -154,6 +145,47 @@ function prepareSelection(input: DatasetSelectionInput): PreparedDatasetSelectio
     agentStaticInfo: input.agentStaticInfo,
     candidates: Object.freeze(candidates),
     policy,
+  });
+}
+
+/** 从独立策略文件读取题量边界；新增 QUICK/DEEP 时无需修改 Planner 代码。 */
+export async function loadDatasetTestPolicy(
+  policyFile: string,
+  profile: DatasetTestProfile,
+): Promise<DatasetTestPolicy> {
+  const root = asObject(JSON.parse(await readFile(path.resolve(policyFile), "utf8")) as unknown, "Dataset test policies");
+  exactFields(root, ["schema", "profiles"], "Dataset test policies");
+  if (root.schema !== POLICY_SCHEMA) throw new Error("Dataset test policy schema is invalid");
+  const profiles = asObject(root.profiles, "Dataset test policies.profiles");
+  const raw = asObject(profiles[profile], `Dataset test policies.profiles.${profile}`);
+  exactFields(raw, [
+    "minDatasets",
+    "maxDatasets",
+    "minCasesPerDataset",
+    "maxCasesPerDataset",
+    "maxTotalCases",
+  ], `Dataset test policies.profiles.${profile}`);
+  const policyNumber = (field: string): number => {
+    const value = raw[field];
+    if (typeof value !== "number") throw new Error(`${field} must be a number`);
+    assertPositiveInteger(value, field);
+    return value;
+  };
+  const values = {
+    minDatasets: policyNumber("minDatasets"),
+    maxDatasets: policyNumber("maxDatasets"),
+    minCasesPerDataset: policyNumber("minCasesPerDataset"),
+    maxCasesPerDataset: policyNumber("maxCasesPerDataset"),
+    maxTotalCases: policyNumber("maxTotalCases"),
+  };
+  if (values.minDatasets > values.maxDatasets) throw new Error("Dataset count policy range is invalid");
+  if (values.minCasesPerDataset > values.maxCasesPerDataset) throw new Error("Case count policy range is invalid");
+  if (values.maxTotalCases < values.minDatasets * values.minCasesPerDataset) {
+    throw new Error("Dataset test policy total budget is too small");
+  }
+  return Object.freeze({
+    profile,
+    ...values,
   });
 }
 
@@ -330,7 +362,7 @@ function eligibilityIndex(candidates: readonly DatasetCandidate[]): JsonObject {
     datasets: candidates.map((candidate) => ({
       dataset_id: candidate.datasetId,
       status: "CONDITIONAL",
-      reason: "Catalog metadata is available; case assets, dependencies and Observer/Judge bindings are validated before execution.",
+      reason: "Catalog metadata is available; Loader delivers Case inputs, and the environment is prepared manually.",
       label_ids: candidate.labelIds,
       available_case_count: candidate.availableCaseCount,
     })),
@@ -389,6 +421,7 @@ export class OpenAiCompatibleDatasetMatcher implements DatasetMatcher {
   readonly #model: string;
   readonly #timeoutMs: number;
   readonly #promptRoot: string;
+  readonly #policyFile: string;
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
   readonly #requestObserver: ((requestBody: JsonObject) => void) | undefined;
@@ -407,13 +440,15 @@ export class OpenAiCompatibleDatasetMatcher implements DatasetMatcher {
     this.#model = options.model;
     this.#timeoutMs = timeoutMs;
     this.#promptRoot = path.resolve(options.promptRoot ?? path.join(process.cwd(), "planning", "prompts"));
+    this.#policyFile = path.resolve(options.policyFile ?? path.join(process.cwd(), "planning", "policies.json"));
     this.#fetch = options.fetchImpl ?? fetch;
     this.#now = options.now ?? Date.now;
     this.#requestObserver = options.requestObserver;
   }
 
   public async select(input: DatasetSelectionInput): Promise<DatasetSelectionPlan> {
-    const prepared = prepareSelection(input);
+    const policy = await loadDatasetTestPolicy(this.#policyFile, input.profile);
+    const prepared = prepareSelection(input, policy);
     const template = await readFile(path.join(this.#promptRoot, promptFileName(input.profile)), "utf8");
     if (template.trim().length === 0) throw new Error("Unified Planner prompt must not be empty");
     const prompt = renderPlannerPrompt(template, prepared);
@@ -473,6 +508,7 @@ export function createDefaultDatasetMatcher(
     model: environment.DSHEVAL_PLANNER_MODEL ?? DEFAULT_MODEL,
     timeoutMs,
     promptRoot: environment.DSHEVAL_PLANNER_PROMPT_ROOT ?? path.join(cwd, "planning", "prompts"),
+    policyFile: environment.DSHEVAL_PLANNER_POLICY_FILE ?? path.join(cwd, "planning", "policies.json"),
     ...(environment.DSHEVAL_DEBUG_PLANNER_PROMPT === "1" ? {
       requestObserver: (requestBody: JsonObject) => {
         process.stderr.write(`[dsheval:planner-prompt] ${JSON.stringify(requestBody, null, 2)}\n`);

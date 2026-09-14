@@ -2,7 +2,7 @@
  * 文件职责：驱动 DSHEval 唯一的端到端评测状态机。
  *
  * 核心流程：依次完成 Target 冻结与检查、计划生成、安全预检、环境准备、Agent
- * 执行、双通道观测、Evidence 闭合、Judge、Reset 独立验证、单次 Gate 和报告交付。
+ * 执行、双通道观测、all trace 收拢、Judge、Reset 独立验证、数值评分 和报告交付。
  * 每一步都先持久化事实再推进状态，异常路径复用同一套安全收尾流程。
  *
  * 与其他文件的交互：从 bootstrap 取得全部服务；顺序调用 planning、runtime、
@@ -36,30 +36,22 @@ import {
   withContentDigest,
   type AgentTracePlan,
   type ArtifactRef,
-  type CheckResult,
   type CollectionStatus,
   type ConfigSnapshot,
   type ControlEvent,
   type EnvironmentInstance,
   type EvaluationCase,
   type EvaluationPlan,
-  type EvaluationRequest,
-  type EvaluationReport,
   type EvaluationRun,
-  type EvidenceClosure,
-  type EvidenceContract,
-  type EvidenceRecord,
   type ExecutionAttempt,
   type FileDiff,
   type FileSnapshot,
   type ProcessDiff,
   type ProcessSnapshot,
-  type Finding,
-  type GateDecision,
   type InspectionSnapshot,
   type IsoDateTime,
-  type JudgementRecord,
   type JsonObject,
+  type JsonValue,
   type ObservationPlan,
   type ObservationSession,
   type RawObservation,
@@ -72,25 +64,15 @@ import {
   type TargetDescriptor,
   type TargetSnapshot,
 } from "../core/models.js";
-import {
-  buildEvidenceClosures,
-} from "../evaluation/closure.js";
-import { buildEvidenceBundle } from "../evaluation/evidence.js";
-import { attachJudgeFailureRef, evaluateCheck } from "../evaluation/judging.js";
-import { createDefaultLabelJudgeFactory } from "../evaluation/llm-label-judge.js";
-import {
-  buildEvaluationReport,
-  buildReportDocument,
-  buildReportViewModel,
-  parseVerifiedReportDocument,
-  renderReportHtml,
-  renderStatusHtml,
-  serializeReportDocument,
-  type ExecutionDataView,
-  type ReportViewModel,
-  type WorkflowStepView,
-} from "../evaluation/report.js";
-import { buildGateDecision } from "../evaluation/scoring.js";
+import { assembleAllTrace } from "../all-trace/assemble.js";
+import type { AllTrace, SubmissionFile as SubmissionFileEvidenceInput } from "../all-trace/types.js";
+import { loadLabels, type LabelDefinition } from "../labels/catalog.js";
+import { createDefaultLabelJudge } from "../evaluation/llm-label-judge.js";
+import { aggregateScores } from "../evaluation/scoring.js";
+import type { LabelJudge, LabelScore, DimensionScore } from "../evaluation/types.js";
+import { buildResult, parseVerifiedReportDocument, serializeReportDocument } from "../reporting/record.js";
+import { renderReportHtml, renderStatusHtml } from "../reporting/html.js";
+import type { ResultData, ExecutionDataView, WorkflowStepView } from "../reporting/types.js";
 import {
   activateObservation,
   beginBaseline,
@@ -110,29 +92,29 @@ import {
   materializeFileCollectionStatus,
   materializeFileObservation,
   type EnvironmentSensor,
-} from "../observation/environment.js";
+} from "../../observer-lab/adapters/filesystem/binding.js";
 import {
   ENVIRONMENT_SENSOR_REGISTRY_DIGEST,
-} from "../observation/process.js";
+} from "../../observer-lab/adapters/process/binding.js";
 import {
   createLabSourceDescriptor,
   materializeLabObservations,
   startLabObservers,
   type LabCapture,
-} from "../observation/lab.js";
+} from "../observation/collection.js";
 import {
   materializeProcessCollectionStatus,
   materializeProcessDiff,
   materializeProcessObservation,
   materializeProcessSnapshot,
   serializeProcessSnapshotArtifact,
-} from "../observation/materializers/process.js";
+} from "../../observer-lab/adapters/process/records.js";
 import {
   materializeProbeCollection,
   parseProbeJsonl,
   probeIssueFailureDrafts,
   readProbeFileBounded,
-} from "../observation/runtime.js";
+} from "../agent-trace/reader.js";
 import {
   buildFileDiff,
   emptyWorkspaceManifestDigest,
@@ -142,7 +124,7 @@ import {
   serializeFileSnapshotArtifact,
   verifyResetSnapshot,
   type FileSnapshotDraft,
-} from "../observation/sensors/file.js";
+} from "../../observer-lab/adapters/filesystem/sensor.js";
 import {
   freezeTargetResult,
   inspectTargetResult,
@@ -186,7 +168,6 @@ import {
   createRunId,
   DSHEVAL_VERSION,
   failureDraftsFrom,
-  registeredJudgeDescriptors,
   requireSucceeded,
   type ApplicationServices,
 } from "./bootstrap.js";
@@ -199,8 +180,9 @@ import {
   type DatasetTestProfile,
 } from "../planning/planner.js";
 import { loadDatasetDescriptionCatalog } from "../datasets/catalog.js";
-import { countDatasetQuestionCases, loadDatasetEvaluationAsset } from "../datasets/evaluation-asset.js";
-import type { EvaluationPackCandidate } from "../evaluation/evaluation-asset.js";
+import { countDatasetQuestionCases, loadDatasetCase, type DatasetCase } from "../datasets/loader.js";
+import { loadCaseExecutionInput } from "../runtime/case-input.js";
+
 
 /** 报告和 status.html 共用的十步稳定流程名称。 */
 const STEP_LABELS = [
@@ -210,14 +192,16 @@ const STEP_LABELS = [
   "Compile / Lease / Run objects / Preflight",
   "Prepare / Seed / File Before / Probe armed",
   "Execute one DSH Headless Attempt",
-  "Drain / File After / Evidence Closure",
-  "Persist planned CheckResults",
+  "Collect Agent trace / Observer changes / Deliverables",
+  "Score labels against all trace and Case grading",
   "Reset / independent verification / Cleanup",
-  "Single Gate / terminal Run / Report / Export",
+  "Finalize scores / Save result JSON / Render HTML",
 ] as const;
 
 /** HTML/report.json 内最多内联 256 KiB 单路输出；完整字节仍由 ArtifactStore 保存。 */
 const REPORT_OUTPUT_PREVIEW_BYTES = 256 * 1024;
+/** 每个 Case 注入 Judge 的全部交付内容预算；原文件仍完整保存在 ArtifactStore。 */
+const SUBMISSION_CONTENT_BUDGET_BYTES = 256 * 1024;
 
 /** 测试 Fixture 可注入的明确故障点或行为；E2E 用它覆盖收尾分支。 */
 export interface FixtureHooks {
@@ -233,7 +217,7 @@ export interface FixtureHooks {
 export interface RunWorkflowInput {
   readonly cwd: string;
   readonly descriptor: TargetDescriptor;
-  readonly packRoot?: string;
+  readonly labelJudge?: LabelJudge;
   readonly datasetCatalogPath?: string;
   readonly datasetsRoot?: string;
   readonly labelsRoot?: string;
@@ -269,7 +253,8 @@ export interface WorkflowSummary {
   readonly status: "COMPLETED" | "PLAN_UNSATISFIABLE" | "FAILED" | "CANCELLED";
   readonly runId: string;
   readonly runState?: string;
-  readonly gate?: "PASS" | "FAIL" | "UNEVALUABLE";
+  readonly scores?: readonly LabelScore[];
+  readonly dimensions?: readonly DimensionScore[];
   readonly operationalHealth?: string;
   readonly fixture: boolean;
   readonly securityIsolation?: "AGENT_SEPARATED" | "SESSION_SEPARATED" | "PROCESS_FIXTURE";
@@ -364,7 +349,7 @@ export async function rebuildCommittedReportHtml(input: {
     runId,
     reportJson: path.join(reportRoot, runId, "report.json"),
     reportHtml: path.join(reportRoot, runId, "report.html"),
-    rendererVersion: document.rendererVersion,
+    rendererVersion: "html/v3",
     reportDigest: digestBytes(jsonBytes).value,
     htmlDigest: digestBytes(renderedBytes).value,
     htmlStatus,
@@ -387,7 +372,11 @@ interface MutableWorkflowFacts {
   observationPlan?: ObservationPlan;
   session?: ObservationSession;
   resetVerification?: ResetVerification;
-  gate?: GateDecision;
+  allTrace?: AllTrace;
+  caseData?: DatasetCase;
+  labels: readonly LabelDefinition[];
+  scores: LabelScore[];
+  dimensions: readonly DimensionScore[];
   securityIsolation?: "AGENT_SEPARATED" | "SESSION_SEPARATED" | "PROCESS_FIXTURE";
   execution?: ExecutionDataView;
   readonly sources: SourceDescriptor[];
@@ -397,12 +386,6 @@ interface MutableWorkflowFacts {
   readonly fileDiffs: FileDiff[];
   readonly processSnapshots: ProcessSnapshot[];
   readonly processDiffs: ProcessDiff[];
-  readonly closures: EvidenceClosure[];
-  readonly evidenceContracts: EvidenceContract[];
-  readonly evidence: EvidenceRecord[];
-  readonly findings: Finding[];
-  readonly judgements: JudgementRecord[];
-  readonly checkResults: CheckResult[];
   readonly failures: FailureRecord[];
   readonly artifacts: ArtifactRef[];
   readonly timeline: WorkflowStepView[];
@@ -455,7 +438,7 @@ function fixtureDatasetMatcher(): DatasetMatcher {
 
 /**
  * 执行一次完整评测。CLI 的 inspect/plan/run 都调用本函数；内部通过阶段门禁保证
- * 单 Case、单 Attempt、先证据后 Judge、先 CheckResult 后 Gate、Reset 结果独立。
+ * 单 Case、单 Attempt、先证据后 Judge、先标签评分后结果提交、Reset 结果独立。
  */
 export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<WorkflowSummary> {
   const runId = validateStableId<"RunId">(input.runId ?? createRunId(), "runId");
@@ -478,11 +461,6 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     createdAt,
     ...(input.configFile === undefined ? {} : { configFile: input.configFile }),
     ...(input.configOverrides === undefined ? {} : { configOverrides: input.configOverrides }),
-    ...(!fixtureMode ? {
-      labelsRoot: path.resolve(
-        input.labelsRoot ?? process.env.DSHEVAL_LABEL_ROOT ?? path.join(input.cwd, "labels"),
-      ),
-    } : {}),
     ...(input.signal === undefined ? {} : { signal: input.signal }),
   });
   const sessionSeparatedMode = !fixtureMode && services.config.minimumIsolationLevel === "SESSION_SEPARATED";
@@ -491,6 +469,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     : undefined;
   const facts: MutableWorkflowFacts = {
     fixture: fixtureMode,
+    labels: [], scores: [], dimensions: [],
     sources: [],
     collectionStatuses: [],
     rawObservations: [],
@@ -498,12 +477,6 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     fileDiffs: [],
     processSnapshots: [],
     processDiffs: [],
-    closures: [],
-    evidenceContracts: [],
-    evidence: [],
-    findings: [],
-    judgements: [],
-    checkResults: [],
     failures: [],
     artifacts: [],
     timeline: STEP_LABELS.map((label, index) => ({
@@ -604,57 +577,11 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     }
 
     const datasetsRoot = path.resolve(input.datasetsRoot ?? process.env.DSHEVAL_DATASETS_ROOT ?? path.join(input.cwd, "datasets"));
-    let catalogCandidates: readonly EvaluationPackCandidate[];
-    if (input.packRoot !== undefined) {
-      const candidateResult = await services.catalog.listCandidates(
-        services.operation("PLANNING", "list-legacy-dataset-candidates"),
-        path.resolve(input.packRoot),
-        target.scope,
-        new Date().toISOString(),
-      );
-      if (candidateResult.status !== "SUCCEEDED") {
-        await save.failures(candidateResult.failureDrafts);
-        markStep(facts, 3, "FAILED");
-        return summary(facts, runId, fixtureMode, 2, "PLAN_UNSATISFIABLE", services.config.runRoot,
-          input.stopAfter === "PLAN" ? "plan" : "run");
-      }
-      catalogCandidates = candidateResult.value;
-    } else {
-      const externalCatalogPath = input.datasetCatalogPath ?? process.env.DSHEVAL_DATASET_CATALOG ?? path.join(datasetsRoot, "catalog.md");
-      const external = await loadDatasetDescriptionCatalog(path.resolve(input.cwd, externalCatalogPath));
-      catalogCandidates = Object.freeze(await Promise.all(external.map(async (candidate) => {
-        const actualCaseCount = await countDatasetQuestionCases(datasetsRoot, candidate.datasetId);
-        if (actualCaseCount === 0) {
-          throw new Error(`Dataset Catalog entry ${candidate.datasetId} has no executable question.json Cases`);
-        }
-        return Object.freeze({
-          ...candidate,
-          // Planner 只能看到磁盘上真实可执行的题量，Catalog 声明不会把不存在的题带进计划。
-          availableCaseCount: actualCaseCount,
-          source: "DESCRIPTION_CATALOG" as const,
-        });
-      })));
-    }
-    if (input.packRoot !== undefined && input.datasetCatalogPath !== undefined) {
-      const external = await loadDatasetDescriptionCatalog(path.resolve(input.cwd, input.datasetCatalogPath));
-      const merged = new Map<string, EvaluationPackCandidate>(
-        catalogCandidates.map((candidate) => [String(candidate.datasetId), candidate]),
-      );
-      for (const candidate of external) {
-        const executable = merged.get(String(candidate.datasetId));
-        merged.set(String(candidate.datasetId), Object.freeze({
-          ...(executable?.packPath === undefined ? {} : { packPath: executable.packPath }),
-          datasetId: candidate.datasetId,
-          name: candidate.name,
-          description: candidate.description,
-          labelIds: candidate.labelIds,
-          availableCaseCount: candidate.availableCaseCount,
-          source: executable === undefined ? "DESCRIPTION_CATALOG" as const : "EVALUATION_PACK" as const,
-        }));
-      }
-      catalogCandidates = Object.freeze([...merged.values()]
-        .sort((left, right) => left.datasetId.localeCompare(right.datasetId, "en")));
-    }
+    const externalCatalogPath = input.datasetCatalogPath ?? process.env.DSHEVAL_DATASET_CATALOG ?? path.join(datasetsRoot,"catalog.md");
+    const external = await loadDatasetDescriptionCatalog(path.resolve(input.cwd,externalCatalogPath));
+    const catalogCandidates = Object.freeze(await Promise.all(external.map(async candidate => ({
+      ...candidate, availableCaseCount: await countDatasetQuestionCases(datasetsRoot,candidate.datasetId),
+    }))));
 
     markStep(facts, 3, "RUNNING");
     if (input.precomputedDatasetSelection === undefined) {
@@ -684,7 +611,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     const caseIndex = input.executionCase?.caseIndex ?? 0;
     const executableSelection = input.executionCase === undefined
       ? facts.datasetSelection.selectedDatasets.length === 1 && selectedDataset.caseCount === 1
-      : Number.isSafeInteger(caseIndex) && caseIndex >= 0 && caseIndex < selectedDataset.caseCount;
+      : Number.isSafeInteger(caseIndex) && caseIndex >= 0 && caseIndex < (selectedCandidate?.availableCaseCount ?? 0);
     if (!executableSelection) {
       if (input.stopAfter === "PLAN") {
         markStep(facts, 3, "SUCCEEDED");
@@ -697,7 +624,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         "PLANNING",
         "DATASET_SELECTION",
         "SELECTED_DATASETS_NOT_EXECUTABLE",
-        "Selected Datasets require executable Packs and multi-Case runtime support",
+        "Selected Datasets require batch execution",
       ));
       markStep(facts, 3, "FAILED");
       return summary(
@@ -713,32 +640,23 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     if (selectedCandidate === undefined) {
       throw new WorkflowStop("Dataset Planner selected an unavailable Dataset", 2, "PLAN_UNSATISFIABLE");
     }
-    const evaluationRequest: EvaluationRequest = Object.freeze({
-      schema: "dsheval.mvp.evaluation-request/v1",
-      requestId: validateStableId<"EvaluationRequestId">(`request.${runId}`),
-      requestedLabelIds: selectedDataset.evaluationLabelIds,
-      preferredDatasetIds: Object.freeze([selectedDataset.datasetId]),
-      excludeCaseIds: Object.freeze([]),
+    facts.caseData = await loadDatasetCase({
+      datasetsRoot,datasetId:selectedDataset.datasetId,labelIds:selectedDataset.evaluationLabelIds,caseIndex,
     });
-    const pack = selectedCandidate.packPath === undefined
-      ? await loadDatasetEvaluationAsset({
-          datasetsRoot,
-          labelsRoot: path.resolve(input.labelsRoot ?? process.env.DSHEVAL_LABEL_ROOT ?? path.join(input.cwd, "labels")),
-          traceFile: path.resolve(input.traceFile ?? process.env.DSHEVAL_TRACE_FILE ?? path.join(input.cwd, "trace", "dsh-runtime.json")),
-          environmentFile: path.resolve(input.environmentFile ?? process.env.DSHEVAL_ENVIRONMENT_FILE ?? path.join(input.cwd, "environments", "macos.json")),
-          datasetId: selectedDataset.datasetId,
-          labelIds: selectedDataset.evaluationLabelIds,
-          request: evaluationRequest,
-          caseIndex,
-        })
-      : requireSucceeded("load legacy evaluation pack", await services.catalog.load(
-          services.operation("PLANNING", "load-legacy-pack"),
-          selectedCandidate.packPath,
-          target.scope,
-          new Date().toISOString(),
-          evaluationRequest,
-        ));
-    const packRef = await save.immutable(pack, pack.packId);
+    const labels=await loadLabels(path.resolve(input.labelsRoot ?? process.env.DSHEVAL_LABEL_ROOT ?? path.join(input.cwd,"labels")));
+    facts.labels = Object.freeze(facts.caseData.labelIds.map(id=>{
+      const label=labels.find(item=>item.labelId===id);
+      if(!label) throw new Error("Missing label standard: "+id);
+      return label;
+    }));
+    const pack=await loadCaseExecutionInput({
+      case:facts.caseData,datasetId:selectedDataset.datasetId,
+      traceFile:path.resolve(input.traceFile ?? process.env.DSHEVAL_TRACE_FILE ?? path.join(input.cwd,"trace","dsh-runtime.json")),
+      environmentFile:path.resolve(input.environmentFile ?? process.env.DSHEVAL_ENVIRONMENT_FILE ?? path.join(input.cwd,"environments","macos.json")),
+    });
+    const packRef = await save.immutable(pack,pack.inputId);
+    await save.artifact(JSON.stringify({case:facts.caseData,labels:facts.labels})+"\n",
+      target.scope,"grading-context."+runId,"GRADING_CONTEXT","grading-context.json","application/json","RESTRICTED");
     const planCompiler = services.planCompiler;
     // 把运行期计划编译器的 Artifact Port 绑定到本 Run 的真实 ArtifactStore，并同步维护事实索引。
     const planningArtifacts = {
@@ -767,10 +685,9 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         {
           targetSnapshot: target,
           inspectionSnapshot: inspection,
-          evaluationPack: pack,
+          caseInput: pack,
           configSnapshot: services.config,
           sensors: services.sensors,
-          judges: registeredJudgeDescriptors(services.judges),
         },
         planningArtifacts,
       ),
@@ -787,10 +704,6 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         services.config.runRoot,
         input.stopAfter === "PLAN" ? "plan" : "run",
       );
-    }
-    for (const contract of planBuild.evidenceContracts) {
-      await save.immutable(contract, contract.evidenceContractId);
-      facts.evidenceContracts.push(contract);
     }
     facts.evaluationPlan = planBuild.evaluationPlan;
     const evaluationPlanRef = await save.immutable(
@@ -1326,12 +1239,16 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     if (stagedExecutablePath === undefined) {
       throw new Error("staged target executable is unavailable");
     }
-    const labRun = fixtureMode ? undefined : await startLabObservers({
+    const labRun = await startLabObservers({
       cwd: input.cwd,
       outputDirectory: path.join(prepared.runtimeDshHomePath, "observer-events"),
       caseId: ids.caseId,
       agentId: String(target.targetId),
-      requirements: labRequirements,
+      requirements: planBuild.observationPlan.sourceRequirements,
+      workspacePath: prepared.workspacePath,
+      observedUid,
+      attemptId: ids.attemptId,
+      maxFileBytes: services.config.maxArtifactBytes,
     });
     // 将 Target 启动异常统一收敛为 TargetExecutionResult，后续仍可 Drain 并形成证据。
       const sessionsBefore = sharedDshHomePath === undefined
@@ -1351,11 +1268,13 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
           executablePath: stagedExecutablePath,
           profile: target.profile,
           task,
+          inputs:facts.caseData!.inputs,
           cwd: prepared.workspacePath,
           runtimeDshHomePath: prepared.runtimeDshHomePath,
           ...(sharedDshHomePath === undefined ? {} : { sessionDshHomePath: sharedDshHomePath }),
           probeOutputPath: prepared.probeOutputPath,
           sourceRunId: ids.sourceRunId,
+          contentMode: services.config.contentMode,
           deadlineMs: planBuild.evaluationPlan.casePlan.deadlineMs,
           maxOutputBytes: services.config.maxArtifactBytes,
           modelEnvironment,
@@ -1379,7 +1298,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     })();
     let labCaptures: readonly LabCapture[] = Object.freeze([]);
     const targetResult = await targetPromise.finally(async () => {
-      labCaptures = labRun === undefined ? Object.freeze([]) : await labRun.stop();
+      labCaptures = await labRun.stop();
     });
     const sessionsAfter = sharedDshHomePath === undefined
       ? new Map<string, string>()
@@ -1424,6 +1343,8 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       });
       await writeFile(prepared.probeOutputPath, traceBytes, { flag: "w", mode: 0o600 });
     }
+    const adaptedTraceTruncated = nativeProbeTrace?.truncated ??
+      (sessionSeparatedMode && sessionSources.some((session) => session.truncated));
     const stdoutArtifact = await save.outputArtifact(targetResult.stdout, graph.scope, `stdout.${ids.attemptId}`, "stdout.txt", services.config);
     const stderrArtifact = await save.outputArtifact(targetResult.stderr, graph.scope, `stderr.${ids.attemptId}`, "stderr.txt", services.config);
     const stdoutPreview = outputPreview(targetResult.stdout);
@@ -1431,6 +1352,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     facts.execution = {
       task,
       terminationKind: targetResult.terminationKind,
+      ...(targetResult.inputDelivery ? {inputDelivery:targetResult.inputDelivery} : {}),
       ...(targetResult.exitCode === undefined ? {} : { exitCode: targetResult.exitCode }),
       ...(targetResult.signal === undefined ? {} : { signal: targetResult.signal }),
       ...(targetResult.pid === undefined ? {} : { pid: targetResult.pid }),
@@ -1523,7 +1445,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       closedAt: targetResult.endedAt,
       observedAt: new Date().toISOString(),
       rawArtifactRef: refForArtifact(probeArtifact),
-      inputTruncated: probeRead.truncated,
+      inputTruncated: probeRead.truncated || adaptedTraceTruncated,
       contentRestricted: probeLeaks.length > 0,
     });
     const probeFailureRefs = [
@@ -1548,6 +1470,18 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
           })]),
     ];
     const probeCollection = materializeProbeCollection({ scope: graph.scope, parseResult: parsedProbe, rawArtifact: probeArtifact, rawArtifactRef: refForArtifact(probeArtifact), createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION, failureRefs: probeFailureRefs });
+    const traceFinalResponse = finalResponseFromTrace(probeCollection.observations);
+    const finalResponseRaw = stdoutPreview.text.length > 0 ? stdoutPreview.text : traceFinalResponse;
+    const finalResponsePreview = outputPreview(Buffer.from(finalResponseRaw, "utf8"));
+    const finalResponseArtifact = stdoutPreview.text.length > 0
+      ? stdoutArtifact
+      : await save.outputArtifact(
+          Buffer.from(finalResponseRaw, "utf8"),
+          graph.scope,
+          `final-response.${ids.attemptId}`,
+          "final-response.txt",
+          services.config,
+        );
     const probeStatusRef = await save.immutable(probeCollection.collectionStatus, probeCollection.collectionStatus.collectionStatusId);
     facts.collectionStatuses.push(probeCollection.collectionStatus);
 
@@ -1608,9 +1542,13 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       readonly portablePath: string;
       readonly artifactId: string;
       readonly byteLength: number;
+      readonly mediaType: string;
       readonly sensitivity: "EXPORTABLE" | "RESTRICTED";
     }> = [];
+    const deliverableArtifacts: ArtifactRef[] = [];
+    const submissionFiles: SubmissionFileEvidenceInput[] = [];
     let deliverableBytes = 0;
+    let submissionContentBudget = SUBMISSION_CONTENT_BUDGET_BYTES;
     const changedFiles = new Map(
       [...fileDiff.added, ...fileDiff.modified, ...fileDiff.typeChanged]
         .filter((change) => change.after?.entryType === "FILE" && change.after.resolvedWithinRoot)
@@ -1635,22 +1573,37 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         .filter((value): value is string => value !== undefined);
       const restricted = findSecretLeaks(bytes, secretCanaries).length > 0;
       const pathKey = digestValue({ portablePath: normalized }).value.slice(0, 16);
+      const mediaType = deliverableMediaType(normalized);
       const artifact = await save.artifact(
         bytes,
         graph.scope,
         `deliverable.${ids.attemptId}.${pathKey}`,
         "AGENT_DELIVERABLE",
         path.posix.basename(normalized),
-        "application/octet-stream",
+        mediaType,
         restricted ? "RESTRICTED" : "EXPORTABLE",
         restricted ? "FAILED" : "NOT_REQUIRED",
       );
+      deliverableArtifacts.push(artifact);
       deliverableBytes += bytes.byteLength;
       deliverableFiles.push({
         portablePath: normalized,
         artifactId: String(artifact.artifactId),
         byteLength: bytes.byteLength,
+        mediaType,
         sensitivity: artifact.sensitivity,
+      });
+      const preview = submissionContent(bytes, normalized, submissionContentBudget, restricted);
+      submissionContentBudget = Math.max(0, submissionContentBudget - preview.consumedBytes);
+      submissionFiles.push({
+        portablePath: normalized,
+        mediaType,
+        byteLength: bytes.byteLength,
+        artifactRef: refForArtifact(artifact),
+        representation: preview.representation,
+        content: preview.content,
+        contentTruncated: preview.contentTruncated,
+        contentRestricted: restricted,
       });
     }
     if (deliverableFiles.length > 0) {
@@ -1678,14 +1631,9 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     const processStatus = processSourceRef === undefined
       ? undefined
       : materializeProcessCollectionStatus({ collectionStatusId: `collection.process.${ids.attemptId}`, scope: graph.scope, sourceRef: processSourceRef, snapshots: [processBefore, processAfter].filter((item): item is ProcessSnapshot => item !== undefined), requiredPhases: ["BEFORE", "AFTER"], createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
-    const processStatusRef = processStatus === undefined
-      ? undefined
-      : await save.immutable(processStatus, processStatus.collectionStatusId);
+    if (processStatus !== undefined) await save.immutable(processStatus, processStatus.collectionStatusId);
     if (processStatus !== undefined) facts.collectionStatuses.push(processStatus);
-    const labArtifacts = await Promise.all(labCaptures.map((capture) => save.artifact(
-      capture.events.length === 0
-        ? new Uint8Array()
-        : `${capture.events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+    const labArtifacts = await Promise.all(labCaptures.map((capture) => capture.events.length === 0 ? undefined : save.artifact( `${capture.events.map((event) => JSON.stringify(event)).join("\n")}\n`,
       graph.scope,
       `raw-observer.${capture.component}.${ids.attemptId}`,
       "ENVIRONMENT_OBSERVER_JSONL",
@@ -1694,7 +1642,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       "RESTRICTED",
     )));
     const labCollections = labCaptures.map((capture, index) => {
-      const source = labSources.find((candidate) => candidate.sourceType === capture.sourceType);
+      const source = facts.sources.find((candidate) => candidate.sourceType === capture.sourceType);
       if (source === undefined) throw new Error(`Missing SourceDescriptor for ${capture.sourceType}`);
       return materializeLabObservations({
         capture,
@@ -1702,13 +1650,21 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         scope: graph.scope,
         attemptId: ids.attemptId,
         producerVersion: DSHEVAL_VERSION,
-        rawArtifactRef: refForArtifact(labArtifacts[index]!),
+        ...(labArtifacts[index] === undefined ? {} : { rawArtifactRef: refForArtifact(labArtifacts[index]!) }),
       });
     });
     const labStatusRefs = await Promise.all(labCollections.map(
       (collection) => save.immutable(collection.status, collection.status.collectionStatusId),
     ));
     facts.collectionStatuses.push(...labCollections.map((collection) => collection.status));
+    const watchedSources = new Set(labCollections.map((collection) => String(collection.status.sourceRef.id)));
+    const evaluationStatuses = [
+      probeCollection.collectionStatus,
+      ...[fileStatus, processStatus].filter((status): status is CollectionStatus =>
+        status !== undefined && !watchedSources.has(String(status.sourceRef.id))),
+      ...labCollections.map((collection) => collection.status),
+    ];
+    const evaluationStatusRefs = evaluationStatuses.map((status) => refForImmutable(status, status.collectionStatusId));
     const processRaws = [processBeforeRaw, processAfterRaw].filter((item): item is RawObservation => item !== undefined);
     const labRaws = labCollections.flatMap((collection) => [...collection.observations]);
     const rawObservations: RawObservation[] = [beforeRaw, afterRaw, ...processRaws, ...probeCollection.observations, ...labRaws];
@@ -1723,101 +1679,58 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     const ledger = completionLedger({
       TARGET_TERMINATION: ledgerItem("TARGET_TERMINATION", "COMPLETE", { supportingRefs: [refForProjection(facts.attempt)] }),
       TOOL_CALLS: ledgerItem("TOOL_CALLS", probeCollection.collectionStatus.completeness === "COMPLETE" ? "COMPLETE" : "INCOMPLETE", { reasonCodes: parsedProbe.issues.map((issue) => issue.code) }),
-      SESSION_FLUSH: ledgerItem("SESSION_FLUSH", parsedProbe.issues.some((issue) => issue.code === "PROBE_STOP_MISSING") ? "INCOMPLETE" : "COMPLETE"),
+      SESSION_FLUSH: ledgerItem("SESSION_FLUSH", probeCollection.collectionStatus.completeness === "COMPLETE" ? "COMPLETE" : "INCOMPLETE", { supportingRefs: [probeStatusRef], reasonCodes: parsedProbe.issues.map((issue) => issue.code) }),
       PROBE_WATERMARK: ledgerItem("PROBE_WATERMARK", probeCollection.collectionStatus.completeness === "COMPLETE" ? "COMPLETE" : "INCOMPLETE", { supportingRefs: [probeStatusRef] }),
       STABLE_WINDOW: ledgerItem("STABLE_WINDOW", stability.stable ? "COMPLETE" : "INCOMPLETE"),
       FINAL_FILE_SNAPSHOT: ledgerItem("FINAL_FILE_SNAPSHOT", after.completeness === "COMPLETE" ? "COMPLETE" : "INCOMPLETE", { supportingRefs: [afterRef] }),
     });
-    session = await save.transition(sealObservation(session, { occurredAt: new Date().toISOString(), reasonCode: "OBSERVATION_SEALED", collectionStatusRefs: [probeStatusRef, fileStatusRef, ...(processStatusRef === undefined ? [] : [processStatusRef]), ...labStatusRefs], completionLedger: ledger, allRawArtifactsCommitted: true, supportingRefs: [probeStatusRef, fileStatusRef, beforeRef, afterRef, diffRef, ...(processDiffRef === undefined ? [] : [processDiffRef]), ...labStatusRefs] }));
+    session = await save.transition(sealObservation(session, { occurredAt: new Date().toISOString(), reasonCode: "OBSERVATION_SEALED", collectionStatusRefs: evaluationStatusRefs, completionLedger: ledger, allRawArtifactsCommitted: true, supportingRefs: [probeStatusRef, fileStatusRef, beforeRef, afterRef, diffRef, ...(processDiffRef === undefined ? [] : [processDiffRef]), ...labStatusRefs] }));
     facts.session = session;
     const verifiedArtifacts = [] as Array<{ artifactRef: Ref<ArtifactRef>; verified: boolean }>;
-    for (const artifact of [beforeArtifact, afterArtifact, probeArtifact, processBeforeArtifact, processAfterArtifact, ...labArtifacts].filter((item): item is ArtifactRef => item !== undefined)) {
+    for (const artifact of [beforeArtifact, afterArtifact, probeArtifact, finalResponseArtifact, ...deliverableArtifacts, processBeforeArtifact, processAfterArtifact, ...labArtifacts].filter((item): item is ArtifactRef => item !== undefined)) {
       requireSucceeded(`verify raw artifact ${artifact.artifactId}`, await services.artifacts.readVerified(services.operation("EVIDENCE_PROCESSOR", `verify-${artifact.artifactId}`), artifact, artifact.scope, "EVIDENCE_CAPTURE"));
       verifiedArtifacts.push({ artifactRef: refForArtifact(artifact), verified: true });
     }
-    const evidenceCreatedAt = new Date().toISOString();
-    const evidenceInput = { bundleId: `bundle.${ids.attemptId}`, scope: graph.scope, attemptId: ids.attemptId, observationSession: session, observationSessionRef: refForProjection(session), sources: facts.sources, rawObservations, rawObservationRefs, collectionStatuses: [probeCollection.collectionStatus, fileStatus, ...(processStatus === undefined ? [] : [processStatus]), ...labCollections.map((collection) => collection.status)], beforeSnapshot: before, beforeSnapshotRef: beforeRef, afterSnapshot: after, afterSnapshotRef: afterRef, fileDiff, fileDiffRef: diffRef, ...(processDiff === undefined || processDiffRef === undefined ? {} : { processDiff, processDiffRef }), seedManifest, seedManifestRef: seedRef, verifiedArtifacts, failureRefs: [...fileFailureRefs, ...probeFailureRefs], createdAt: evidenceCreatedAt, producerVersion: DSHEVAL_VERSION } as const;
-    let evidenceBuild = buildEvidenceBundle(evidenceInput);
-    if (evidenceBuild.failureDraft !== undefined) {
-      const evidenceFailureRef = await save.failure(evidenceBuild.failureDraft);
-      evidenceBuild = buildEvidenceBundle({
-        ...evidenceInput,
-        failureRefs: [...evidenceInput.failureRefs, evidenceFailureRef],
-      });
+    facts.allTrace=assembleAllTrace({
+      traceId:"all-trace."+ids.attemptId,scope:graph.scope,
+      createdAt:new Date().toISOString(),producerVersion:DSHEVAL_VERSION,
+      agentObservations:probeCollection.observations,environmentChanges:labRaws,
+      agentContents:new Map(parsedProbe.records.map(record=>[record.location.lineNumber,record.envelope as unknown as JsonValue])),
+      sources:facts.sources,coverage:evaluationStatuses,
+      artifacts:[...facts.artifacts],
+      finalResponse:{
+        content:finalResponseArtifact.sensitivity==="EXPORTABLE"?finalResponsePreview.text:"[RESTRICTED]",
+        artifactRef:refForArtifact(finalResponseArtifact),capturedBytes:Buffer.byteLength(finalResponseRaw,"utf8"),
+        captureTruncated:stdoutPreview.text.length>0 && targetResult.stdoutTruncated,
+        contentTruncated:finalResponsePreview.truncated || finalResponseArtifact.sensitivity!=="EXPORTABLE",
+        contentRestricted:finalResponseArtifact.sensitivity!=="EXPORTABLE",completedAt:targetResult.endedAt,
+      },
+      files:submissionFiles,
+    });
+    const traceRef=await save.immutable(facts.allTrace,facts.allTrace.traceId);
+    markStep(facts,7,"SUCCEEDED",[refForProjection(session),traceRef]);
+    await updateStatus(services,facts,"ALL_TRACE_COLLECTED",save.failure);
+    markStep(facts,8,"RUNNING");
+    facts.evaluationCase=await save.transition(transitionRuntimeProjection({
+      projection:facts.evaluationCase!,toState:"EVALUATING",reasonCode:"JUDGING_STARTED",occurredAt:new Date().toISOString(),
+    }));
+    const judge=input.labelJudge ?? createDefaultLabelJudge(process.env,input.signal);
+    const scoreRefs: Ref<LabelScore>[]=[];
+    for(const label of facts.labels) {
+      const score=await judge.evaluate({label,case:facts.caseData!,allTrace:facts.allTrace});
+      scoreRefs.push(await save.immutable(score,score.scoreId));
+      facts.scores.push(score);
+      if(score.status==="ERROR") await save.failure(makeFailure(graph.scope,"JUDGE_FAILURE","DSHEVAL","JUDGE","SCORING","LABEL_JUDGE_ERROR",score.reason));
     }
-    const evidenceRefs: Ref<EvidenceRecord>[] = [];
-    for (const evidence of evidenceBuild.evidence) evidenceRefs.push(await save.immutable(evidence, evidence.evidenceId));
-    facts.evidence.push(...evidenceBuild.evidence);
-    const bundleRef = await save.immutable(evidenceBuild.bundle, evidenceBuild.bundle.bundleId);
-    const contractRefs = planBuild.evidenceContracts.map((contract) => refForImmutable(contract, contract.evidenceContractId));
-    const closureBuild = buildEvidenceClosures({ scope: graph.scope, bundle: evidenceBuild.bundle, bundleRef, evidenceContracts: planBuild.evidenceContracts, evidenceContractRefs: contractRefs, evidence: evidenceBuild.evidence, evidenceRefs, sources: facts.sources, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
-    const closureRefs: Ref<EvidenceClosure>[] = [];
-    for (const closure of closureBuild.closures) closureRefs.push(await save.immutable(closure, closure.closureId));
-    facts.closures.push(...closureBuild.closures);
-    markStep(facts, 7, "SUCCEEDED", [refForProjection(session), bundleRef, ...closureRefs]);
-    await updateStatus(services, facts, "EVIDENCE_CLOSED", save.failure);
-
-    markStep(facts, 8, "RUNNING");
-    facts.evaluationCase = await save.transition(transitionRuntimeProjection({ projection: facts.evaluationCase!, toState: "EVALUATING", reasonCode: "JUDGING_STARTED", occurredAt: new Date().toISOString() }));
-    const checkResultRefs: Ref<CheckResult>[] = [];
-    const labelJudgeFactory = fixtureMode
-      ? undefined
-      : createDefaultLabelJudgeFactory(process.env, input.cwd, input.signal);
-    for (const checkPlan of planBuild.evaluationPlan.checkPlans) {
-      const contract = planBuild.evidenceContracts.find((item) => item.checkId === checkPlan.checkId)!;
-      const closure = facts.closures.find((item) => item.checkId === checkPlan.checkId)!;
-      const labelBinding = planBuild.evaluationPlan.casePlan.labelBindings.find(
-        (item) => item.checkId === checkPlan.checkId,
-      );
-      if (labelBinding === undefined) throw new Error(`Check ${checkPlan.checkId} has no Label binding`);
-      const closureRef = refForImmutable(closure, closure.closureId);
-      const committedClosure = requireSucceeded(
-        `reread EvidenceClosure ${closureRef.id}`,
-        await services.repository.get(
-          services.operation("JUDGE", `reread-closure-${closureRef.id}`),
-          closureRef,
-        ),
-      ) as EvidenceClosure;
-      const authorized: EvidenceRecord[] = [];
-      for (const ref of committedClosure.authorizedEvidenceRefs) {
-        authorized.push(requireSucceeded(
-          `reread EvidenceRecord ${ref.id}`,
-          await services.repository.get(
-            services.operation("JUDGE", `reread-evidence-${ref.id}`),
-            ref,
-          ),
-        ) as EvidenceRecord);
-      }
-      const judgeImplementations = labelJudgeFactory === undefined
-        ? services.judges
-        : Object.freeze([labelJudgeFactory.forCheck({
-            labelId: labelBinding.labelId,
-            judgeId: checkPlan.judgeId,
-            checkType: checkPlan.type,
-            caseTask: task,
-          })]);
-      let judged = await evaluateCheck({ scope: graph.scope, checkPlan, closure: committedClosure, closureRef, evidenceContract: contract, authorizedEvidence: authorized, judgementId: `judgement.${checkPlan.checkId}.${ids.attemptId}`, checkResultId: `check-result.${checkPlan.checkId}.${ids.attemptId}`, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION }, judgeImplementations);
-      if (judged.failureDraft !== undefined) {
-        const judgeFailureRef = await save.failure(judged.failureDraft);
-        judged = attachJudgeFailureRef(judged, judgeFailureRef);
-      }
-      for (const finding of judged.findings) await save.immutable(finding, finding.findingId);
-      const judgementRef = await save.immutable(judged.judgement, judged.judgement.judgementId);
-      const checkResultRef = await save.immutable(judged.checkResult, judged.checkResult.checkResultId);
-      facts.findings.push(...judged.findings);
-      facts.judgements.push(judged.judgement);
-      facts.checkResults.push(judged.checkResult);
-      checkResultRefs.push(checkResultRef);
-      void judgementRef;
-    }
+    facts.dimensions=aggregateScores(facts.scores);
     const caseTerminal = targetResult.terminationKind === "CANCELLED"
       ? "ABORTED" as const
       : targetResult.terminationKind === "HARNESS_ERROR"
         ? "ERRORED" as const
         : "FINISHED" as const;
-    facts.evaluationCase = await save.transition(transitionRuntimeProjection({ projection: facts.evaluationCase, toState: caseTerminal, reasonCode: targetResult.terminationKind === "CANCELLED" ? "USER_CANCELLED_AFTER_CHECKS" : targetResult.terminationKind === "HARNESS_ERROR" ? "HARNESS_ERROR_AFTER_CHECKS" : "CHECK_RESULTS_COMMITTED", occurredAt: new Date().toISOString(), supportingRefs: checkResultRefs, patch: { checkResultRefs } }));
-    markStep(facts, 8, "SUCCEEDED", checkResultRefs);
-    await updateStatus(services, facts, "CHECK_RESULTS_COMMITTED", save.failure);
+    facts.evaluationCase = await save.transition(transitionRuntimeProjection({ projection: facts.evaluationCase, toState: caseTerminal, reasonCode: targetResult.terminationKind === "CANCELLED" ? "USER_CANCELLED_AFTER_CHECKS" : targetResult.terminationKind === "HARNESS_ERROR" ? "HARNESS_ERROR_AFTER_CHECKS" : "LABEL_SCORES_COMMITTED", occurredAt: new Date().toISOString(), supportingRefs: scoreRefs, patch: { scoreRefs } }));
+    markStep(facts, 8, facts.scores.some(score=>score.status==="ERROR")?"FAILED":"SUCCEEDED", scoreRefs);
+    await updateStatus(services, facts, "LABEL_SCORES_COMMITTED", save.failure);
 
     markStep(facts, 9, "RUNNING");
     const resetStartedAt = new Date().toISOString() as IsoDateTime;
@@ -1999,27 +1912,21 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
 
     markStep(facts, 10, "RUNNING");
     facts.run = await save.transition(transitionRuntimeProjection({ projection: facts.run!, toState: "FINALIZING", reasonCode: "FINALIZATION_FACTS_COMMITTED", occurredAt: new Date().toISOString(), patch: { environmentFinalState: facts.environment.state, operationalHealth: facts.environment.state === "CLEANED" ? "HEALTHY" : "FAILED" } }));
-    const committedChecks: Array<{ record: CheckResult; ref: Ref<CheckResult> }> = [];
-    for (const ref of checkResultRefs) {
-      committedChecks.push({ record: requireSucceeded(`reread CheckResult ${ref.id}`, await services.repository.get(services.operation("APP", `reread-${ref.id}`), ref)) as CheckResult, ref });
-    }
-    const gate = buildGateDecision({ gateDecisionId: `gate.${runId}`, runId, scope: graph.run.scope, expectedCheckIds: planBuild.evaluationPlan.casePlan.checkIds, committedCheckResults: committedChecks, finalizationFactsCommitted: true, createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
-    const gateRef = await save.immutable(gate, gate.gateDecisionId);
-    facts.gate = gate;
     const userCancelled = targetResult.terminationKind === "CANCELLED";
     const harnessFailed = targetResult.terminationKind === "HARNESS_ERROR";
+    const judgeFailed=facts.scores.some(score=>score.status==="ERROR");
     const runTerminal = userCancelled
       ? "CANCELLED" as const
-      : harnessFailed
+      : harnessFailed || judgeFailed
         ? "FAILED" as const
         : facts.environment.state === "CLEANED"
         ? "FINISHED" as const
         : "FAILED" as const;
-    const terminalHealth = !harnessFailed && facts.environment.state === "CLEANED"
+    const terminalHealth = !harnessFailed && !judgeFailed && facts.environment.state === "CLEANED"
       ? "HEALTHY" as const
       : "FAILED" as const;
-    facts.run = await save.transition(transitionRuntimeProjection({ projection: facts.run, toState: runTerminal, reasonCode: userCancelled ? "USER_CANCELLED" : harnessFailed ? "HARNESS_OPERATION_FAILED" : runTerminal === "FINISHED" ? "RUN_FINISHED" : "OPERATIONAL_FINALIZATION_FAILED", occurredAt: new Date().toISOString(), supportingRefs: [gateRef], patch: { gateDecisionRef: gateRef, environmentFinalState: facts.environment.state, operationalHealth: terminalHealth } }));
-    markStep(facts, 10, "SUCCEEDED", [gateRef, refForProjection(facts.run)]);
+    facts.run = await save.transition(transitionRuntimeProjection({ projection: facts.run, toState: runTerminal, reasonCode: userCancelled ? "USER_CANCELLED" : harnessFailed ? "HARNESS_OPERATION_FAILED" : runTerminal === "FINISHED" ? "RUN_FINISHED" : "OPERATIONAL_FINALIZATION_FAILED", occurredAt: new Date().toISOString(), supportingRefs: [], patch: { environmentFinalState: facts.environment.state, operationalHealth: terminalHealth } }));
+    markStep(facts, 10, "SUCCEEDED", [refForProjection(facts.run)]);
     const deliveredReport = await persistAndDeliverReport({
       services,
       facts,
@@ -2048,11 +1955,9 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       ? 130
       : operationalFailure
         ? 4
-      : gate.verdict === "PASS"
-        ? 0
-        : gate.verdict === "FAIL"
-          ? 1
-          : 3;
+      : facts.scores.some(score=>score.status==="ERROR")
+        ? 4
+        : 0;
     return {
       ...summary(
         facts,
@@ -2065,6 +1970,9 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
       ...deliveredReport,
     };
   } catch (error) {
+    if (process.env.DSHEVAL_DEBUG_ERRORS === "1") {
+      process.stderr.write(`[dsheval:debug-error] ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+    }
     const drafts = failureDraftsFrom(error);
     if (drafts.length > 0) await save.failures(drafts).catch(() => undefined);
     if (reportPhase !== "NOT_STARTED") {
@@ -2076,11 +1984,11 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         reportPhase === "EXPORT" ? "EXPORTER" : "REPORTER",
         reportPhase,
         `${reportPhase}_DELIVERY_FAILED`,
-        "Report delivery failed after the Agent Gate was committed",
+        "Report delivery failed after evaluation",
       )).catch(() => undefined);
     } else if (!(error instanceof WorkflowStop) && drafts.length === 0) {
       const scope = facts.attempt?.scope ?? facts.run?.scope ?? facts.target?.scope ?? { targetId: input.descriptor.targetId };
-      await save.failure(internalFailureDraft(scope, "WORKFLOW", new Date().toISOString() as IsoDateTime, { actor: "APP", reasonCode: "WORKFLOW_ABORTED", messageRedacted: "DSHEval stopped at a failed workflow gate", cause: error })).catch(() => undefined);
+      await save.failure(internalFailureDraft(scope, "WORKFLOW", new Date().toISOString() as IsoDateTime, { actor: "APP", reasonCode: "WORKFLOW_ABORTED", messageRedacted: "DSHEval stopped at a failed workflow step", cause: error })).catch(() => undefined);
     }
     if (prepared !== undefined) {
       await recoverEnvironmentAfterFailure({
@@ -2110,7 +2018,6 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
     }
     if (
       reportPhase === "NOT_STARTED" &&
-      facts.gate === undefined &&
       facts.run !== undefined &&
       facts.timeline[9]?.status === "PENDING"
     ) {
@@ -2120,7 +2027,7 @@ export async function runEvaluationWorkflow(input: RunWorkflowInput): Promise<Wo
         endedAt: new Date().toISOString(),
         objectRefs: [`${facts.run.schema}:${facts.run.runId}@${facts.run.revision}`],
         failureGroups: uniqueGroups(facts.failures),
-        hintCode: gateAbsenceReason(facts),
+        hintCode: facts.failures.at(-1)?.reasonCode ?? "EVALUATION_NOT_COMPLETED",
       });
     }
     await updateStatus(services, facts, status, save.failure);
@@ -2238,13 +2145,7 @@ async function persistAndDeliverReport(input: {
   readonly beforeReportHtml?: () => Promise<void>;
 }): Promise<DeliveredReport> {
   input.setReportPhase("JSON");
-  const report = buildFinalReport(input.facts);
-  const view = buildView(input.facts, input.phase);
-  const document = buildReportDocument(
-    report,
-    view,
-    input.services.config.rendererVersion,
-  );
+  const document = buildResult(buildView(input.facts,input.phase),DSHEVAL_VERSION);
   await input.save.immutable(document, document.reportId);
   const reportJsonBytes = Buffer.from(serializeReportDocument(document), "utf8");
   assertSecretFreeBytes(reportJsonBytes, input.services.config, "report.json");
@@ -2913,7 +2814,7 @@ async function updateStatus(
 ): Promise<void> {
   if (facts.run === undefined || facts.attempt === undefined || facts.target === undefined) return;
   try {
-    const html = renderStatusHtml(buildView(facts, phase), services.config.rendererVersion);
+    const html = renderStatusHtml(buildView(facts, phase));
     assertSecretFreeBytes(Buffer.from(html, "utf8"), services.config, "status.html");
     requireSucceeded(
       "replace status.html",
@@ -2956,18 +2857,117 @@ function assertSecretFreeBytes(
 }
 
 /** 从已提交的内存事实投影当前 Viewer/Report 共用的只读视图。 */
-function buildView(facts: MutableWorkflowFacts, phase: string): ReportViewModel {
-  const sourceStatuses = facts.sources.flatMap((source) => {
-    const status = [...facts.collectionStatuses]
-      .reverse()
-      .find((candidate) =>
-        candidate.sourceRef.id === source.sourceId &&
-        !String(candidate.collectionStatusId).includes(".reset.") &&
-        !String(candidate.collectionStatusId).includes(".recovery."),
-      );
-    return status === undefined ? [] : [status];
-  });
-  return buildReportViewModel({ run: facts.run!, target: facts.target!, ...(facts.inspection === undefined ? {} : { inspection: facts.inspection }), ...(facts.datasetSelection === undefined ? {} : { evaluationLabelIds: facts.datasetSelection.evaluationLabelIds.map(String) }), attempt: facts.attempt!, ...(facts.evaluationPlan === undefined ? {} : { evaluationPlan: facts.evaluationPlan }), fixture: facts.fixture, securityIsolation: facts.securityIsolation ?? "NOT_VERIFIED", sources: facts.sources, collectionStatuses: sourceStatuses, evidenceContracts: facts.evidenceContracts, closures: facts.closures, judgements: facts.judgements, checkResults: facts.checkResults, evidence: facts.evidence, rawObservations: facts.rawObservations, fileSnapshots: facts.fileSnapshots, fileDiffs: facts.fileDiffs, findings: facts.findings, ...(facts.gate === undefined ? { gateAbsenceReason: gateAbsenceReason(facts) } : { gate: facts.gate }), ...(facts.resetVerification === undefined ? {} : { resetVerification: facts.resetVerification }), environmentState: facts.environment?.state ?? "NOT_CREATED", failures: facts.failures, artifacts: facts.artifacts, timeline: facts.timeline, currentPhase: phase, ...(facts.execution === undefined ? {} : { execution: facts.execution }) });
+function buildView(facts: MutableWorkflowFacts, phase: string): ResultData {
+  return {
+    runId:String(facts.run!.runId),scope:facts.run!.scope,currentPhase:phase,runState:facts.run!.state,
+    operationalHealth:facts.run!.operationalHealth,fixture:facts.fixture,
+    securityIsolation:facts.securityIsolation??"NOT_VERIFIED",
+    target:facts.target!,labels:facts.labels,scores:facts.scores,dimensions:facts.dimensions,
+    environmentState:facts.environment?.state??"NOT_CREATED",
+    failures:facts.failures,timeline:facts.timeline,artifacts:facts.artifacts,
+    ...(facts.inspection?{inspection:facts.inspection}:{}),
+    ...(facts.evaluationPlan?{plan:facts.evaluationPlan}:{}),
+    ...(facts.caseData?{case:facts.caseData}:{}),
+    ...(facts.execution?{execution:facts.execution}:{}),
+    ...(facts.allTrace?{allTrace:facts.allTrace}:{}),
+    ...(facts.resetVerification?{reset:facts.resetVerification}:{}),
+  };
+}
+
+/** stdout 为空时，从已物化的 DSH Session 事件恢复最终 assistant 文本。 */
+function finalResponseFromTrace(observations: readonly RawObservation[]): string {
+  const record = (value: unknown): Record<string, unknown> | undefined =>
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : undefined;
+  for (const raw of [...observations].reverse()) {
+    const envelope = record(raw.payloadInline);
+    const data = record(envelope?.data);
+    const event = record(data?.event) ?? record(record(data?.payload)?.event);
+    const eventType = event?.type;
+    if (eventType !== "assistant/message" && eventType !== "assistant/final" && eventType !== "message/assistant") continue;
+    const eventData = record(event?.data);
+    const message = record(eventData?.message);
+    const content = message?.content ?? eventData?.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      const text = content
+        .map((part) => record(part))
+        .filter((part): part is Record<string, unknown> => part !== undefined)
+        .filter((part) => part.type === "text" && typeof part.text === "string")
+        .map((part) => String(part.text))
+        .join("");
+      if (text.length > 0) return text;
+    }
+  }
+  return "";
+}
+
+/** 根据扩展名标记真实交付物的媒体类型。 */
+function deliverableMediaType(portablePath: string): string {
+  switch (path.posix.extname(portablePath).toLowerCase()) {
+    case ".json": return "application/json";
+    case ".txt": case ".md": case ".py": case ".js": case ".ts": case ".tsx":
+    case ".jsx": case ".css": case ".html": case ".xml": case ".yaml": case ".yml":
+    case ".csv": case ".sql": case ".sh": return "text/plain; charset=utf-8";
+    case ".pdf": return "application/pdf";
+    case ".docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case ".xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    case ".pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    case ".png": return "image/png";
+    case ".jpg": case ".jpeg": return "image/jpeg";
+    case ".gif": return "image/gif";
+    default: return "application/octet-stream";
+  }
+}
+
+/**
+ * 把当前 Dataset 使用的文本/JSON/代码正文直接交给 Judge；其他格式保留有界
+ * Base64 表示和完整 ArtifactRef，绝不因提示词预算删除原始产物。
+ */
+function submissionContent(
+  bytes: Uint8Array,
+  portablePath: string,
+  remainingBytes: number,
+  restricted: boolean,
+): {
+  readonly representation: "JSON" | "TEXT" | "BASE64";
+  readonly content: JsonValue;
+  readonly contentTruncated: boolean;
+  readonly consumedBytes: number;
+} {
+  if (restricted) {
+    return {
+      representation: "TEXT",
+      content: "[RESTRICTED: configured Secret canary detected]",
+      contentTruncated: true,
+      consumedBytes: 0,
+    };
+  }
+  const buffer = Buffer.from(bytes);
+  const acceptedBytes = Math.min(buffer.byteLength, Math.max(0, remainingBytes));
+  const accepted = buffer.subarray(0, acceptedBytes);
+  const truncated = acceptedBytes < buffer.byteLength;
+  const extension = path.posix.extname(portablePath).toLowerCase();
+  const textual = new Set([
+    ".txt", ".md", ".py", ".js", ".ts", ".tsx", ".jsx", ".css", ".html",
+    ".xml", ".yaml", ".yml", ".csv", ".sql", ".sh",
+  ]).has(extension) || (!buffer.includes(0) && extension === "");
+  if (extension === ".json") {
+    const text = accepted.toString("utf8");
+    if (!truncated) {
+      try {
+        return { representation: "JSON", content: JSON.parse(text) as JsonValue, contentTruncated: false, consumedBytes: acceptedBytes };
+      } catch {
+        // 无效 JSON 仍以原始文本交给 Judge，由评分标准判断。
+      }
+    }
+    return { representation: "TEXT", content: text, contentTruncated: truncated, consumedBytes: acceptedBytes };
+  }
+  if (textual) {
+    return { representation: "TEXT", content: accepted.toString("utf8"), contentTruncated: truncated, consumedBytes: acceptedBytes };
+  }
+  return { representation: "BASE64", content: accepted.toString("base64"), contentTruncated: truncated, consumedBytes: acceptedBytes };
 }
 
 /** 生成报告用的 UTF-8 输出片段，并明确标记仅报告内联是否截断。 */
@@ -2977,23 +2977,6 @@ function outputPreview(bytes: Uint8Array): { text: string; truncated: boolean } 
     text: buffer.subarray(0, REPORT_OUTPUT_PREVIEW_BYTES).toString("utf8"),
     truncated: buffer.byteLength > REPORT_OUTPUT_PREVIEW_BYTES,
   };
-}
-
-/** 在 Gate 尚未形成时选择最接近根因的稳定解释码。 */
-function gateAbsenceReason(facts: MutableWorkflowFacts): string {
-  const expectedCheckCount = facts.evaluationPlan?.casePlan.checkIds.length;
-  if (expectedCheckCount !== undefined && facts.checkResults.length === expectedCheckCount) {
-    return "GATE_FINALIZATION_NOT_COMMITTED";
-  }
-  const causalFailure = facts.failures.find(
-    (failure) => failure.category !== "CLEANUP_FAILURE",
-  );
-  return causalFailure?.reasonCode ?? facts.failures.at(-1)?.reasonCode ?? "CHECK_RESULTS_NOT_COMMITTED";
-}
-
-/** 将最终事实图转换为带 Ref 的 EvaluationReport 领域记录。 */
-function buildFinalReport(facts: MutableWorkflowFacts): EvaluationReport {
-  return buildEvaluationReport({ reportId: `report.${String(facts.run!.runId)}`, scope: facts.run!.scope, runRef: refForProjection(facts.run!), targetSnapshotRef: refForImmutable(facts.target!, facts.target!.targetSnapshotId), planRefs: [refForImmutable(facts.evaluationPlan!, facts.evaluationPlan!.evaluationPlanId), refForImmutable(facts.agentTracePlan!, facts.agentTracePlan!.agentTracePlanId), refForImmutable(facts.observationPlan!, facts.observationPlan!.observationPlanId)], caseRef: refForProjection(facts.evaluationCase!), attemptRef: refForProjection(facts.attempt!), sourceRefs: facts.sources.map((source) => refForImmutable(source, source.sourceId)), collectionStatusRefs: facts.collectionStatuses.map((status) => refForImmutable(status, status.collectionStatusId)), closureRefs: facts.closures.map((closure) => refForImmutable(closure, closure.closureId)), judgementRefs: facts.judgements.map((judgement) => refForImmutable(judgement, judgement.judgementId)), checkResultRefs: facts.checkResults.map((result) => refForImmutable(result, result.checkResultId)), ...(facts.gate === undefined ? {} : { gateDecisionRef: refForImmutable(facts.gate, facts.gate.gateDecisionId) }), ...(facts.resetVerification === undefined ? {} : { resetVerificationRef: refForImmutable(facts.resetVerification, facts.resetVerification.verificationId) }), failureRefs: facts.failures.map((failure) => refForImmutable(failure, failure.failureId)), operationalHealth: facts.run!.operationalHealth, artifactRefs: facts.artifacts.map(refForArtifact), createdAt: new Date().toISOString(), producerVersion: DSHEVAL_VERSION });
 }
 
 /** 构造 CLI 最终摘要；所有提前结束、异常和正常完成路径共同调用。 */
@@ -3012,7 +2995,7 @@ function summary(
     status,
     runId,
     ...(facts.run === undefined ? {} : { runState: facts.run.state, operationalHealth: facts.run.operationalHealth }),
-    ...(facts.gate === undefined ? {} : { gate: facts.gate.verdict }),
+    scores:facts.scores,dimensions:facts.dimensions,
     fixture,
     ...(facts.securityIsolation === undefined ? {} : { securityIsolation: facts.securityIsolation }),
     failureGroups: uniqueGroups(facts.failures),

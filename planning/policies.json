@@ -1,0 +1,12 @@
+{
+  "schema": "dsheval.dataset-test-policies/v1",
+  "profiles": {
+    "STANDARD": {
+      "minDatasets": 1,
+      "maxDatasets": 4,
+      "minCasesPerDataset": 2,
+      "maxCasesPerDataset": 2,
+      "maxTotalCases": 8
+    }
+  }
+}

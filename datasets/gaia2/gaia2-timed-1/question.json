@@ -58,10 +58,6 @@
       "GAIA2 ARE MCP sidecar with private scenario",
       "ARE event-log and provenance collection"
     ],
-    "inputs": [],
-    "setup": {
-      "kind": "none"
-    },
     "reset": "fresh-workspace"
   },
   "evidence": {
@@ -91,5 +87,9 @@
         }
       ]
     }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
   }
 }

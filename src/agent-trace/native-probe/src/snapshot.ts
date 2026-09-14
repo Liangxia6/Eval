@@ -81,6 +81,16 @@ function safeRead(object: object, key: string): unknown {
   }
 }
 
+/** DSH 的流式碎片由完整 assistant/message 取代，不进入持久化 Trace。 */
+export function isAssistantChunkEvent(input: unknown): boolean {
+  if (!input || typeof input !== 'object') return false
+  try {
+    return (input as { type?: unknown }).type === 'assistant/chunk'
+  } catch {
+    return false
+  }
+}
+
 export class Snapshotter {
   readonly options: SnapshotOptions
   private nodesLeft = 0
@@ -144,6 +154,10 @@ export class Snapshotter {
     }
 
     const object = input as object
+    if (isAssistantChunkEvent(object)) {
+      stats.omitted++
+      return { $type: 'stream-fragment-omitted' }
+    }
     if (depth >= this.options.maxDepth) {
       stats.truncated++
       return { $type: 'max-depth', class: className(object) }
@@ -202,15 +216,19 @@ export class Snapshotter {
     if (isAgentLike(object)) return this.agent(object, path, depth, seen, stats)
 
     if (Array.isArray(object)) {
-      const length = Math.min(object.length, this.options.maxBreadth)
+      const retained = object.filter((item) => !isAssistantChunkEvent(item))
+      const omittedFragments = object.length - retained.length
+      stats.omitted += omittedFragments
+      const length = Math.min(retained.length, this.options.maxBreadth)
       const result: JsonValue[] = []
       for (let index = 0; index < length; index++) {
-        result.push(this.visit(object[index], `${path}[${index}]`, String(index), depth + 1, seen, stats))
+        result.push(this.visit(retained[index], `${path}[${index}]`, String(index), depth + 1, seen, stats))
       }
-      if (object.length > length) {
+      if (retained.length > length) {
         stats.truncated++
-        result.push({ $type: 'truncated-items', omitted: object.length - length })
+        result.push({ $type: 'truncated-items', omitted: retained.length - length })
       }
+      if (omittedFragments > 0) result.push({ $type: 'stream-fragments-omitted', count: omittedFragments })
       return result
     }
     if (object instanceof Map) {

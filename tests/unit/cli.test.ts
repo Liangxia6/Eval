@@ -4,30 +4,13 @@
  */
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cp, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 
 import { parseCliArgs, runCli } from "../../src/app/cli.js";
-import { digestValue } from "../../src/core/models.js";
-
-async function readPersistedText(root: string): Promise<string> {
-  let entries;
-  try {
-    entries = await readdir(root, { withFileTypes: true });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
-    throw error;
-  }
-  const chunks: string[] = [];
-  for (const entry of entries) {
-    const location = path.join(root, entry.name);
-    if (entry.isDirectory()) chunks.push(await readPersistedText(location));
-    else if (entry.isFile()) chunks.push(await readFile(location, "utf8"));
-  }
-  return chunks.join("\n");
-}
+import { declarePluginsInTarget, resolvePlugins } from "../../src/app/plugins.js";
 
 test("MVP-UT-CLI-001 parses the three Target commands without implicit fixture mode", () => {
   assert.deepEqual(parseCliArgs(["inspect", "--target", "target.json"]), {
@@ -53,8 +36,6 @@ test("MVP-UT-CLI-001 parses the three Target commands without implicit fixture m
       "plan",
       "--target",
       "target.json",
-      "--fixture-pack",
-      "tests/fixtures/packs/attention-pytorch-v1.json",
       "--fixture",
       "--dataset-catalog",
       "datasets/catalog.json",
@@ -77,7 +58,6 @@ test("MVP-UT-CLI-001 parses the three Target commands without implicit fixture m
       command: "plan",
       target: "target.json",
       fixture: true,
-      fixturePackRoot: "tests/fixtures/packs/attention-pytorch-v1.json",
       datasetCatalogPath: "datasets/catalog.json",
       datasetsRoot: "datasets",
       labelsRoot: "labels",
@@ -146,9 +126,114 @@ test("MVP-UT-CLI-001 parses report reconstruction bounds", () => {
   );
 });
 
+test("MVP-UT-CLI-PLUGIN resolves repeated names by highest rank and requires install metadata", async () => {
+  const originalFetch = globalThis.fetch;
+  const manifest = {
+    datasets: { search: { url: "/search.json" } },
+  };
+  const search = {
+    rankings: [
+      {
+        rank: 8,
+        fullName: "lower/example",
+        name: "same-name",
+        install: {
+          method: "pnpm-profile",
+          packageName: "lower-package",
+          commands: ["dsh plugin --profile web add lower-package"],
+        },
+      },
+      {
+        rank: 2,
+        fullName: "higher/example",
+        name: "same-name",
+        install: {
+          method: "pnpm-profile",
+          packageName: "higher-package",
+          commands: ["dsh plugin --profile web add higher-package"],
+        },
+      },
+      {
+        rank: 1,
+        fullName: "no-source/example",
+        name: "no-source",
+      },
+    ],
+  };
+  globalThis.fetch = (async (url: string | URL) => {
+    const body = String(url).endsWith("manifest.json") ? manifest : search;
+    return new Response(JSON.stringify(body), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const selected = await resolvePlugins(["same-name"]);
+    assert.equal(selected.plugins.length, 1);
+    assert.equal(selected.plugins[0]?.fullName, "higher/example");
+    assert.equal(selected.plugins[0]?.packageName, "higher-package");
+    await assert.rejects(
+      () => resolvePlugins(["no-source"]),
+      /no recognized install source/u,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("MVP-UT-CLI-PLUGIN adds selected plugins to the isolated static snapshot inputs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-plugin-declare-"));
+  try {
+    const targetRoot = path.join(root, "target");
+    const dshHome = path.join(targetRoot, ".dsh");
+    const profileRoot = path.join(dshHome, "profiles", "default");
+    await mkdir(targetRoot, { recursive: true });
+    await writeFile(
+      path.join(targetRoot, "effective-config.json"),
+      JSON.stringify({ profile: { plugins: [{ id: "existing-plugin" }] } }),
+      "utf8",
+    );
+    await mkdir(profileRoot, { recursive: true });
+    await writeFile(
+      path.join(profileRoot, "profile.json"),
+      JSON.stringify({ profile: "default", plugins: ["existing-plugin"] }),
+      "utf8",
+    );
+    await declarePluginsInTarget(
+      targetRoot,
+      dshHome,
+      "default",
+      [{
+        input: "new-plugin",
+        rank: 1,
+        fullName: "owner/new-plugin",
+        name: "new-plugin",
+        packageName: "@owner/new-plugin",
+        installMethod: "pnpm-profile",
+      }],
+    );
+    const effective = JSON.parse(await readFile(path.join(targetRoot, "effective-config.json"), "utf8")) as {
+      profile: { plugins: unknown[] };
+    };
+    const profile = JSON.parse(await readFile(path.join(profileRoot, "profile.json"), "utf8")) as {
+      plugins: unknown[];
+    };
+    assert.deepEqual(effective.profile.plugins, [{ id: "existing-plugin" }, "@owner/new-plugin"]);
+    assert.deepEqual(profile.plugins, ["existing-plugin", "@owner/new-plugin"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("MVP-UT-CLI-001 rejects ambiguous, misplaced, and implicitly enabled fixture options", () => {
   assert.throws(() => parseCliArgs([]), /expected one command/u);
   assert.throws(() => parseCliArgs(["run"]), /required CLI option/u);
+  assert.deepEqual(
+    parseCliArgs(["inspect", "--target", "a.json", "--plugin", "one", "--plugin", "two,three"]),
+    {
+      command: "inspect",
+      target: "a.json",
+      fixture: false,
+      plugins: ["one", "two", "three"],
+    },
+  );
   assert.throws(
     () => parseCliArgs(["run", "--target", "a.json", "--target", "b.json"]),
     /only once/u,
@@ -171,7 +256,7 @@ test("MVP-UT-CLI-001 rejects ambiguous, misplaced, and implicitly enabled fixtur
   );
   assert.throws(
     () => parseCliArgs(["inspect", "--target", "a.json", "--fixture-pack", "packs"]),
-    /not valid/u,
+    /unknown or misplaced/u,
   );
   assert.throws(
     () => parseCliArgs(["report", "--run", "run-1", "--fixture"]),
@@ -245,107 +330,6 @@ test("MVP-E2E-012 MVP-UT-CLI-001 non-FULL_AGENT targets are a stable pre-plan re
         "UnsupportedTargetKindError: DSHEval MVP supports only FULL_AGENT targets",
       ]);
     }
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("MVP-UT-PLAN-002 missing Dataset Pack makes the plan UNSATISFIABLE before Run creation", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-cli-missing-scenario-"));
-  try {
-    const packRoot = path.join(root, "packs");
-    await cp(path.join(process.cwd(), "tests", "fixtures", "packs"), packRoot, { recursive: true });
-    await rename(
-      path.join(packRoot, "attention-pytorch-v1.json"),
-      path.join(packRoot, "attention-pytorch-v1.missing"),
-    );
-    const diagnostics: string[] = [];
-    const result = await runCli(
-      [
-        "plan",
-        "--target",
-        path.join(process.cwd(), "config", "targets", "fixture-dsh.json"),
-        "--fixture-pack",
-        packRoot,
-        "--fixture",
-        "--run-id",
-        "fixture-plan-missing-scenario",
-      ],
-      root,
-      (message) => diagnostics.push(message),
-    );
-    assert.equal(result.status, "PLAN_UNSATISFIABLE");
-    assert.equal(result.command, "plan");
-    assert.equal(result.exitCode, 2);
-    assert.equal("runState" in result, false);
-    const reasonCodes = "reasonCodes" in result
-      ? result.reasonCodes as readonly string[]
-      : [];
-    assert.ok(reasonCodes.includes("PACK_SELECTION_AMBIGUOUS"));
-    assert.deepEqual(diagnostics, [
-      "plan finished with exit code 2 (PACK_SELECTION_AMBIGUOUS)",
-    ]);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("MVP-E2E-012 maxAttempts=2 is rejected during Planning without Run creation or Agent start", async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-cli-retry-scope-"));
-  try {
-    const packRoot = path.join(root, "packs");
-    await cp(path.join(process.cwd(), "tests", "fixtures", "packs"), packRoot, { recursive: true });
-    const packPath = path.join(packRoot, "attention-pytorch-v1.json");
-    const pack = JSON.parse(await readFile(packPath, "utf8")) as {
-      contentDigest: unknown;
-      scenario: { execution: Record<string, unknown> };
-      [key: string]: unknown;
-    };
-    pack.scenario.execution = { ...pack.scenario.execution, maxAttempts: 2 };
-    pack.contentDigest = digestValue(pack, ["contentDigest"]);
-    await writeFile(packPath, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
-
-    const diagnostics: string[] = [];
-    const runId = "fixture-retry-scope-rejected";
-    const result = await runCli(
-      [
-        "run",
-        "--target",
-        path.join(process.cwd(), "config", "targets", "fixture-dsh.json"),
-        "--fixture-pack",
-        packRoot,
-        "--fixture",
-        "--fixture-behavior",
-        "attention-success",
-        "--run-id",
-        runId,
-      ],
-      root,
-      (message) => diagnostics.push(message),
-    );
-
-    assert.equal(result.command, "run");
-    assert.equal(result.status, "PLAN_UNSATISFIABLE");
-    assert.equal(result.exitCode, 2);
-    assert.equal("runState" in result, false);
-    assert.equal("gate" in result, false);
-    assert.ok((result.reasonCodes as readonly string[]).includes("MULTI_CASE_OR_RETRY_UNSUPPORTED"));
-    assert.deepEqual(diagnostics, ["run finished with exit code 2 (MULTI_CASE_OR_RETRY_UNSUPPORTED)"]);
-
-    assert.equal("recordsPath" in result, true);
-    const persisted = "recordsPath" in result
-      ? await readPersistedText(result.recordsPath)
-      : "";
-    assert.equal(
-      persisted.includes('"schema":"dsheval.mvp.run/v1"'),
-      false,
-      "Planning rejection must not persist an EvaluationRun",
-    );
-    assert.equal(
-      persisted.includes('"operation":"TARGET_START"'),
-      false,
-      "Planning rejection must not start the Target",
-    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

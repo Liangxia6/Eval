@@ -42,13 +42,13 @@ import {
   probeIssueFailureDrafts,
   readProbeFileBounded,
   type ProbeEnvelope,
-} from "../../src/observation/runtime.js";
+} from "../../src/agent-trace/reader.js";
 import {
   FILE_SENSOR_DESCRIPTOR,
   FILE_SENSOR_REGISTRY_DIGEST,
   validateCaptureContext,
   type EnvironmentCaptureContext,
-} from "../../src/observation/environment.js";
+} from "../../observer-lab/adapters/filesystem/binding.js";
 import {
   buildFileDiff,
   captureFileSnapshot,
@@ -57,11 +57,11 @@ import {
   materializeFileSnapshot,
   verifyResetSnapshot,
   type FileSnapshotDraft,
-} from "../../src/observation/sensors/file.js";
+} from "../../observer-lab/adapters/filesystem/sensor.js";
 
 const ZERO_DIGEST = digestBytes("");
 
-test("MVP-CT-PROBE-001 parses complete Probe, preserves unknown events and exact raw bytes", () => {
+test("parses complete Probe, preserves unknown events and exact raw bytes", () => {
   const lines = completeProbe("source-run-1");
   lines.splice(4, 0, probe("source-run-1", 4, "future/kind", { future: true }));
   for (let index = 5; index < lines.length; index += 1) {
@@ -110,7 +110,7 @@ test("Probe 为每个高频事件保留紧凑索引并由原始字节承载完�
   assert.deepEqual(Buffer.from(result.rawArtifactBytes), Buffer.from(raw));
 });
 
-test("MVP-FI-PROBE-001 distinguishes gap, duplicate, out-of-order and malformed tail", () => {
+test("distinguishes gap, duplicate, out-of-order and malformed tail", () => {
   const events = completeProbe("source-run-1");
   events[2] = { ...events[2]!, probeSeq: 3 };
   events[3] = { ...events[3]!, probeSeq: 3 };
@@ -130,7 +130,7 @@ test("MVP-FI-PROBE-001 distinguishes gap, duplicate, out-of-order and malformed 
   assert.equal(result.records.length, events.length);
 });
 
-test("MVP-FI-PROBE-BOUNDS-001 marks a collector-bounded prefix PARTIAL and preserves its exact bytes", () => {
+test("marks a collector-bounded prefix PARTIAL and preserves its exact bytes", () => {
   const raw = `${completeProbe("source-run-1").map((line) => JSON.stringify(line)).join("\n")}\n`;
   const result = parseProbeJsonl(raw, {
     ...probeOptions("source-run-1"),
@@ -143,7 +143,7 @@ test("MVP-FI-PROBE-BOUNDS-001 marks a collector-bounded prefix PARTIAL and prese
   assert.ok(result.issues.some((issue) => issue.code === "PROBE_TRUNCATED"));
 });
 
-test("MVP-SEC-PROBE-001 withholds canary-bearing Probe content from ordinary observations", () => {
+test("withholds canary-bearing Probe content from ordinary observations", () => {
   const raw = Buffer.from('{"message":"fixture-canary-secret-4e18d9"}\n', "utf8");
   const result = parseProbeJsonl(raw, {
     ...probeOptions("source-run-1"),
@@ -157,7 +157,7 @@ test("MVP-SEC-PROBE-001 withholds canary-bearing Probe content from ordinary obs
   assert.ok(result.issues.some((issue) => issue.code === "PROBE_CONTENT_RESTRICTED"));
 });
 
-test("MVP-FI-PROBE-BOUNDS-002 reads only the frozen byte bound and rejects symlink input", async () => {
+test("reads only the frozen byte bound and rejects symlink input", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-probe-bound-"));
   try {
     const probePath = path.join(root, "probe.jsonl");
@@ -177,7 +177,7 @@ test("MVP-FI-PROBE-BOUNDS-002 reads only the frozen byte bound and rejects symli
   }
 });
 
-test("MVP-CT-PLAN-SOURCE-001 Observation rejects every Sensor binding triple drift before capture", () => {
+test("Observation rejects every Sensor binding triple drift before capture", () => {
   const valid = captureContextFixture();
   assert.doesNotThrow(() => validateCaptureContext("BEFORE", valid));
   const original = valid.request.preparedBindings[0]!;
@@ -210,7 +210,7 @@ test("MVP-CT-PLAN-SOURCE-001 Observation rejects every Sensor binding triple dri
   }
 });
 
-test("MVP-CT-EXT-001 Observation accepts a compatible descriptor through the existing binding interface", () => {
+test("Observation accepts a compatible descriptor through the existing binding interface", () => {
   const replacementDescriptor: SensorAdapterDescriptor = Object.freeze({
     ...FILE_SENSOR_DESCRIPTOR,
     implementationId: validateStableId<"SensorImplementationId">(
@@ -236,7 +236,7 @@ test("MVP-CT-EXT-001 Observation accepts a compatible descriptor through the exi
   );
 });
 
-test("MVP-UT-FILE-001 File Diff identifies every required change class", () => {
+test("File Diff identifies every required change class", () => {
   const file = (portablePath: string, content: string, mode = 0o644): FileEntry => ({
     portablePath,
     entryType: "FILE",
@@ -301,7 +301,7 @@ test("MVP-UT-FILE-001 File Diff identifies every required change class", () => {
   );
 });
 
-test("MVP-FI-PROBE-001 missing stop and foreign Run/PID remain explicit collection gaps", () => {
+test("missing stop and foreign Run/PID remain explicit collection gaps", () => {
   const missingStop = completeProbe("source-run-1").slice(0, -1);
   const result = parseProbeJsonl(
     `${missingStop.map((line) => JSON.stringify(line)).join("\n")}\n`,
@@ -334,7 +334,7 @@ test("MVP-FI-PROBE-001 missing stop and foreign Run/PID remain explicit collecti
   );
 });
 
-test("MVP-SEC-FILE-001 scanner hashes files with lstat and records root-escaping symlink without following it", async () => {
+test("scanner hashes files with lstat and records root-escaping symlink without following it", async () => {
   const parent = await mkdtemp(path.join(os.tmpdir(), "dsheval-observation-"));
   const workspace = path.join(parent, "workspace");
   const neighbor = path.join(parent, "neighbor.txt");
@@ -367,7 +367,7 @@ test("MVP-SEC-FILE-001 scanner hashes files with lstat and records root-escaping
   }
 });
 
-test("MVP-IT-RESET-001 POST_RESET uses a fresh capture and distinguishes MATCH/MISMATCH/UNAVAILABLE", async () => {
+test("POST_RESET uses a fresh capture and distinguishes MATCH/MISMATCH/UNAVAILABLE", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "dsheval-reset-"));
   try {
     const expected = emptyWorkspaceManifestDigest("attempt.workspace");
@@ -424,7 +424,7 @@ test("MVP-IT-RESET-001 POST_RESET uses a fresh capture and distinguishes MATCH/M
   }
 });
 
-test("MVP-FI-SENSOR-001 unavailable root is PARTIAL and cannot become a conclusive no-change Diff", async () => {
+test("unavailable root is PARTIAL and cannot become a conclusive no-change Diff", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "dsheval-file-failure-"));
   const missing = path.join(root, "missing");
   try {
@@ -457,7 +457,7 @@ test("MVP-FI-SENSOR-001 unavailable root is PARTIAL and cannot become a conclusi
   }
 });
 
-test("MVP-IT-CLOSURE-001 Session seals only after ordered baseline, ACTIVE and explicit ledger", () => {
+test("Session seals only after ordered baseline, ACTIVE and explicit ledger", () => {
   const scope = {
     targetId: validateStableId<"TargetId">("target-1"),
     targetSnapshotId: validateStableId<"TargetSnapshotId">("target-snapshot-1"),
@@ -691,3 +691,27 @@ function sequenceClock(...values: string[]): () => string {
   let index = 0;
   return () => values[Math.min(index++, values.length - 1)]!;
 }
+
+test("parallel Sessions with identical turn and call IDs close independently", () => {
+  const first = completeProbe("source-run-1");
+  const second = first.filter((item) => item.kind === "session/event").map((item) => ({
+    ...item, data: { ...item.data, sessionId: "second-session" },
+  }));
+  const records = [
+    first[0]!, first[1]!, second[0]!, first[2]!, second[1]!,
+    first[3]!, second[2]!, first[4]!, second[3]!, first[5]!,
+  ].map((item, probeSeq) => ({ ...item, probeSeq }));
+  const parsed = parseProbeJsonl(records.map((item) => JSON.stringify(item)).join("\n"), probeOptions("source-run-1"));
+  assert.equal(parsed.collectionStatus.completeness, "COMPLETE");
+});
+
+test("a result from another Session cannot close an outstanding tool call", () => {
+  const records = completeProbe("source-run-1").map((item) => ({
+    ...item,
+    data: item.kind === "session/event" && (item.data.event as { type?: string } | undefined)?.type === "tool/result"
+      ? { ...item.data, sessionId: "different-session" } : item.data,
+  }));
+  const parsed = parseProbeJsonl(records.map((item) => JSON.stringify(item)).join("\n"), probeOptions("source-run-1"));
+  assert.equal(parsed.collectionStatus.completeness, "PARTIAL");
+  assert.ok(parsed.issues.some((issue) => issue.code === "TOOL_CALL_INCOMPLETE"));
+});

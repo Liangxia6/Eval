@@ -1,3 +1,4 @@
+import { parseVerifiedReportDocument } from "../reporting/record.js";
 /**
  * 文件职责：安全提交、读取并导出最终评测报告文件。
  *
@@ -27,11 +28,6 @@ import {
 import os from "node:os";
 import path from "node:path";
 
-import {
-  assertDigestEquals,
-  digestValue,
-  validateContentDigest,
-} from "../core/models.js";
 
 /** 导出目录内一个固定报告文件的长度和摘要。 */
 export interface DeliveryManifestEntry {
@@ -189,68 +185,7 @@ async function commitImmutableFile(
 
 /** 解析并验证 report.json 的顶层摘要、Schema、字段和关键视图结构。 */
 function parseAndVerifyReportJson(bytes: Uint8Array): Readonly<Record<string, unknown>> {
-  let text: string;
-  let parsed: unknown;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-    parsed = JSON.parse(text) as unknown;
-  } catch (error) {
-    throw new Error("report.json must be valid UTF-8 JSON", { cause: error });
-  }
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("report.json must contain a JSON object");
-  }
-  const document = parsed as Record<string, unknown>;
-  const allowedFields = new Set([
-    "schema", "reportId", "scope", "runRef", "targetSnapshotRef", "planRefs", "caseRef",
-    "attemptRef", "sourceRefs", "collectionStatusRefs", "closureRefs", "judgementRefs",
-    "checkResultRefs", "gateDecisionRef", "resetVerificationRef", "failureRefs",
-    "operationalHealth", "artifactRefs", "createdAt", "producerVersion", "view",
-    "rendererVersion", "contentDigest",
-  ]);
-  if (Object.keys(document).some((field) => !allowedFields.has(field))) {
-    throw new Error("report.json document contains unknown top-level fields");
-  }
-  if (
-    document.view === null ||
-    typeof document.view !== "object" ||
-    Array.isArray(document.view) ||
-    typeof document.rendererVersion !== "string" ||
-    document.rendererVersion.length === 0
-  ) {
-    throw new Error("report.json document shape is invalid");
-  }
-  const view = document.view as Record<string, unknown>;
-  if (
-    document.schema !== "dsheval.mvp.report/v1" ||
-    document.scope === null ||
-    typeof document.scope !== "object" ||
-    Array.isArray(document.scope) ||
-    document.runRef === null ||
-    typeof document.runRef !== "object" ||
-    Array.isArray(document.runRef) ||
-    typeof view.runId !== "string" ||
-    view.runId !== (document.scope as Record<string, unknown>).runId ||
-    view.runId !== (document.runRef as Record<string, unknown>).id ||
-    !Array.isArray(view.timeline) ||
-    view.timeline.length !== 10 ||
-    view.timeline.some(
-      (step, index) =>
-        step === null ||
-        typeof step !== "object" ||
-        Array.isArray(step) ||
-        (step as Record<string, unknown>).number !== index + 1,
-    ) ||
-    !Array.isArray(view.sources) ||
-    !Array.isArray(view.checks) ||
-    !Array.isArray(view.failures) ||
-    !Array.isArray(view.artifacts)
-  ) {
-    throw new Error("report.json authoritative report/view binding is invalid");
-  }
-  const documentDigest = validateContentDigest(document.contentDigest, "report.contentDigest");
-  assertDigestEquals(digestValue(document, ["contentDigest"]), documentDigest);
-  return Object.freeze(document);
+  return parseVerifiedReportDocument(new TextDecoder("utf-8",{fatal:true}).decode(bytes)) as unknown as Readonly<Record<string,unknown>>;
 }
 
 /** Workflow 调用：验证 JSON 后原子提交唯一 report.json。 */

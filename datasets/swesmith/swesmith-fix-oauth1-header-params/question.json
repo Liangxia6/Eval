@@ -44,41 +44,10 @@
     "dependencies": [
       "Python 3.10+"
     ],
-    "inputs": [
-      {
-        "source": "assets/buggy.py",
-        "destination": "input/buggy.py",
-        "sha256": "e889621f55a74a272f03592910245f3c4976b4f80347a11031abe00ee1f8f334"
-      },
-      {
-        "source": "assets/data.json",
-        "destination": "input/data.json",
-        "sha256": "d3f6ebd59a7a7eb33dc963951454ea4bb3052dc0d66955ab1b079bd1a539daf1"
-      },
-      {
-        "source": "assets/starter.py",
-        "destination": "input/starter.py",
-        "sha256": "4cfe41dc5e7dc439ba114aa4765c9e91e49fd725915c730eb2e36884aaee1893"
-      }
-    ],
-    "setup": {
-      "kind": "copy-public-inputs"
-    },
     "reset": "fresh-workspace",
     "allowedEdits": [
       "output/**",
       "work/**"
-    ]
-  },
-  "final": {
-    "checks": [
-      {
-        "id": "final-result",
-        "kind": "llm",
-        "output": "output/solution.py",
-        "reference": "private/final.json",
-        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
-      }
     ]
   },
   "evidence": {
@@ -110,5 +79,35 @@
         }
       ]
     }
+  },
+  "inputs": [
+    {
+      "source": "input/buggy.py",
+      "destination": "input/buggy.py",
+      "sha256": "e889621f55a74a272f03592910245f3c4976b4f80347a11031abe00ee1f8f334",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/data.json",
+      "destination": "input/data.json",
+      "sha256": "d3f6ebd59a7a7eb33dc963951454ea4bb3052dc0d66955ab1b079bd1a539daf1",
+      "delivery": "workspace"
+    },
+    {
+      "source": "input/starter.py",
+      "destination": "input/starter.py",
+      "sha256": "4cfe41dc5e7dc439ba114aa4765c9e91e49fd725915c730eb2e36884aaee1893",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/solution.py",
+    "criteria": [
+      {
+        "id": "final-result",
+        "prompt": "以本题公开契约、私有参考与封存产物判断最终结果。若测评器提供了可信 checks/check.py 结果，硬检查失败不可由过程分或语义判断改为通过；检查未执行、证据不足时标为无法评价。不要把Agent自述的测试通过当可信检查。返回完成状态及证据依据，分制由统一配置提供。"
+      }
+    ]
   }
 }

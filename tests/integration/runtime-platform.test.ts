@@ -1,3 +1,4 @@
+import { resultFixture } from "../helpers/evaluation.js";
 /**
  * 测试职责：验证 Bootstrap、配置、环境生命周期、Lease、报告提交和本地服务检查
  * 在真实临时目录中的协作行为，以及失败时的原子性与路径边界。
@@ -22,7 +23,6 @@ import {
 import {
   canonicalJson,
   digestBytes,
-  withContentDigest,
   withProjectionDigest,
 } from "../../src/core/models.js";
 import {
@@ -109,7 +109,7 @@ async function writeRunHistory(
   await writeFile(path.join(directory, `${runId}.json`), canonicalJson(current));
 }
 
-test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", async () => {
+test("real fixture process runs only after a seeded workspace", async () => {
   const root = await temporaryDirectory();
   try {
     const prepared = await prepareEnvironment({
@@ -152,6 +152,7 @@ test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", 
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-runtime-pass",
+      contentMode: "FULL",
       deadlineMs: 5_000,
       maxOutputBytes: 64 * 1024,
       fixtureBehavior: "attention-success",
@@ -182,7 +183,7 @@ test("MVP-IT-RUN-001: real fixture process runs only after a seeded workspace", 
   }
 });
 
-test("MVP-FI-TARGET-001: timeout keeps a Probe prefix and never retries", async () => {
+test("timeout keeps a Probe prefix and never retries", async () => {
   const root = await temporaryDirectory();
   let prepared: Awaited<ReturnType<typeof prepareEnvironment>> | undefined;
   try {
@@ -205,6 +206,7 @@ test("MVP-FI-TARGET-001: timeout keeps a Probe prefix and never retries", async 
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-timeout",
+      contentMode: "FULL",
       deadlineMs: 500,
       maxOutputBytes: 64 * 1024,
       fixtureBehavior: "timeout",
@@ -235,7 +237,7 @@ test("MVP-FI-TARGET-001: timeout keeps a Probe prefix and never retries", async 
   }
 });
 
-test("MVP-RUN-AC-006: a target that ignores SIGTERM is killed as one process group", async () => {
+test("a target that ignores SIGTERM is killed as one process group", async () => {
   const root = await temporaryDirectory();
   let prepared: Awaited<ReturnType<typeof prepareEnvironment>> | undefined;
   try {
@@ -258,6 +260,7 @@ test("MVP-RUN-AC-006: a target that ignores SIGTERM is killed as one process gro
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-force-kill",
+      contentMode: "FULL",
       deadlineMs: 500,
       maxOutputBytes: 64 * 1024,
       fixtureBehavior: "ignore-term-timeout",
@@ -289,7 +292,7 @@ test("MVP-RUN-AC-006: a target that ignores SIGTERM is killed as one process gro
   }
 });
 
-test("MVP-RUN-AC-006: pre-cancelled execution never creates a child process", async () => {
+test("pre-cancelled execution never creates a child process", async () => {
   const root = await temporaryDirectory();
   try {
     const prepared = await prepareEnvironment({
@@ -310,6 +313,7 @@ test("MVP-RUN-AC-006: pre-cancelled execution never creates a child process", as
       runtimeDshHomePath: prepared.runtimeDshHomePath,
       probeOutputPath: prepared.probeOutputPath,
       sourceRunId: "source-pre-cancel",
+      contentMode: "FULL",
       deadlineMs: 1_000,
       maxOutputBytes: 1024,
       fixtureBehavior: "attention-success",
@@ -326,7 +330,7 @@ test("MVP-RUN-AC-006: pre-cancelled execution never creates a child process", as
   }
 });
 
-test("MVP-SEC-FILE-001: reset is bounded and cleanup requires an empty workspace", async () => {
+test("reset is bounded and cleanup requires an empty workspace", async () => {
   const root = await temporaryDirectory();
   try {
     const workspaceRoot = path.join(root, "workspaces");
@@ -366,7 +370,7 @@ test("MVP-SEC-FILE-001: reset is bounded and cleanup requires an empty workspace
   }
 });
 
-test("MVP-RUN-REQ-005: prepare failure rolls back only its newly-created attempt directories", async () => {
+test("prepare failure rolls back only its newly-created attempt directories", async () => {
   const root = await temporaryDirectory();
   try {
     const workspaceRoot = path.join(root, "workspaces");
@@ -402,7 +406,7 @@ test("MVP-RUN-REQ-005: prepare failure rolls back only its newly-created attempt
   }
 });
 
-test("MVP-RUN-AC-004: target entry is staged read-only and Runtime Home cleanup is exact", async () => {
+test("target entry is staged read-only and Runtime Home cleanup is exact", async () => {
   const root = await temporaryDirectory();
   try {
     const workspaceRoot = path.join(root, "workspaces");
@@ -452,7 +456,7 @@ test("MVP-RUN-AC-004: target entry is staged read-only and Runtime Home cleanup 
   }
 });
 
-test("MVP-E2E-010 fixture reset residue is explicit and cannot target a production-named run", async () => {
+test("fixture reset residue is explicit and cannot target a production-named run", async () => {
   const root = await temporaryDirectory();
   try {
     const workspaceRoot = path.join(root, "workspaces");
@@ -491,7 +495,7 @@ test("MVP-E2E-010 fixture reset residue is explicit and cannot target a producti
   }
 });
 
-test("MVP-UT-PLAT-001: config freezes safe disjoint roots and rejects unknown fields", async () => {
+test("config freezes safe disjoint roots and rejects unknown fields", async () => {
   const root = await temporaryDirectory();
   try {
     const targetRoot = path.join(root, "target");
@@ -588,7 +592,7 @@ test("MVP-UT-PLAT-001: config freezes safe disjoint roots and rejects unknown fi
   }
 });
 
-test("MVP-PLAT-REQ-006: startup recovery permits planning/terminal partitions and blocks another active Run", async () => {
+test("startup recovery permits planning/terminal partitions and blocks another active Run", async () => {
   const root = await temporaryDirectory();
   try {
     const roots = localServiceRoots(root);
@@ -630,7 +634,7 @@ test("MVP-PLAT-REQ-006: startup recovery permits planning/terminal partitions an
   }
 });
 
-test("MVP-PLAT-REQ-006: startup recovery fails closed on a damaged or symlinked Run partition", async () => {
+test("startup recovery fails closed on a damaged or symlinked Run partition", async () => {
   const damagedRoot = await temporaryDirectory();
   const symlinkRoot = await temporaryDirectory();
   try {
@@ -670,7 +674,7 @@ test("MVP-PLAT-REQ-006: startup recovery fails closed on a damaged or symlinked 
   }
 });
 
-test("MVP-PLAT-REQ-006: bootstrap refuses to allocate a new Run beside an unfinished prior Run", async () => {
+test("bootstrap refuses to allocate a new Run beside an unfinished prior Run", async () => {
   const root = await temporaryDirectory();
   try {
     const roots = localServiceRoots(root);
@@ -718,7 +722,7 @@ test("MVP-PLAT-REQ-006: bootstrap refuses to allocate a new Run beside an unfini
   }
 });
 
-test("MVP-IT-LEASE-001: an active lease rejects a second run", async () => {
+test("an active lease rejects a second run", async () => {
   const root = await temporaryDirectory();
   try {
     const lease = await acquireLease(root, "run-first");
@@ -735,7 +739,7 @@ test("MVP-IT-LEASE-001: an active lease rejects a second run", async () => {
   }
 });
 
-test("MVP-SEC-IDENTITY-002: fixture and production identity facts are never confused", async () => {
+test("fixture and production identity facts are never confused", async () => {
   const root = await temporaryDirectory();
   try {
     const fixture = await runSecurityPreflight({
@@ -760,7 +764,7 @@ test("MVP-SEC-IDENTITY-002: fixture and production identity facts are never conf
   }
 });
 
-test("MVP-SEC-TASK-001 and MVP-SEC-SECRET-001 reject hidden task and output material", () => {
+test("and MVP-SEC-SECRET-001 reject hidden task and output material", () => {
   assert.doesNotThrow(() => assertSafeAgentTask("explain Attention and write output/attention.py", ["hidden-digest"]));
   assert.throws(
     () => assertSafeAgentTask("copy hidden-digest", ["hidden-digest"]),
@@ -771,65 +775,11 @@ test("MVP-SEC-TASK-001 and MVP-SEC-SECRET-001 reject hidden task and output mate
   ]);
 });
 
-test("MVP-PLAT-REQ-008: export contains only verified report files and a digest manifest", async () => {
+test("export contains only verified report files and a digest manifest", async () => {
   const root = await temporaryDirectory();
   try {
     const reportRoot = path.join(root, "reports");
-    const refDigest = digestBytes("fixture-report-ref");
-    const report = withContentDigest({
-      schema: "dsheval.mvp.report/v1" as const,
-      reportId: "report-export",
-      scope: {
-        targetId: "target-export",
-        targetSnapshotId: "snapshot-export",
-        runId: "run-export",
-        caseId: "case-export",
-        attemptId: "attempt-export",
-      },
-      createdAt: "2026-09-01T00:00:00.000Z",
-      producerVersion: "0.1.0",
-      runRef: { schema: "dsheval.mvp.run/v1", id: "run-export", revision: 1, digest: refDigest },
-      targetSnapshotRef: { schema: "dsheval.mvp.target-snapshot/v1", id: "snapshot-export", digest: refDigest },
-      planRefs: [],
-      caseRef: { schema: "dsheval.mvp.case/v1", id: "case-export", revision: 1, digest: refDigest },
-      attemptRef: { schema: "dsheval.mvp.attempt/v1", id: "attempt-export", revision: 1, digest: refDigest },
-      sourceRefs: [],
-      collectionStatusRefs: [],
-      closureRefs: [],
-      judgementRefs: [],
-      checkResultRefs: [],
-      failureRefs: [],
-      operationalHealth: "HEALTHY" as const,
-      artifactRefs: [],
-    });
-    const view = {
-      runId: "run-export",
-      targetSummary: "FULL_AGENT / fixture",
-      currentPhase: "FINISHED",
-      runState: "FINISHED",
-      operationalHealth: "HEALTHY",
-      startedAt: "2026-09-01T00:00:00.000Z",
-      updatedAt: "2026-09-01T00:00:01.000Z",
-      timeline: Array.from({ length: 10 }, (_unused, index) => ({
-        number: index + 1,
-        label: `step-${index + 1}`,
-        status: "SUCCEEDED",
-        objectRefs: [],
-        failureGroups: [],
-      })),
-      planSummary: { caseCount: 1, attemptCount: 1, checkIds: [] },
-      sources: [],
-      checks: [],
-      reset: { result: "MATCH", environmentState: "CLEANED" },
-      failures: [],
-      artifacts: [],
-    };
-    const { contentDigest: _baseReportDigest, ...baseReport } = report;
-    const document = withContentDigest({
-      ...baseReport,
-      view,
-      rendererVersion: "dsheval-static/v1",
-    });
+    const document=await resultFixture("run-export");
     const reportJson = `${canonicalJson(document)}\n`;
     const committedJson = await commitReportJson({
       reportRoot,

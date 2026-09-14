@@ -16,8 +16,7 @@ import type {
   ArtifactReadPurpose,
   ArtifactRef,
   ConfigSnapshot,
-  ContentDigest,
-  EvaluationPack,
+  CaseExecutionInput,
   InspectionSnapshot,
   IsoDateTime,
   LifecycleProjectionBase,
@@ -26,7 +25,6 @@ import type {
   ScopeRef,
   SensorAdapterDescriptor,
   StableId,
-  VersionedAssetId,
   StateTransition,
   TargetSnapshot,
 } from "./models.js";
@@ -284,25 +282,13 @@ export interface PlanArtifactMaterializer {
   ): Promise<PortResult<Readonly<ArtifactRef>>>;
 }
 
-/** 一个可用 Judge 的版本和能力摘要；Planner 用它确认数据集要求的 Judge 是否存在。 */
-export interface JudgeDescriptor {
-  readonly judgeId: VersionedAssetId<"JudgeId">;
-  readonly judgeVersion: string;
-  /** RULE 为本地规则，LLM 为模型判定；Planner 只匹配已注册实现。 */
-  readonly method: "RULE" | "LLM";
-  readonly deterministic: boolean;
-  readonly checkType: string;
-  readonly capabilityDigest: ContentDigest;
-}
-
 /** Planner 选择评测内容时需要的全部输入：Agent 信息、数据集、配置及可用的观测器和 Judge。 */
 export interface EvaluationAssetMatchingInput {
   readonly targetSnapshot: TargetSnapshot;
   readonly inspectionSnapshot: InspectionSnapshot;
-  readonly evaluationPack: EvaluationPack;
+  readonly caseInput: CaseExecutionInput;
   readonly configSnapshot: ConfigSnapshot;
   readonly sensors: readonly SensorAdapterDescriptor[];
-  readonly judges: readonly JudgeDescriptor[];
 }
 
 /** 评测资产匹配接口；应用编排通过它生成冻结计划。 */

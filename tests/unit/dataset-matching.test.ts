@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  DATASET_TEST_POLICIES,
+  loadDatasetTestPolicy,
   OpenAiCompatibleDatasetMatcher,
   type DatasetCandidate,
 } from "../../src/planning/planner.js";
@@ -104,9 +104,11 @@ test("统一 Planner 只调用一次，并动态注入静态观测和 Dataset �
   assert.doesNotMatch(prompt, /\{\{[A-Z0-9_]+\}\}/u);
 });
 
-test("MVP 只保留 STANDARD 测试规模", () => {
-  assert.deepEqual(Object.keys(DATASET_TEST_POLICIES), ["STANDARD"]);
-  assert.equal(DATASET_TEST_POLICIES.STANDARD.maxTotalCases, 60);
+test("STANDARD 题量从独立策略文件读取", async () => {
+  const policy = await loadDatasetTestPolicy("planning/policies.json", "STANDARD");
+  assert.equal(policy.minCasesPerDataset, 2);
+  assert.equal(policy.maxCasesPerDataset, 2);
+  assert.equal(policy.maxTotalCases, 8);
 });
 
 test("模型不能选择目录外 Dataset 或越过题量预算", async () => {
@@ -119,7 +121,7 @@ test("模型不能选择目录外 Dataset 或越过题量预算", async () => {
     /not an available Dataset/u,
   );
   await assert.rejects(
-    matcherReturning([{ index: 1, count: 11 }]).select({
+    matcherReturning([{ index: 1, count: 3 }]).select({
       agentStaticInfo: STATIC_INFO,
       availableDatasets: [candidate(1)],
       profile: "STANDARD",

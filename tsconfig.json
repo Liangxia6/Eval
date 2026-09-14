@@ -25,6 +25,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": ["src/**/*.ts", "tests/**/*.ts", "observer-lab/adapters/**/*.ts"],
   "exclude": ["dist", "node_modules", "var", "src/agent-trace/native-probe"]
 }
