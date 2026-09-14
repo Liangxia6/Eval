@@ -33,3 +33,13 @@ python3 -m http.server 18767 --bind 127.0.0.1
 “测试集”分组替代“评测资源”，下列全部测试集目录，支持展开折叠、名称搜索和选中切换。catalog-snapshot.js 为此次 VMmac 快照，共 50 个目录、193 份 question.json；测试集详情展示真实题目名、标签和公开输入引用数量。页面内嵌同份快照，离线 HTML 无外部依赖。快照不会自动刷新，不代表 Loader 加载成功数量。
 
 已通过脚本语法检查和浏览器检查：选中 agentbench-os 显示实际 5 道题，选中历史 Agent 显示实际 10 个运行目录。
+
+## 统一 Agent 详情（2026-09-14）
+
+所有 Agent 共用同一个详情页渲染器、总体评分组件、Case 列表和详情面板。历史 Agent 不再使用单独的运行目录列表页。新增批次选择，保留静态观测、计划、Case 运行与评分、评分明细、Agent 结果五个页签。
+
+historical-snapshot.js 保存从现有 run.json、target.json、report.json、execution.json、plan.json、manifest.json 和 judge/*.json 提取的展示快照：10 个批次、20 条 Case 结果（含缺少完整报告的记录）。不读取巨大的原始 Trace / evidence 正文。最终 stdout 最多保留 12,000 字符；截断时明确标注。证据按钮展示 manifest 文件目录。
+
+数值仅使用旧 Judge 的明确 LLM_LABEL_SCORE_0..4 记录，未将 PASS/FAIL 转为分数；旧 BLOCKED 显示为历史阻断，不参与汇总。历史权重未保存，等权展示并注明。计划数与结果记录数分别显示，批次 COMPLETED 不代表全部计划题均有结果。
+
+验证：10 个历史批次均通过全部 5 个页签的渲染检查；切回 DSH Web 后保留演示状态；浏览器确认完成批次使用统一布局，展示真实评分与执行记录。此前文档中“历史评分详情未接入”描述已被此版本取代。仍为本地历史快照，未连接实时服务。
