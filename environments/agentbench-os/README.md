@@ -1,19 +1,39 @@
-# agentbench-os 上游环境（Linux guest 容器配方）
+# agentbench-os 上游环境（本地 Linux VM）
 
 5 道 AgentBench OS 题（calc/count-files/date-format/recursive-permissions/shared-file-permissions）
-需要在 **Linux guest** 中执行并跑私有 `check.sh`。本目录提供一键容器配方，在
-dsheval-vm 上装好 Docker 后即可验收。
+需要在 **Linux guest** 中执行并跑私有 `check.sh`。题包约束是
+`executionScope=local-linux-vm`：macOS VM 只负责托管 Linux guest，初始化、Agent
+命令和私有检查均在 guest 内执行。
 
 ## 需要什么
 
-- dsheval-vm 上安装 Docker（或 lima/colima）
+- macOS VM 上安装 Lima/Colima，并准备一个 Linux guest
+- Linux guest 中提供 bash、python3、coreutils、findutils、util-linux
 - 每题 Agent 的交付产物放在 `<case>/deliverables/` 下（可执行文件以命令名命名：
   `calc`、`count`、`date-format`；权限题交付脚本即可，由运行侧执行）
 
-## 使用
+## 本地 Linux VM 验收（主路径）
 
 ```bash
-# 构建镜像（预置 jack/bill/tom/george 用户、/testfile、~/videos 种子目录）
+# 只检查 Linux guest、题包和私有环境定义是否就绪
+bash environments/agentbench-os/run_vm_checks.sh preflight
+
+# Agent 已经把交付物写入每题的 deliverables/ 后执行私有检查
+bash environments/agentbench-os/run_vm_checks.sh run
+```
+
+脚本默认使用 `LIMA_HOME=$HOME/.colima/_lima` 下的
+`colima-dsheval-qemu` 实例，可用 `LINUX_VM_INSTANCE` 覆盖。Lima guest 默认用户是
+普通用户，脚本会通过 `sudo -n` 以 root 执行初始化、私有检查和清理（题目会写入
+`/root/videos`、`/testfile` 并管理测试用户）。`run` 没有交付物时会报告 `SKIP`，不会
+伪造题目通过。
+
+## Docker 兼容验收（旧路径）
+
+以下脚本仍保留，用于已有 Docker 镜像的兼容回归；它不是题包声明的主执行边界。
+
+```bash
+# 构建兼容镜像
 DATASETS_ROOT=~/Projects/dsheval/datasets \
   bash environments/agentbench-os/run_checks.sh build
 

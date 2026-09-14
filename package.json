@@ -5,7 +5,8 @@
   "type": "module",
   "bin": {
     "dsheval": "./dist/src/app/cli.js",
-    "dsheval-viewer": "./dist/src/app/viewer-cli.js"
+    "dsheval-viewer": "./dist/src/app/viewer-cli.js",
+    "dsheval-plugin-ui": "./dist/src/app/plugin-ui.js"
   },
   "engines": {
     "node": ">=22"
@@ -19,7 +20,8 @@
     "cli": "node dist/src/app/cli.js",
     "viewer": "node dist/src/app/viewer-cli.js",
     "test": "pnpm run build && node --test 'dist/tests/**/*.test.js'",
-    "verify": "pnpm run check && pnpm test"
+    "verify": "pnpm run check && pnpm test",
+    "plugin-ui": "node dist/src/app/plugin-ui.js"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.1",

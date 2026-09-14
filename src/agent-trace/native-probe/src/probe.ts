@@ -1,4 +1,5 @@
 import { hostname, platform, release, arch } from 'node:os'
+import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import type { Context, Message } from '@deepseek-ai/cordis'
 import Schema from '@deepseek-ai/schemastery'
@@ -35,7 +36,8 @@ export const Config: Schema<Config> = Schema.object({
   captureDispatch: Schema.boolean().default(true),
   captureLogs: Schema.boolean().default(true),
   captureServiceValues: Schema.boolean().default(true),
-  snapshotIntervalMs: Schema.number().min(0).max(3_600_000).default(10_000),
+  // Event-driven snapshots are sufficient for evaluation; periodic sampling is opt-in.
+  snapshotIntervalMs: Schema.number().min(0).max(3_600_000).default(0),
   maxDepth: Schema.number().min(2).max(50).default(12),
   maxBreadth: Schema.number().min(10).max(100_000).default(500),
   maxStringLength: Schema.number().min(256).max(50_000_000).default(2_000_000),
@@ -89,7 +91,7 @@ function effectiveConfig(input: Config): ProbeConfig {
     captureDispatch: input.captureDispatch ?? true,
     captureLogs: input.captureLogs ?? true,
     captureServiceValues: input.captureServiceValues ?? true,
-    snapshotIntervalMs: input.snapshotIntervalMs ?? 10_000,
+    snapshotIntervalMs: input.snapshotIntervalMs ?? 0,
     maxDepth: input.maxDepth ?? 12,
     maxBreadth: input.maxBreadth ?? 500,
     maxStringLength: input.maxStringLength ?? 2_000_000,
@@ -128,11 +130,11 @@ export async function apply(ctx: Context, rawConfig: Config = {}): Promise<() =>
     redactKeyPattern: new RegExp(config.redactKeyPattern, 'i'),
   })
   let stopping = false
-  let snapshotTimer: NodeJS.Timeout | undefined
   let debounceTimer: NodeJS.Timeout | undefined
   let snapshotTail = Promise.resolve()
   let bestSnapshotScore = -1
   let snapshotSequence = 0
+  let previousSnapshotDigest: string | undefined
 
   const captureRecord = (
     kind: string,
@@ -161,6 +163,13 @@ export async function apply(ctx: Context, rawConfig: Config = {}): Promise<() =>
       if (stopping && reason !== 'shutdown') return
       try {
         const snapshot = buildRuntimeSnapshot(ctx, snapshotter, reason, config.captureServiceValues)
+        const snapshotDigest = createHash('sha256')
+          .update(JSON.stringify({ ...snapshot, capturedAt: undefined, reason: undefined }))
+          .digest('hex')
+        // A periodic timer is only a liveness fallback. Do not emit an identical
+        // snapshot repeatedly; lifecycle/event-triggered snapshots remain intact.
+        if (reason === 'periodic' && snapshotDigest === previousSnapshotDigest) return
+        previousSnapshotDigest = snapshotDigest
         const score = snapshot.services.filter((service) => service.active).length * 10
           + snapshot.fibers.filter((fiber) => fiber.state === 'ACTIVE').length
           + snapshot.agents.length * 100
@@ -170,7 +179,7 @@ export async function apply(ctx: Context, rawConfig: Config = {}): Promise<() =>
           await writer.writeJson('runtime-catalog.json', buildRuntimeCatalog(snapshot))
           await writer.writeJson('integration-map.json', buildIntegrationMap(snapshot))
         }
-        const retainFull = reason === 'startup' || reason === 'periodic' || reason === 'shutdown'
+        const retainFull = reason === 'startup' || reason === 'shutdown'
         if (retainFull) {
           const filename = `${String(++snapshotSequence).padStart(5, '0')}-${reason}.json`
           await writer.writeJson(`runtime-snapshots/${filename}`, snapshot as unknown as JsonValue)
@@ -399,16 +408,14 @@ export async function apply(ctx: Context, rawConfig: Config = {}): Promise<() =>
     captureRecord('capture.error', REFLECTION_SOURCE, { operation: 'session-adoption-sweep', error })
   }
 
+  // Snapshots are event-driven (plus startup/shutdown). Do not sample on a
+  // wall-clock interval: periodic snapshots duplicate unchanged state and
+  // inflate the trace without adding evidence.
   await captureSnapshot('startup')
-  if (config.snapshotIntervalMs > 0) {
-    snapshotTimer = setInterval(() => void captureSnapshot('periodic'), config.snapshotIntervalMs)
-    snapshotTimer.unref()
-  }
 
   return async () => {
     if (stopping) return
     stopping = true
-    if (snapshotTimer) clearInterval(snapshotTimer)
     if (debounceTimer) clearTimeout(debounceTimer)
     stopping = false
     await captureSnapshot('shutdown')

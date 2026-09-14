@@ -1,5 +1,7 @@
+import { renderRunReport } from "../reporting/batch-html.js";
+import { aggregateScores } from "../evaluation/scoring.js";
 /**
- * 文件职责：把一次统一 Planner 结果展开为最多三个并发 Case，并复用单 Case Workflow。
+ * 文件职责：把一次统一 Planner 结果展开为互不重复的 Case，并复用单 Case Workflow。
  * Planner 只执行一次；每个 Case 启动新的 Headless 会话并发布到同一父 Run 目录。
  */
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
@@ -11,6 +13,7 @@ import {
   type DatasetId,
 } from "../core/models.js";
 import type { DatasetSelectionPlan } from "../planning/planner.js";
+import { resolveExplicitCase } from "../datasets/case-selection.js";
 import {
   runEvaluationWorkflow,
   type RunWorkflowInput,
@@ -32,7 +35,7 @@ export interface BatchCaseSummary {
   readonly caseIndex: number;
   readonly executionRunId: string;
   readonly status: WorkflowSummary["status"];
-  readonly gate?: WorkflowSummary["gate"];
+  readonly scores: NonNullable<WorkflowSummary["scores"]>;
   readonly exitCode: WorkflowSummary["exitCode"];
   readonly operationalHealth?: WorkflowSummary["operationalHealth"];
   readonly failureGroups: WorkflowSummary["failureGroups"];
@@ -43,13 +46,13 @@ export interface BatchCaseSummary {
 }
 
 export interface BatchWorkflowSummary extends WorkflowSummary {
-  readonly caseConcurrency: 3;
+  readonly caseConcurrency: 1;
   readonly caseResults: readonly BatchCaseSummary[];
   readonly runSummaryPath?: string;
 }
 
-/** 单台 VMmac 的固定 MVP 并发上限。 */
-const CASE_CONCURRENCY = 3 as const;
+/** 当前 MVP 串行执行，确保每个 Case 的 Session 和资源占用容易观测。 */
+const CASE_CONCURRENCY = 1 as const;
 
 function selectionFromSummary(summary: WorkflowSummary): DatasetSelectionPlan {
   if (
@@ -89,7 +92,7 @@ function selectionFromSummary(summary: WorkflowSummary): DatasetSelectionPlan {
 }
 
 function datasetSlug(datasetId: DatasetId): string {
-  return String(datasetId).replace(/^dataset\./u, "").replace(/\/v1$/u, "");
+  return String(datasetId).replace(/^dataset\./u, "").replace(/\/v[1-9][0-9]*$/u, "");
 }
 
 function caseQueue(selection: DatasetSelectionPlan): Array<{
@@ -110,25 +113,23 @@ function caseQueue(selection: DatasetSelectionPlan): Array<{
   return queue;
 }
 
-function aggregateGate(results: readonly BatchCaseSummary[]): WorkflowSummary["gate"] | undefined {
-  const gates = results.map((result) => result.gate).filter(
-    (gate): gate is NonNullable<WorkflowSummary["gate"]> => gate !== undefined,
-  );
-  if (gates.includes("FAIL")) return "FAIL";
-  if (gates.includes("UNEVALUABLE")) return "UNEVALUABLE";
-  return gates.length === results.length && gates.length > 0 ? "PASS" : undefined;
-}
-
-async function commitRunSummary(summary: BatchWorkflowSummary): Promise<string | undefined> {
+async function commitRunSummary(summary: BatchWorkflowSummary): Promise<{
+  readonly summaryPath: string;
+  readonly reportHtmlPath: string;
+} | undefined> {
   const bundle = summary.caseResults.find((result) => result.caseBundlePath !== undefined)?.caseBundlePath;
   if (bundle === undefined) return undefined;
   const runDirectory = path.dirname(path.dirname(bundle));
   const destination = path.join(runDirectory, "run.json");
   const temporary = `${destination}.tmp`;
+  const reportHtmlPath = path.join(runDirectory, "report.html");
+  const reportTemporary = `${reportHtmlPath}.tmp`;
   await mkdir(runDirectory, { recursive: true, mode: 0o700 });
   await writeFile(temporary, `${JSON.stringify(summary, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  await writeFile(reportTemporary, renderRunReport(summary), { flag: "wx", mode: 0o600 });
   await rename(temporary, destination);
-  return destination;
+  await rename(reportTemporary, reportHtmlPath);
+  return { summaryPath: destination, reportHtmlPath };
 }
 
 /** 真实 run 的批量入口；Fixture、inspect 和 plan 仍直接调用单 Workflow。 */
@@ -144,8 +145,18 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
   const parentRunId = validateStableId(workflowInput.runId ?? `batch-${Date.now()}`, "runId");
   const transientRoot = path.join(workflowInput.cwd, "var", "batch-runtime", parentRunId);
   const planningRoot = path.join(transientRoot, "planning");
+  const explicit = selectedCaseId === undefined ? undefined : await resolveExplicitCase({
+    ...workflowInput, selector: selectedCaseId,
+  });
+  if (explicit !== undefined) {
+    onProgress?.(`explicit case: ${explicit.item.caseId} -> ${explicit.questionPath} (model selection skipped)`);
+  }
   const planning = await workflowRunner({
     ...workflowInput,
+    ...(explicit === undefined ? {} : {
+      precomputedDatasetSelection: explicit.selection,
+      executionCase: { ...explicit.item, resultRunId: parentRunId, resultCaseId: explicit.item.caseId },
+    }),
     configOverrides: {
       ...workflowInput.configOverrides,
       runRoot: path.join(planningRoot, "records"),
@@ -165,13 +176,8 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
     });
   }
 
-  const selection = selectionFromSummary(planning);
-  let queue = caseQueue(selection);
-  if (selectedCaseId !== undefined) {
-    const requested = validateStableId(selectedCaseId, "selectedCaseId");
-    queue = queue.filter((item) => item.caseId === requested);
-    if (queue.length === 0) throw new Error("--case does not match the frozen Planner result");
-  }
+  const selection = explicit?.selection ?? selectionFromSummary(planning);
+  let queue = explicit === undefined ? caseQueue(selection) : [explicit.item];
   const limit = stopAfterCase === true ? 1 : maxCases;
   if (limit !== undefined) queue = queue.slice(0, limit);
 
@@ -214,13 +220,15 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
         caseIndex: item.caseIndex,
         executionRunId,
         status: result.status,
-        ...(result.gate === undefined ? {} : { gate: result.gate }),
+        scores: result.scores ?? [],
         exitCode: result.exitCode,
         ...(result.operationalHealth === undefined ? {} : { operationalHealth: result.operationalHealth }),
         failureGroups: result.failureGroups,
         reasonCodes: result.reasonCodes,
         ...(result.caseBundlePath === undefined ? {} : { caseBundlePath: result.caseBundlePath }),
-        ...(result.reportHtml === undefined ? {} : { reportHtml: result.reportHtml }),
+        ...(result.caseBundlePath === undefined && result.reportHtml === undefined
+          ? {}
+          : { reportHtml: result.caseBundlePath === undefined ? result.reportHtml! : path.join(result.caseBundlePath, "report.html") }),
         dshSessionIds: Object.freeze(result.dshSessionIds ?? []),
       }) satisfies BatchCaseSummary;
     }));
@@ -228,11 +236,12 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
     if (completed.some((result) => result.status !== "COMPLETED" || result.operationalHealth === "FAILED")) break;
   }
 
-  const gate = aggregateGate(caseResults);
+  const scores=caseResults.flatMap(result=>result.scores);
+  const dimensions=aggregateScores(scores);
   const cancelled = workflowInput.signal?.aborted === true || caseResults.some((item) => item.status === "CANCELLED");
   const planUnsatisfiable = caseResults.some((item) => item.status === "PLAN_UNSATISFIABLE");
-  const failed = caseResults.some((item) => item.status === "FAILED" || item.operationalHealth === "FAILED");
-  const exitCode: WorkflowSummary["exitCode"] = cancelled ? 130 : planUnsatisfiable ? 2 : failed ? 4 : gate === "FAIL" ? 1 : gate === "UNEVALUABLE" ? 3 : 0;
+  const failed = caseResults.some((item) => item.status === "FAILED" || item.operationalHealth === "FAILED" || item.exitCode === 4);
+  const exitCode: WorkflowSummary["exitCode"] = cancelled ? 130 : planUnsatisfiable ? 2 : failed ? 4 : 0;
   const status: WorkflowSummary["status"] = cancelled ? "CANCELLED" : planUnsatisfiable ? "PLAN_UNSATISFIABLE" : failed ? "FAILED" : "COMPLETED";
   const firstBundle = caseResults.find((item) => item.caseBundlePath !== undefined)?.caseBundlePath;
   const summary: BatchWorkflowSummary = Object.freeze({
@@ -240,7 +249,7 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
     command: "run" as const,
     status,
     runId: parentRunId,
-    ...(gate === undefined ? {} : { gate }),
+    scores, dimensions,
     operationalHealth: failed ? "FAILED" : "HEALTHY",
     securityIsolation: "SESSION_SEPARATED" as const,
     caseConcurrency: CASE_CONCURRENCY,
@@ -250,7 +259,14 @@ export async function runEvaluationBatch(input: BatchRunWorkflowInput): Promise<
     exitCode,
     caseResults: Object.freeze(caseResults),
   });
-  const runSummaryPath = await commitRunSummary(summary);
-  await rm(transientRoot, { recursive: true, force: true });
-  return runSummaryPath === undefined ? summary : Object.freeze({ ...summary, runSummaryPath });
+  const committedRun = await commitRunSummary(summary);
+  // Preserve the transient tree so Probe, stdout/stderr, and execution records
+  // remain available even when Judge or report delivery fails.
+  return committedRun === undefined
+    ? summary
+    : Object.freeze({
+        ...summary,
+        reportHtml: committedRun.reportHtmlPath,
+        runSummaryPath: committedRun.summaryPath,
+      });
 }
