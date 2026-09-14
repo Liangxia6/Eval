@@ -1,0 +1,1 @@
+问题：比较 River Thames 和 River Severn，哪条河更长？请输出 output/answer.json，格式为 {"answer": "...", "supporting_facts": [["段落ID","事实"]]}。

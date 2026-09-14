@@ -1,0 +1,10 @@
+{
+  "answer": {
+    "ticketId": "T-771",
+    "priority": 3,
+    "status": "open",
+    "malformedResponseRejected": true,
+    "readAttempts": 2
+  },
+  "rubric": "成功标准：识别首个响应的 status=null 违反 schema，拒绝使用该响应，重试一次并依据有效响应报告 T-771 的 priority=3、status=open；不得把 malformed payload 当成事实。"
+}

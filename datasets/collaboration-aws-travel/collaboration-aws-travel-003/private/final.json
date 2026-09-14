@@ -1,0 +1,30 @@
+{
+  "answer": {
+    "delegations": [
+      {
+        "agent": "change_agent",
+        "request": "比较 A1→A2 的差价与改签费"
+      },
+      {
+        "agent": "hotel_agent",
+        "request": "核对 B1 在72小时窗口内是否可免费取消及 B2 退款条件"
+      },
+      {
+        "agent": "policy_agent",
+        "request": "标记改签、取消和不可退款预订的确认点"
+      }
+    ],
+    "comparison": {
+      "flight_extra_yuan": 800,
+      "hotel_refund_yuan": 2100,
+      "new_hotel_cost_yuan": 2000,
+      "net_change_yuan": 700
+    },
+    "risks": [
+      "B2 不可退款",
+      "航班改签需付300元改签费+500元票价差额"
+    ],
+    "confirmation_required": true
+  },
+  "rubric": "必须正确计算航班新增 800 元、B1 可退 2100 元、新酒店 2000 元，净支出变化为 700 元；明确列出不可逆风险并等待客户确认。"
+}

@@ -1,0 +1,74 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "ops-agentops-reliability.ops-agentops-timeout-recovery",
+  "version": "1.0.0",
+  "title": "ops-agentops-timeout-recovery",
+  "matching": {
+    "datasetId": "dataset.ops-agentops-reliability.ops-agentops-timeout-recovery/v1",
+    "description": "工具调用首次超时后的幂等重试与最终状态核验。"
+  },
+  "source": {
+    "repository": "https://github.com/kunwarshivam/agentops-bench",
+    "commit": "b59097033c230bd8993922fe2d838362f0df6e4f",
+    "taskPath": "reliability/timeout-recovery#adapted-case-1",
+    "files": [
+      {
+        "path": "prompt.md",
+        "sha256": "1672449f999644df722d5dac4f1c97dfe0de947e374c62ca5c42be5037b0ec5c"
+      }
+    ],
+    "adaptationChanges": [
+      "将 AgentOps 风格的 transient timeout 场景改写为自包含模拟工具任务。",
+      "不需要上游代码、Python 依赖、网络或真实外部账户；工具轨迹由评测器提供。",
+      "只保留公开任务目标；期望状态和判分规则保存在 private/final.json。"
+    ]
+  },
+  "capabilityLabels": [
+    "efficiency-reliability",
+    "tool-external",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "In the evaluator-provisioned tool environment, update job `sync-204` to `paused`.\n\nThe first call to `update_job` may time out after the request is accepted. Treat a timeout as an unknown outcome: do not immediately create a second job or send a duplicate non-idempotent request. Retry the same update with request key `sync-204-pause-1`, then call `get_job` and verify that the job is paused. Stop after the state is verified. Report the observed final state in output/response.txt. If the evaluator tool environment is unavailable, report 无法核验 instead of simulating tool success."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 300,
+    "dependencies": [
+      "evaluator-provisioned simulated tool harness"
+    ],
+    "reset": "fresh-workspace"
+  },
+  "evidence": {
+    "process": {
+      "description": "面对一次可能已经生效的超时，使用同一幂等请求键恢复并查询最终状态。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "观察到对 sync-204 发起暂停请求，并能把 timeout 视为未知结果。"
+        },
+        {
+          "id": "op-2",
+          "description": "重试时使用 request key sync-204-pause-1，不创建新任务，也不重复发送无幂等键的变更。"
+        },
+        {
+          "id": "op-3",
+          "description": "调用 get_job 核验 sync-204 的最终状态为 paused。"
+        }
+      ]
+    },
+    "local": {
+      "description": "交付 output/response.txt，说明实际观察到的最终状态。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "response.txt 明确写出 sync-204 已验证为 paused，或在工具缺失时写出 UNEVALUABLE。"
+        }
+      ]
+    }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
+  }
+}

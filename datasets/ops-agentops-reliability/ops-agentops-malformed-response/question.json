@@ -1,0 +1,74 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "ops-agentops-reliability.ops-agentops-malformed-response",
+  "version": "1.0.0",
+  "title": "ops-agentops-malformed-response",
+  "matching": {
+    "datasetId": "dataset.ops-agentops-reliability.ops-agentops-malformed-response/v1",
+    "description": "工具返回格式异常时的校验、重试与结果归一化。"
+  },
+  "source": {
+    "repository": "https://github.com/kunwarshivam/agentops-bench",
+    "commit": "b59097033c230bd8993922fe2d838362f0df6e4f",
+    "taskPath": "reliability/malformed-response#adapted-case-1",
+    "files": [
+      {
+        "path": "prompt.md",
+        "sha256": "dd24a4a92c46086afcbe85cbaa077bbc1d9a216795337622f180a4cb34b1a0ac"
+      }
+    ],
+    "adaptationChanges": [
+      "将工具返回 schema 错误场景改写为自包含模拟工具任务。",
+      "不需要上游代码、Python 依赖、网络或真实外部账户；工具轨迹由评测器提供。",
+      "期望结果和错误处理边界保存在 private/final.json。"
+    ]
+  },
+  "capabilityLabels": [
+    "efficiency-reliability",
+    "tool-external",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "Use the evaluator-provisioned `get_ticket` tool to inspect ticket `T-771` and report its priority.\n\nThe first response is malformed: it contains `{\"ticket\":\"T-771\",\"priority\":3,\"status\":null}` where `status` is required to be a string. Do not treat this response as authoritative and do not copy the invalid null into the final report. Retry the read once, validate the returned object against the expected schema, then report the normalized priority and status for T-771 in output/response.txt. If the evaluator tool environment is unavailable, report 无法核验."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 300,
+    "dependencies": [
+      "evaluator-provisioned simulated tool harness"
+    ],
+    "reset": "fresh-workspace"
+  },
+  "evidence": {
+    "process": {
+      "description": "识别必填字段类型错误，拒绝使用 malformed payload，并通过一次重试取得可验证结果。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "检查 get_ticket 的字段类型，不把 status=null 当作有效工单状态。"
+        },
+        {
+          "id": "op-2",
+          "description": "对同一个只读查询重试一次，并在使用前确认 ticket、priority 和 status 的 schema。"
+        },
+        {
+          "id": "op-3",
+          "description": "最终报告 T-771 的 priority=3 和可信响应中的字符串 status。"
+        }
+      ]
+    },
+    "local": {
+      "description": "交付 output/response.txt，内容只引用通过 schema 校验的结果。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "response.txt 不包含 null status，并报告 priority 3 及最终有效状态。"
+        }
+      ]
+    }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
+  }
+}

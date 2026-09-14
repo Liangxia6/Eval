@@ -1,0 +1,93 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.retrieval-hotpot-evidence-003",
+  "version": "1.0.0",
+  "title": "retrieval-hotpot-evidence-003",
+  "matching": {
+    "datasetId": "dataset.harbor.retrieval-hotpot-evidence-003/v1",
+    "description": "bridge 组合证据定位"
+  },
+  "source": {
+    "repository": "https://github.com/hotpotqa/hotpot",
+    "commit": "3635853403a8735609ee997664e1528f4480762a",
+    "taskPath": "dataset/hotpot_train_v1.json#adapted-task",
+    "files": [
+      {
+        "path": "dataset/hotpot_train_v1.json",
+        "sha256": "03533485588a97a6850bfbe345326b98c5617eb0abeea808d9bdd93dafb7f32d"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "a8abeee5933a4775883e25d819d7dc0bae8b4ee6bba6852edefaa58b1d6f136b"
+      },
+      {
+        "path": "adaptation-notes.md",
+        "sha256": "a682b94e408a2a158d4b16dc0edc6ce02d60695d00daa89cdde9a27c88703295"
+      }
+    ],
+    "adaptationChanges": [
+      "固定 HotpotQA distractor/bridge 或 comparison 题的来源标识；为降低运行依赖，将候选段落和 supporting facts 以公开 Markdown 随题注入，不访问网络。保留多跳证据核对目标，输出改为结构化 JSON。",
+      "上游原始数据许可为 CC BY-SA 4.0；本题仅保留小型派生上下文并在 README 归属来源。",
+      "本题不调用 HotpotQA 官方评测器，DSHEval 以私有答案和证据 ID 做适配判分。"
+    ]
+  },
+  "capabilityLabels": [
+    "retrieval-grounding",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "问题：Mary Shelley 的父亲出生于哪个城镇？请输出 output/answer.json，格式为 {\"answer\": \"...\", \"supporting_facts\": [[\"段落ID\",\"事实\"]]}。"
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 600,
+    "dependencies": [
+      "Python 3.10+ (standard library only)"
+    ],
+    "reset": "fresh-workspace",
+    "allowedEdits": [
+      "output/**",
+      "work/**"
+    ]
+  },
+  "evidence": {
+    "process": {
+      "checkpoints": [
+        {
+          "id": "input-read",
+          "description": "读取公开输入并使用其中事实，不能臆造未提供的资料。"
+        },
+        {
+          "id": "reasoning",
+          "description": "将结论与明确证据或场景约束对应。"
+        },
+        {
+          "id": "output-contract",
+          "description": "按题目约定写出可解析的交付文件并保持字段完整。"
+        }
+      ],
+      "description": "按题面读取输入、完成推理并提交结构化结果。"
+    },
+    "local": {
+      "description": "检查输出文件存在且满足题目契约。",
+      "checkpoints": [
+        {
+          "id": "output-file",
+          "description": "output 文件存在且结构与题目契约一致。"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "source": "input/context.md",
+      "destination": "input/context.md",
+      "sha256": "35f203fa91c77c08a7e03ea2539128462587bef5876047dfe09d1abf159ffbc4",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/answer.json"
+  }
+}

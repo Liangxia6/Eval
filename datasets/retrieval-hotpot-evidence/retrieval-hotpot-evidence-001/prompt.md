@@ -1,0 +1,1 @@
+问题：根据给定段落，Ada Lovelace 所写笔记涉及的机器，其设计者所设计的机器在伦敦哪家博物馆有展览？请输出 output/answer.json，格式为 {"answer": "...", "supporting_facts": [["段落ID","实体或关系"]]}。只能使用 input/context.md。

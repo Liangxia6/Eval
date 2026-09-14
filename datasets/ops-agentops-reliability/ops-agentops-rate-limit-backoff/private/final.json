@@ -1,0 +1,11 @@
+{
+  "answer": {
+    "reportId": "R-48",
+    "exportId": "exp-884",
+    "status": "ready",
+    "requestKey": "R-48-export-1",
+    "recordCount": 1,
+    "retryAfterSecondsObserved": 2
+  },
+  "rubric": "成功标准：收到 429 后遵守 Retry-After=2，使用同一幂等键完成一次导出，调用 get_export 核验 R-48 对应 exp-884 为 ready 且没有重复记录；不能用新幂等键绕过限流。"
+}

@@ -1,0 +1,11 @@
+{
+  "answer": {
+    "finalState": {
+      "jobId": "sync-204",
+      "status": "paused"
+    },
+    "requestKey": "sync-204-pause-1",
+    "duplicateJobCreated": false
+  },
+  "rubric": "成功标准：工具首次超时后将结果视为未知，使用同一 request key 幂等恢复，查询并验证 sync-204 的状态为 paused；不得创建重复任务或凭自述声称成功。工具环境缺失时只能报告 UNEVALUABLE。"
+}

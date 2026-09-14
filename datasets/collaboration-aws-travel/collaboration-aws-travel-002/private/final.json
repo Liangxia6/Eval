@@ -1,0 +1,52 @@
+{
+  "answer": {
+    "delegations": [
+      {
+        "agent": "flight_agent",
+        "request": "确认北京-大阪往返日期与行李条件"
+      },
+      {
+        "agent": "osaka_hotel_agent",
+        "request": "核对 O1 靠近难波且覆盖3晚"
+      },
+      {
+        "agent": "kyoto_hotel_agent",
+        "request": "核对 K1 可步行到京都站且覆盖2晚"
+      },
+      {
+        "agent": "itinerary_agent",
+        "request": "合并航班、酒店、城际交通并检查预算"
+      }
+    ],
+    "itinerary": [
+      {
+        "segment": "北京→大阪",
+        "item": "R1",
+        "nights": 0
+      },
+      {
+        "segment": "大阪",
+        "item": "O1",
+        "nights": 3
+      },
+      {
+        "segment": "大阪→京都",
+        "item": "城际交通",
+        "nights": 0
+      },
+      {
+        "segment": "京都",
+        "item": "K1",
+        "nights": 2
+      },
+      {
+        "segment": "京都→北京",
+        "item": "R1",
+        "nights": 0
+      }
+    ],
+    "total_yuan": 9300,
+    "confirmation_required": true
+  },
+  "rubric": "必须包含四个角色及其依赖顺序；总价为 3200+2700+2400+800+200=9300；不能在未确认时执行支付。"
+}

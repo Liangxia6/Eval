@@ -1,0 +1,20 @@
+{
+  "answer": {
+    "answer": "Science Museum",
+    "supporting_facts": [
+      [
+        "p1",
+        "Analytical Engine"
+      ],
+      [
+        "p2",
+        "designed by Charles Babbage"
+      ],
+      [
+        "p4",
+        "exhibit about Analytical Engine"
+      ]
+    ]
+  },
+  "rubric": "答案必须为 Science Museum，且 supporting_facts 至少包含 p1、p2、p4；不得把 Louvre 或 South Kensington 当作博物馆名称。"
+}

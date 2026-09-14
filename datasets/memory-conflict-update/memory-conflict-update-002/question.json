@@ -1,0 +1,84 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.memory-conflict-update-002",
+  "version": "1.0.0",
+  "title": "memory-conflict-update-002",
+  "matching": {
+    "datasetId": "dataset.harbor.memory-conflict-update-002/v1",
+    "description": "MemoryAgentBench Conflict Resolution：fact-mh"
+  },
+  "source": {
+    "repository": "https://github.com/HUST-AI-HYZ/MemoryAgentBench",
+    "commit": "fe1735de8cf8b9908e1e3d3b5612afc815698062",
+    "taskPath": "adapted/memory-conflict-update/002",
+    "files": [
+      {
+        "path": "adapted/context.md",
+        "sha256": "f31de936de4d75463785da8964e1ea229b1c9481a1dc35e3071696cfcc7267d7"
+      }
+    ],
+    "adaptationChanges": [
+      "将小型公开来源样本压缩为自包含上下文，保留记忆检索、冲突更新、时间判断或偏好回忆目标。",
+      "不需要联网或外部工具；DSHEval 使用私有答案和证据字段评分。"
+    ]
+  },
+  "capabilityLabels": [
+    "memory",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "套餐的月度上限是多少？\n\n只能使用 input/context.md。输出 output/answer.json，格式为 {\"answer\":\"...\", \"evidence\":[\"...\", \"...\"]}。"
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 300,
+    "dependencies": [
+      "Python 3.10+ (standard library only)"
+    ],
+    "reset": "fresh-workspace",
+    "allowedEdits": [
+      "output/**",
+      "work/**"
+    ]
+  },
+  "evidence": {
+    "process": {
+      "checkpoints": [
+        {
+          "id": "read-context",
+          "description": "读取记忆上下文并定位相关记录。"
+        },
+        {
+          "id": "resolve",
+          "description": "处理时间顺序或新旧记录关系，避免混用过期事实。"
+        },
+        {
+          "id": "output-contract",
+          "description": "按约定写出答案和证据字段。"
+        }
+      ],
+      "description": "读取记忆上下文，按任务要求处理事实、时间顺序或偏好约束，并给出证据。"
+    },
+    "local": {
+      "description": "检查结构化答案文件存在且包含答案与证据。",
+      "checkpoints": [
+        {
+          "id": "output-file",
+          "description": "output/answer.json 存在且可解析。"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "source": "input/context.md",
+      "destination": "input/context.md",
+      "sha256": "f31de936de4d75463785da8964e1ea229b1c9481a1dc35e3071696cfcc7267d7",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/answer.json"
+  }
+}

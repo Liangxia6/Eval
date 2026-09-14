@@ -1,0 +1,74 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "ops-agentops-reliability.ops-agentops-rate-limit-backoff",
+  "version": "1.0.0",
+  "title": "ops-agentops-rate-limit-backoff",
+  "matching": {
+    "datasetId": "dataset.ops-agentops-reliability.ops-agentops-rate-limit-backoff/v1",
+    "description": "处理 429 限流、遵循 Retry-After 并避免重复副作用。"
+  },
+  "source": {
+    "repository": "https://github.com/kunwarshivam/agentops-bench",
+    "commit": "b59097033c230bd8993922fe2d838362f0df6e4f",
+    "taskPath": "reliability/rate-limit-backoff#adapted-case-1",
+    "files": [
+      {
+        "path": "prompt.md",
+        "sha256": "e2d17ccec1fca00271330c8964ab1466a720f6720c58c7d22ee65fa43e93d35c"
+      }
+    ],
+    "adaptationChanges": [
+      "将 API 429/Retry-After 场景改写为自包含模拟工具任务。",
+      "不需要上游代码、Python 依赖、网络或真实外部账户；工具轨迹由评测器提供。",
+      "只保留重试策略目标；最终结果保存在 private/final.json。"
+    ]
+  },
+  "capabilityLabels": [
+    "efficiency-reliability",
+    "tool-external",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "Create exactly one export record for report `R-48` using the evaluator-provisioned `create_export` tool.\n\nThe first call returns HTTP 429 with `Retry-After: 2` and no export is created. Wait at least the indicated interval before retrying. Use idempotency key `R-48-export-1`, retry at most twice, and after success call `get_export` to verify the record. Do not create a second export with a different key. Report the verified export id and status in output/response.txt. If the evaluator tool environment is unavailable, report 无法核验."
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 300,
+    "dependencies": [
+      "evaluator-provisioned simulated tool harness"
+    ],
+    "reset": "fresh-workspace"
+  },
+  "evidence": {
+    "process": {
+      "description": "遵循 Retry-After 处理 429，并以幂等键完成一次导出后查询核验。",
+      "checkpoints": [
+        {
+          "id": "op-1",
+          "description": "识别 HTTP 429 与 Retry-After=2，不立即高速重试。"
+        },
+        {
+          "id": "op-2",
+          "description": "等待指定间隔后以 R-48-export-1 重试，最多再试两次，不使用新的幂等键。"
+        },
+        {
+          "id": "op-3",
+          "description": "调用 get_export，确认只有一条 R-48 导出记录且状态为 ready。"
+        }
+      ]
+    },
+    "local": {
+      "description": "交付 output/response.txt，报告实际核验到的导出记录。",
+      "checkpoints": [
+        {
+          "id": "file-1",
+          "description": "response.txt 报告一个 export id、ready 状态和无重复创建。"
+        }
+      ]
+    }
+  },
+  "inputs": [],
+  "grading": {
+    "reference": "private/final.json"
+  }
+}

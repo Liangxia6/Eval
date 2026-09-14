@@ -1,0 +1,1 @@
+问题：Mary Shelley 的父亲出生于哪个城镇？请输出 output/answer.json，格式为 {"answer": "...", "supporting_facts": [["段落ID","事实"]]}。

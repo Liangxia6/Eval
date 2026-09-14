@@ -1,0 +1,26 @@
+{
+  "answer": {
+    "delegations": [
+      {
+        "agent": "flight_agent",
+        "request": "比较 F1/F2 并核对上午出发偏好"
+      },
+      {
+        "agent": "hotel_agent",
+        "request": "比较 H1/H2 并核对早餐、距离和3晚总价"
+      },
+      {
+        "agent": "budget_agent",
+        "request": "核算航班+酒店+税费是否不超过8000"
+      }
+    ],
+    "recommended_option": {
+      "flight": "F1",
+      "hotel": "H1",
+      "total_yuan": 7600,
+      "reason": "上午直飞且含早餐、靠近东京站"
+    },
+    "confirmation_required": true
+  },
+  "rubric": "必须体现三个角色的分工与结果汇总；推荐 F1+H1，总价为 2800+4500+300=7600；必须保留最终客户确认，不能声称已预订。"
+}

@@ -1,0 +1,84 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.memory-temporal-reasoning-001",
+  "version": "1.0.0",
+  "title": "memory-temporal-reasoning-001",
+  "matching": {
+    "datasetId": "dataset.harbor.memory-temporal-reasoning-001/v1",
+    "description": "LongMemEval temporal reasoning：temporal-reasoning"
+  },
+  "source": {
+    "repository": "https://github.com/xiaowu0162/LongMemEval",
+    "commit": "9e0b455f4ef0e2ab8f2e582289761153549043fc",
+    "taskPath": "adapted/memory-temporal-reasoning/001",
+    "files": [
+      {
+        "path": "adapted/context.md",
+        "sha256": "739c547ba57b57266326466f50fa322df00c225469bb2255d2e6742cdbf4ab05"
+      }
+    ],
+    "adaptationChanges": [
+      "将小型公开来源样本压缩为自包含上下文，保留记忆检索、冲突更新、时间判断或偏好回忆目标。",
+      "不需要联网或外部工具；DSHEval 使用私有答案和证据字段评分。"
+    ]
+  },
+  "capabilityLabels": [
+    "memory",
+    "reasoning-planning"
+  ],
+  "task": {
+    "instructions": "在 2025-04-10 之后、2025-05-01 之前，哪一项仍然有效？\n\n只能使用 input/context.md。输出 output/answer.json，格式为 {\"answer\":\"...\", \"evidence\":[\"...\", \"...\"]}。"
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 300,
+    "dependencies": [
+      "Python 3.10+ (standard library only)"
+    ],
+    "reset": "fresh-workspace",
+    "allowedEdits": [
+      "output/**",
+      "work/**"
+    ]
+  },
+  "evidence": {
+    "process": {
+      "checkpoints": [
+        {
+          "id": "read-context",
+          "description": "读取记忆上下文并定位相关记录。"
+        },
+        {
+          "id": "resolve",
+          "description": "处理时间顺序或新旧记录关系，避免混用过期事实。"
+        },
+        {
+          "id": "output-contract",
+          "description": "按约定写出答案和证据字段。"
+        }
+      ],
+      "description": "读取记忆上下文，按任务要求处理事实、时间顺序或偏好约束，并给出证据。"
+    },
+    "local": {
+      "description": "检查结构化答案文件存在且包含答案与证据。",
+      "checkpoints": [
+        {
+          "id": "output-file",
+          "description": "output/answer.json 存在且可解析。"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "source": "input/context.md",
+      "destination": "input/context.md",
+      "sha256": "739c547ba57b57266326466f50fa322df00c225469bb2255d2e6742cdbf4ab05",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/answer.json"
+  }
+}

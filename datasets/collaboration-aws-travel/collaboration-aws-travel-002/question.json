@@ -1,0 +1,94 @@
+{
+  "schema": "dsheval.question/v1",
+  "id": "harbor.collaboration-aws-travel-002",
+  "version": "1.0.0",
+  "title": "collaboration-aws-travel-002",
+  "matching": {
+    "datasetId": "dataset.harbor.collaboration-aws-travel-002/v1",
+    "description": "多城市行程委派"
+  },
+  "source": {
+    "repository": "https://github.com/aws-samples/multiagent-collab-scenario-benchmark",
+    "commit": "cb82575c0846bb147423bebacc8597bc24196142",
+    "taskPath": "datasets/travel/scenarios_30.json#adapted-scenario",
+    "files": [
+      {
+        "path": "datasets/travel/scenarios_30.json",
+        "sha256": "cda24c5f95165b2eb3d2484ab4b43cfebe2cb696f17dd8216201869a31751bfe"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "97ab5504cc8f2e63850c9fc9c1faa7122771e2c74113fdd577c9dd5328a6d879"
+      },
+      {
+        "path": "adaptation-notes.md",
+        "sha256": "aa5bead6df553cc9954283d168285ecb1ea1e5441ee812453b61976f3dae19e1"
+      }
+    ],
+    "adaptationChanges": [
+      "按 AWS Multi-agent Collaboration Scenario Benchmark 的 travel 场景结构制作本地 dry-run 适配；保留多角色、工具 schema、预算和确认约束，不连接真实航空、酒店或支付系统。",
+      "为满足低依赖快跑要求，场景和工具响应作为公开 JSON/Markdown 输入，Agent 只交付可审阅的协作计划与待确认动作。",
+      "来源代码 MIT-0、场景数据 CC BY 4.0；本题不宣称复现 AWS 原生 LLM judge。"
+    ]
+  },
+  "capabilityLabels": [
+    "collaboration",
+    "reasoning-planning",
+    "tool-external"
+  ],
+  "task": {
+    "instructions": "任务：为四个角色制定委派顺序并汇总行程。输出 output/plan.json，包含 {\"delegations\": [...], \"itinerary\": [...], \"total_yuan\": number, \"confirmation_required\": true}。只做 dry-run，不调用支付工具。"
+  },
+  "environment": {
+    "platform": "portable",
+    "timeoutSeconds": 600,
+    "dependencies": [
+      "Python 3.10+ (standard library only)"
+    ],
+    "reset": "fresh-workspace",
+    "allowedEdits": [
+      "output/**",
+      "work/**"
+    ]
+  },
+  "evidence": {
+    "process": {
+      "checkpoints": [
+        {
+          "id": "input-read",
+          "description": "读取公开输入并使用其中事实，不能臆造未提供的资料。"
+        },
+        {
+          "id": "reasoning",
+          "description": "将结论与明确证据或场景约束对应。"
+        },
+        {
+          "id": "output-contract",
+          "description": "按题目约定写出可解析的交付文件并保持字段完整。"
+        }
+      ],
+      "description": "按题面读取输入、完成推理并提交结构化结果。"
+    },
+    "local": {
+      "description": "检查输出文件存在且满足题目契约。",
+      "checkpoints": [
+        {
+          "id": "output-file",
+          "description": "output 文件存在且结构与题目契约一致。"
+        }
+      ]
+    }
+  },
+  "inputs": [
+    {
+      "source": "input/context.md",
+      "destination": "input/context.md",
+      "sha256": "30de22cc34d3578cd8eb8df707a8431d860f7a94c4dec932a364e16ce0591885",
+      "delivery": "workspace"
+    }
+  ],
+  "grading": {
+    "reference": "private/final.json",
+    "expectedOutputPath": "output/answer.json"
+  }
+}

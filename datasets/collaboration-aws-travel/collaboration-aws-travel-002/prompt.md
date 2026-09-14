@@ -1,0 +1,1 @@
+任务：为四个角色制定委派顺序并汇总行程。输出 output/plan.json，包含 {"delegations": [...], "itinerary": [...], "total_yuan": number, "confirmation_required": true}。只做 dry-run，不调用支付工具。

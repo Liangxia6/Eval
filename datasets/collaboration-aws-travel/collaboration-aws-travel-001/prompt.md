@@ -1,0 +1,1 @@
+任务：模拟 multi-agent 协作。请输出 output/plan.json，包含 {"delegations": [...], "comparison": [...], "recommended_option": {...}, "confirmation_required": true}。不得执行真实预订；推荐必须满足预算并说明取舍。
